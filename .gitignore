@@ -3,8 +3,10 @@ node_modules/
 
 # build output
 release/
-dist/
 out/
+dist/*
+!dist/Reval-Setup-1.1.0.exe
+!dist/SHA256.txt
 
 # electron-builder cache
 .electron-builder/
