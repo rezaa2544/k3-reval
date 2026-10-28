@@ -19,7 +19,7 @@
 
   var CFG = __REVAL_CONFIG__;
   var FLAG = '__revalGate__';
-  if (window[FLAG] && window[FLAG].version === 3) {
+  if (window[FLAG] && window[FLAG].version === 4) {
     window[FLAG].update(CFG);
     return;
   }
@@ -28,6 +28,8 @@
     version: 3,
     cfg: CFG,
     busy: false,
+    openedLogin: false,
+    openedAt: 0,
     attempts: 0,
     lastAttempt: 0,
     banner: null,
@@ -194,6 +196,30 @@
     state.banner = box;
   }
 
+  /* --------------------- open login modal if needed ------------------- */
+
+  function looksLikeLanding() {
+    var body = (document.body && document.body.innerText) || '';
+    // صفحهٔ فرود سایت: تیتر «یادگیری هدفمند» و لینک‌های ورود/ثبت‌نام
+    // فقط فیلدهای «دیده‌شده» مهم‌اند: فرم مخفیِ مودال نباید صفحهٔ فرود را به‌اشتباه «گیت» حساب کند
+    return /یادگیری هدفمند|مسیر مطالعه/.test(body) && passwordInputs().length === 0;
+  }
+
+  function openLoginFlow() {
+    if (state.openedLogin) return;
+    var creds = state.cfg && state.cfg.credentials;
+    if (!creds || !creds.password) return;   // بدون مشخصات، مزاحمت ایجاد نکن
+    var link =
+      document.querySelector('a[href="#login"]') ||
+      document.querySelector('a[href*="#login"]') ||
+      Array.prototype.find.call(document.querySelectorAll('button, a'), function (el) {
+        return /^\s*ورود\s*$/.test((el.innerText || '').trim());
+      });
+    if (!link) return;
+    state.openedLogin = true;
+    try { link.click(); } catch (e) { /* noop */ }
+  }
+
   /* --------------------------- hash cleanup -------------------------- */
 
   function cleanHash() {
@@ -212,8 +238,14 @@
 
     if (!looksLikeGate()) {
       hideBanner();
+      if (looksLikeLanding() && !state.busy && state.openedLogin !== true && Date.now() - state.openedAt > 4000) {
+        state.openedAt = Date.now();
+        openLoginFlow();
+      }
       return;
     }
+    // فرم ورود پیدا شد → از این پس دیگر مودال را باز نکن
+    state.openedLogin = true;
 
     if (state.cfg && state.cfg.credentials && state.cfg.credentials.password) {
       if (state.busy) return;
@@ -244,7 +276,7 @@
   }
 
   window[FLAG] = {
-    version: 3,
+    version: 4,
     update: function (cfg) { state.cfg = cfg; state.attempts = 0; state.lastAttempt = 0; tick(); },
     rescan: function () { state.attempts = 0; state.lastAttempt = 0; tick(); },
   };

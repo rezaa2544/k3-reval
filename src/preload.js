@@ -17,4 +17,8 @@ contextBridge.exposeInMainWorld('revalDesktop', {
   info: () => ipcRenderer.invoke('reval:info'),
   openExternal: (url) => ipcRenderer.invoke('reval:open-external', url),
   openAccount: () => ipcRenderer.invoke('reval:open-account'),
+  openPlanner: () => ipcRenderer.invoke('reval:open-planner'),
+  applyAutoLogin: () => ipcRenderer.invoke('reval:apply-autologin'),
+  goHome: () => ipcRenderer.invoke('reval:go-home'),
+  version: () => ipcRenderer.invoke('reval:version'),
 });

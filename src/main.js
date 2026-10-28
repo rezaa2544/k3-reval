@@ -31,6 +31,7 @@ const ACCOUNT_HTML = path.join(__dirname, 'account.html');
 const SPLASH_HTML = path.join(__dirname, 'splash.html');
 const OFFLINE_HTML = path.join(__dirname, 'offline.html');
 const GATE_SKIP_SRC = path.join(__dirname, 'inject', 'gate-skip.js');
+const TOOLBAR_SRC = path.join(__dirname, 'inject', 'toolbar.js');
 const PLANNER_HTML = path.join(__dirname, 'planner', 'planner.html');
 const PLANNER_PRELOAD = path.join(__dirname, 'planner', 'planner-preload.js');
 const PLANNER_STATE = () => path.join(app.getPath('userData'), 'planner-state.json');
@@ -49,7 +50,7 @@ const CRED_FILE = () => path.join(app.getPath('userData'), 'account.bin');
 /* Window state                                                        */
 /* ------------------------------------------------------------------ */
 
-const defaultState = { width: 1280, height: 820, maximized: false, zoom: 0, onboarded: false };
+const defaultState = { width: 1280, height: 820, maximized: false, zoom: 0, onboarded: false, lastUrl: '', hintShown: false };
 let state = defaultState;
 
 function readState() {
@@ -146,6 +147,64 @@ function applyGateSkip(win) {
   win.webContents.executeJavaScript(gateSkipSource(), true).catch(() => {});
 }
 
+let toolbarTemplate = null;
+function injectToolbar(win) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    const current = win.webContents.getURL() || '';
+    if (/\.html?(\?|$)/.test(current) && current.startsWith('file:')) return; // صفحهٔ آفلاین/داخلی
+    if (toolbarTemplate === null) toolbarTemplate = fs.readFileSync(TOOLBAR_SRC, 'utf8');
+    const src = toolbarTemplate.replace(/__REVAL_VERSION__/g, JSON.stringify(app.getVersion()));
+    win.webContents.executeJavaScript(src, true).catch(() => {});
+  } catch (err) {
+    console.warn('[reval] toolbar inject:', err.message);
+  }
+}
+
+/** آخرین صفحهٔ داخلی را نگه می‌دارد تا اجرای بعدی همان‌جا باز شود (مثلاً داشبورد پس از ورود) */
+function rememberUrl(url) {
+  try {
+    if (!url || url.startsWith('file:') || !isInternalUrl(url)) return;
+    if (/[?&]view=/.test(url) || /#(login|signup)/.test(url) === false) {
+      if (url !== state.lastUrl) writeState({ lastUrl: url });
+    }
+  } catch { /* noop */ }
+}
+
+function showFirstRunHint() {
+  if (state.hintShown) return;
+  writeState({ hintShown: true });
+  setTimeout(() => injectWelcomeBanner(mainWindow), 1500);
+}
+
+/** بنر معرفی (غیرمودال، خودبسته‌شو) — جایگزین دیالوگ مودال که میانبرها را می‌بلعید */
+function injectWelcomeBanner(win) {
+  if (!win || win.isDestroyed()) return;
+  const planShortcut = process.platform === 'darwin' ? '⌘ ⇧ P' : 'Ctrl + Shift + P';
+  const js = `(function(){
+    if (document.getElementById('reval-welcome')) return;
+    if (!document.body) return;
+    var box = document.createElement('div');
+    box.id = 'reval-welcome';
+    box.setAttribute('dir','rtl');
+    box.style.cssText = 'position:fixed;top:14px;inset-inline-start:50%;transform:translateX(-50%);z-index:2147483600;max-width:min(620px,92vw);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;background:#0f172a;color:#e8eefc;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 16px;box-shadow:0 18px 40px rgba(2,8,23,.35);font:13px/1.9 "Segoe UI",Tahoma,sans-serif';
+    var t = document.createElement('span');
+    t.textContent = 'نسخهٔ دسکتاپ روال آماده است — برنامه‌ریزی خودکار: دکمهٔ پایین صفحه یا ${planShortcut}';
+    var b = document.createElement('button');
+    b.textContent = 'باز کردن برنامه‌ریز';
+    b.style.cssText = 'border:0;border-radius:10px;padding:8px 14px;cursor:pointer;font:600 12.5px inherit;background:linear-gradient(135deg,#4f46e5,#0ea5e9);color:#fff';
+    b.onclick = function(){ if (window.revalDesktop) window.revalDesktop.openPlanner(); box.remove(); };
+    var x = document.createElement('button');
+    x.textContent = '\u00d7';
+    x.style.cssText = 'border:0;background:transparent;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1';
+    x.onclick = function(){ box.remove(); };
+    box.appendChild(t); box.appendChild(b); box.appendChild(x);
+    document.body.appendChild(box);
+    setTimeout(function(){ if (box.parentNode) box.remove(); }, 20000);
+  })();`;
+  win.webContents.executeJavaScript(js, true).catch(() => {});
+}
+
 /* ------------------------------------------------------------------ */
 /* Windows                                                             */
 /* ------------------------------------------------------------------ */
@@ -228,9 +287,16 @@ function openPlannerWindow() {
   return plannerWindow;
 }
 
+function startUrl() {
+  if (process.env.REVAL_START_URL) return process.env.REVAL_START_URL;   // تست/دیباگ
+  const last = state.lastUrl;
+  if (last && isInternalUrl(last) && !last.startsWith('file:')) return last;
+  return HOME_URL;
+}
+
 function loadHome(win) {
   if (!win) return;
-  win.loadURL(HOME_URL);
+  win.loadURL(startUrl());
 }
 
 function createMainWindow() {
@@ -240,7 +306,7 @@ function createMainWindow() {
     width: state.width, height: state.height,
     x: state.x, y: state.y,
     minWidth: 940, minHeight: 620,
-    title: APP_NAME,
+    title: APP_NAME + ' ' + app.getVersion(),
     backgroundColor: '#f6f7fb',
     icon: process.platform === 'win32' ? ICON_ICO : ICON_PNG,
     show: false,
@@ -284,10 +350,23 @@ function createMainWindow() {
   mainWindow.webContents.on('did-create-window', (child) => child.removeMenu());
 
   /* --- ورود بدون صفحه‌ی ورود: تزریق در هر بار بارگذاری --- */
-  mainWindow.webContents.on('did-finish-load', () => { closeSplash(); applyGateSkip(mainWindow); });
-  mainWindow.webContents.on('did-navigate', () => applyGateSkip(mainWindow));
-  mainWindow.webContents.on('did-navigate-in-page', () => applyGateSkip(mainWindow));
-  mainWindow.webContents.on('dom-ready', () => applyGateSkip(mainWindow));
+  mainWindow.webContents.on('did-finish-load', () => {
+    closeSplash();
+    applyGateSkip(mainWindow);
+    injectToolbar(mainWindow);
+    showFirstRunHint();
+  });
+  mainWindow.webContents.on('did-navigate', (_e, url) => {
+    rememberUrl(url);
+    applyGateSkip(mainWindow);
+    injectToolbar(mainWindow);
+  });
+  mainWindow.webContents.on('did-navigate-in-page', (_e, url, isMainFrame) => {
+    if (isMainFrame) rememberUrl(url);
+    applyGateSkip(mainWindow);
+    injectToolbar(mainWindow);
+  });
+  mainWindow.webContents.on('dom-ready', () => { applyGateSkip(mainWindow); injectToolbar(mainWindow); });
 
   /* --- offline --- */
   mainWindow.webContents.on('did-fail-load', (e, code, desc, url, isMainFrame) => {
@@ -334,11 +413,28 @@ function buildMenu() {
         { label: 'میزکار روال (داشبورد)', accelerator: 'CmdOrCtrl+H', click: () => mainWindow && loadHome(mainWindow) },
         { label: 'ورود خودکار: اعمال دوباره', accelerator: 'CmdOrCtrl+L', click: () => applyGateSkip(mainWindow) },
         { type: 'separator' },
-        { label: '🧠  مشاور هوشمند (برنامه‌ریزی خودکار)', accelerator: 'CmdOrCtrl+Shift+P', click: () => openPlannerWindow() },
+        { label: 'مشاور هوشمند — برنامه‌ریزی خودکار', accelerator: 'CmdOrCtrl+Shift+P', click: () => openPlannerWindow() },
         { type: 'separator' },
         { label: 'چاپ صفحه', accelerator: 'CmdOrCtrl+P', click: () => mainWindow && mainWindow.webContents.print({}) },
         { type: 'separator' },
         { label: 'خروج', accelerator: 'Alt+F4', role: 'quit' },
+      ],
+    },
+    {
+      label: 'مشاور هوشمند (برنامه‌ریزی خودکار)',
+      submenu: [
+        { label: 'برنامه‌ریزی خودکار…', accelerator: 'CmdOrCtrl+Shift+P', click: () => openPlannerWindow() },
+        { label: 'راهنمای سریع', click: () => dialog.showMessageBox(mainWindow, {
+          type: 'info', title: 'راهنمای مشاور هوشمند',
+          message: 'چطور برنامهٔ خودکار بسازم؟',
+          detail:
+            '۱) در پنجرهٔ برنامه‌ریز: نام، پایه، گروه آزمایشی و تیپ صبح‌زی/شب‌زی را پر کن.\n' +
+            '۲) ساعت‌های آزاد هر روز، ساعت خواب و روز استراحت را بگذار.\n' +
+            '۳) کلاس‌های آنلاین هفتگی (روز + ساعت) و آزمون‌های آزمایشی (تاریخ + درس‌ها) را اضافه کن.\n' +
+            '۴) وضعیت دروس (ضریب، تعداد فصل، تسلط) را وارد کن و «ساخت برنامهٔ من» را بزن.\n\n' +
+            'خروجی: نمای روزانه/هفتگی، Markdown، CSV، تقویم ICS و کپی تسک‌های امروز برای روال.',
+          buttons: ['باشه'], noLink: true,
+        }) },
       ],
     },
     {
@@ -412,7 +508,7 @@ function buildTray() {
       } },
       { label: 'ورود خودکار: اعمال دوباره', click: () => applyGateSkip(mainWindow) },
       { label: 'تنظیمات حساب…', click: () => openAccountWindow() },
-      { label: '🧠 مشاور هوشمند', click: () => openPlannerWindow() },
+      { label: 'مشاور هوشمند (برنامه‌ریزی خودکار)', click: () => openPlannerWindow() },
       { type: 'separator' },
       { label: 'خروج', click: () => { app.isQuitting = true; app.quit(); } },
     ]));
@@ -492,6 +588,10 @@ if (!gotLock) {
 
   /* ---- IPC: حساب کاربری ---- */
   ipcMain.handle('reval:open-account', () => openAccountWindow());
+  ipcMain.handle('reval:open-planner', () => openPlannerWindow());
+  ipcMain.handle('reval:apply-autologin', () => { applyGateSkip(mainWindow); return { ok: true }; });
+  ipcMain.handle('reval:go-home', () => { if (mainWindow) mainWindow.loadURL(HOME_URL); return { ok: true }; });
+  ipcMain.handle('reval:version', () => app.getVersion());
 
   ipcMain.handle('account:get', () => {
     const acc = readAccount();

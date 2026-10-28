@@ -1,8 +1,8 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "1.3.0",
-  "description": "Reval desktop + Smart Planner (classes & exams aware)",
+  "version": "1.4.0",
+  "description": "Reval desktop: direct dashboard + visible auto-planner (+ classes & exams aware)",
   "main": "src/main.js",
   "author": "Reval Desktop",
   "license": "MIT",
