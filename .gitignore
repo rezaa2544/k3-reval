@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# build output
+release/
+dist/
+out/
+
+# electron-builder cache
+.electron-builder/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

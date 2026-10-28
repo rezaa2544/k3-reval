@@ -1,0 +1,24 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>ورود</title></head>
+<body style="font-family:Tahoma;padding:40px;background:#111;color:#eee">
+  <div id="app">
+    <h1>ورود به حساب کاربری</h1>
+    <form id="f">
+      <input type="text" id="phone" placeholder="شماره موبایل" />
+      <input type="password" id="pass" placeholder="رمز عبور" />
+      <button type="submit">ورود</button>
+    </form>
+  </div>
+  <script>
+    window.__submitted = null;
+    document.getElementById('f').addEventListener('submit', function (e) {
+      e.preventDefault();
+      window.__submitted = {
+        phone: document.getElementById('phone').value,
+        pass: document.getElementById('pass').value,
+      };
+      setTimeout(function () {
+        document.getElementById('app').innerHTML = '<h1>داشبورد روزانه</h1><p>سلام آرمان 👋</p>';
+      }, 400);
+    });
+  </script>
+</body></html>

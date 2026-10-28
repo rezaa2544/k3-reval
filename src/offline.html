@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+<title>روال — اتصال برقرار نشد</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center; padding: 32px;
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: radial-gradient(120% 120% at 15% 0%, #eef2ff 0%, #f8fafc 45%, #eef6f6 100%);
+    color: #0f172a;
+  }
+  .card {
+    max-width: 520px; width: 100%; text-align: center;
+    background: #fff; border-radius: 22px; padding: 34px 28px 28px;
+    box-shadow: 0 24px 60px rgba(15,23,42,.10), 0 0 0 1px rgba(15,23,42,.05);
+  }
+  .logo { width: 74px; height: 74px; border-radius: 19px; margin-bottom: 14px; }
+  h1 { font-size: 21px; margin: 0 0 10px; }
+  p { color: #475569; font-size: 14px; line-height: 2; margin: 0 0 8px; }
+  .hint { font-size: 12.5px; color: #64748b; background: #f1f5f9; border-radius: 12px; padding: 10px 14px; margin: 16px 0 20px; }
+  .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  button, a.btn {
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    border: 0; border-radius: 12px; padding: 12px 22px; text-decoration: none;
+    transition: transform .12s ease, box-shadow .12s ease, background .12s;
+  }
+  button { background: linear-gradient(135deg,#4f46e5,#0ea5e9); color: #fff; box-shadow: 0 10px 22px rgba(79,70,229,.28); }
+  button:hover { transform: translateY(-1px); }
+  a.btn { background: #f1f5f9; color: #334155; }
+  a.btn:hover { background: #e2e8f0; }
+  code { font-family: Consolas, monospace; font-size: 12px; color: #334155; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="../assets/icon.png" alt="روال" />
+    <h1>به روال وصل نشدیم</h1>
+    <p>اتصال اینترنت را بررسی کنید و دوباره تلاش کنید. اگر از VPN یا فیلترشکن استفاده می‌کنید، ممکن است لازم باشد آن را خاموش یا روشن کنید.</p>
+    <div class="hint">سایت مورد نیاز: <code>revaledu.ir</code></div>
+    <div class="row">
+      <button id="retry">تلاش دوباره</button>
+      <a class="btn" href="#" id="openSite">باز کردن در مرورگر</a>
+    </div>
+  </div>
+  <script>
+    const btn = document.getElementById('retry');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'در حال تلاش…';
+      try {
+        if (window.revalDesktop) await window.revalDesktop.retry();
+        else location.href = 'https://revaledu.ir/?view=dashboard';
+      } catch (e) { /* ignore */ }
+      setTimeout(() => { btn.disabled = false; btn.textContent = 'تلاش دوباره'; }, 4000);
+    });
+    document.getElementById('openSite').addEventListener('click', (e) => {
+      e.preventDefault();
+      if (window.revalDesktop) window.revalDesktop.openExternal('https://revaledu.ir/?view=dashboard');
+      else window.open('https://revaledu.ir/?view=dashboard', '_blank');
+    });
+    window.addEventListener('online', () => { if (window.revalDesktop) window.revalDesktop.retry(); });
+  </script>
+</body>
+</html>

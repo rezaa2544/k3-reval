@@ -1,0 +1,38 @@
+appId: ir.revaledu.desktop
+productName: Reval
+copyright: "Reval Desktop"
+directories:
+  output: release
+  buildResources: installer
+files:
+  - src/**/*
+  - assets/icon.png
+  - assets/icon.ico
+  - assets/icon-512.png
+  - package.json
+asar: true
+compression: maximum
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: installer/icon.ico
+  artifactName: Reval-Setup-${version}.${ext}
+  publisherName: Reval
+  legalTrademarks: Reval
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "روال (Reval)"
+  uninstallDisplayName: "روال (Reval)"
+  license: installer/license_fa.txt
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  installerIcon: installer/icon.ico
+  uninstallerIcon: installer/icon.ico
+  installerHeaderIcon: installer/icon.ico

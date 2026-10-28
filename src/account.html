@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+<title>تنظیمات حساب — روال</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #121a2b; --line: rgba(255,255,255,.10);
+    --fg: #e8eefc; --muted: #93a4bd; --brand1: #4f46e5; --brand2: #0ea5e9;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif; color: var(--fg);
+    background: radial-gradient(120% 120% at 20% 0%, #17224a 0%, var(--bg) 55%, #070c16 100%);
+    display: flex; flex-direction: column; padding: 22px 24px 18px; gap: 16px; overflow: hidden;
+  }
+  header { display: flex; align-items: center; gap: 12px; }
+  header img { width: 42px; height: 42px; border-radius: 12px; }
+  header h1 { font-size: 16px; margin: 0; }
+  header p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 12px;
+  }
+  label { font-size: 12.5px; color: var(--muted); display: block; margin-bottom: 6px; }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 11px 13px; border-radius: 11px; font: inherit; font-size: 13.5px;
+    background: #0c1424; color: var(--fg); border: 1px solid var(--line); outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus { border-color: rgba(99,102,241,.8); box-shadow: 0 0 0 3px rgba(79,70,229,.18); }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 2px; }
+  .switch span { font-size: 13px; }
+  .switch small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .toggle { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+  .toggle input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .toggle i {
+    position: absolute; inset: 0; border-radius: 99px; background: #26324a; transition: background .18s;
+  }
+  .toggle i::after {
+    content: ''; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #e2e8f0; transition: transform .18s;
+  }
+  .toggle input:checked + i { background: linear-gradient(135deg, var(--brand1), var(--brand2)); }
+  .toggle input:checked + i::after { transform: translateX(-20px); }
+  footer { margin-top: auto; display: flex; gap: 10px; align-items: center; }
+  button {
+    font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 0;
+    border-radius: 11px; padding: 11px 20px; transition: transform .12s, background .15s, opacity .15s;
+  }
+  button:active { transform: translateY(1px); }
+  .primary { background: linear-gradient(135deg, var(--brand1), var(--brand2)); color: #fff; box-shadow: 0 10px 22px rgba(79,70,229,.28); }
+  .ghost { background: #1b2437; color: #cbd5e1; }
+  .danger { background: transparent; color: #f87171; margin-inline-start: auto; }
+  .hint { font-size: 11.5px; color: var(--muted); line-height: 1.9; }
+  .status { font-size: 12.5px; min-height: 18px; color: #34d399; }
+  .status.err { color: #f87171; }
+</style>
+</head>
+<body>
+  <header>
+    <img src="../assets/icon.png" alt="روال" />
+    <div>
+      <h1>ورود خودکار به روال</h1>
+      <p>یک بار اینجا حساب را ثبت کنید؛ برنامه دیگر صفحه‌ی ورود را نشان نمی‌دهد.</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="identifier">نام کاربری / ایمیل / شماره موبایل</label>
+        <input id="identifier" type="text" autocomplete="username" spellcheck="false" placeholder="مثلاً 0912xxxxxxx" />
+      </div>
+      <div>
+        <label for="password">رمز عبور</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+    </div>
+
+    <div class="switch">
+      <span>
+        ورود خودکار
+        <small>مشخصات به‌صورت رمزنگاری‌شده (DPAPI ویندوز) روی همین دستگاه ذخیره می‌شود.</small>
+      </span>
+      <span class="toggle"><input id="autoLogin" type="checkbox" checked /><i></i></span>
+    </div>
+  </div>
+
+  <div class="hint">
+    اگر روال برای حساب شما کد یک‌بارمصرف (OTP) می‌فرستد، ورود خودکار تا مرحله‌ی ارسال کد پیش می‌رود و
+    کد را باید یک بار وارد کنید؛ ولی نشست شما ذخیره می‌ماند و دوباره از شما رمز خواسته نمی‌شود.
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <footer>
+    <button class="primary" id="save">ذخیره</button>
+    <button class="ghost" id="close">بستن</button>
+    <button class="danger" id="clear">حذف مشخصات ذخیره‌شده</button>
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const status = (msg, err) => {
+    $('status').textContent = msg || '';
+    $('status').className = 'status' + (err ? ' err' : '');
+  };
+
+  (async () => {
+    try {
+      const data = await window.revalAccount.get();
+      $('identifier').value = data.identifier || '';
+      $('autoLogin').checked = data.autoLogin !== false;
+      if (data.hasPassword) $('password').placeholder = '•••••••• (ذخیره شده — برای تغییر تایپ کنید)';
+      if (data.identifier) status('حساب ذخیره‌شده: ' + data.identifier);
+    } catch (e) { status('خطا در خواندن تنظیمات', true); }
+  })();
+
+  $('save').addEventListener('click', async () => {
+    const identifier = $('identifier').value.trim();
+    const password = $('password').value;
+    const autoLogin = $('autoLogin').checked;
+    if (!identifier) return status('نام کاربری را وارد کنید.', true);
+    $('save').disabled = true;
+    try {
+      const res = await window.revalAccount.save({ identifier, password, autoLogin });
+      if (res.ok) {
+        status('ذخیره شد ✓ برنامه دوباره وارد می‌شود.');
+        setTimeout(() => window.revalAccount.close(), 900);
+      } else {
+        status(res.error || 'ذخیره نشد.', true);
+      }
+    } finally { $('save').disabled = false; }
+  });
+
+  $('clear').addEventListener('click', async () => {
+    await window.revalAccount.clear();
+    $('identifier').value = '';
+    $('password').value = '';
+    $('password').placeholder = '••••••••';
+    status('مشخصات حذف شد.');
+  });
+
+  $('close').addEventListener('click', () => window.revalAccount.close());
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') window.revalAccount.close();
+    if (e.key === 'Enter' && (e.target.tagName === 'INPUT')) $('save').click();
+  });
+</script>
+</body>
+</html>
