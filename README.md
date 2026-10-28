@@ -1,5 +1,35 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v1.3.0-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v1.3.0/Reval-Setup-1.3.0.exe)
+[![Release](https://img.shields.io/badge/Release-v1.3.0-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v1.3.0)
+[![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
+[![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
+
+## ⬇️ دانلود مستقیم (بدون رفتن به صفحهٔ Releases)
+
+<div align="center">
+
+### [💾 Reval-Setup-1.3.0.exe](https://github.com/rezaa2544/k3-reval/releases/download/v1.3.0/Reval-Setup-1.3.0.exe)
+
+**۷۷ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۱.۳.۰**
+
+`https://github.com/rezaa2544/k3-reval/releases/download/v1.3.0/Reval-Setup-1.3.0.exe`
+
+</div>
+
+| | |
+|---|---|
+| **SHA-256** | `7d344adf03ce91965d32603bcc49bd12a0bab73b0b019dc976979d1000c9b217` |
+| **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
+| **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
+| **کپی محلی** | `dist/Reval-Setup-1.3.0.exe` در همین مخزن |
+| **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
+
+> ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
+> کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
 نسخه‌ی ویندوزیِ وب‌سایت **[revaledu.ir](https://revaledu.ir)** — میزکار شخصیِ یادگیری.
 یک پوسته‌ی بومی با **Electron** که سایت را در پنجره‌ی اختصاصی خودش اجرا می‌کند؛ بدون نوار آدرس،
 با آیکن، منوی فارسی، اسپلش‌اسکرین و صفحه‌ی آفلاین.
@@ -38,11 +68,7 @@
 
 ## 📦 نصب (ویندوز ۶۴ بیتی)
 
-نصب‌کننده در بخش **Releases** همین مخزن قرار دارد:
-
-```
-Reval-Setup-1.3.0.exe      (~77 MB, NSIS)
-```
+فایل نصبی در دو جا در دسترس است: **بالای همین صفحه** (لینک مستقیم) و بخش [Releases](https://github.com/rezaa2544/k3-reval/releases) · کپی محلی: `dist/Reval-Setup-1.3.0.exe`
 
 ۱. فایل را اجرا کنید.
 ۲. اگر SmartScreen پیام داد: **More info → Run anyway** (نصب‌کننده با گواهی تجاری امضا نشده است).
@@ -115,6 +141,8 @@ Reval-Setup-1.3.0.exe      (~77 MB, NSIS)
 | آزمون جامع هفتگی + بلوک تحلیل خطا | اثر آزمون + خودتنظیمی/فراشناخت |
 
 📄 سند کامل پژوهشی با منابع: [`docs/research-study-methods.md`](docs/research-study-methods.md)
+📋 نمونهٔ خروجی واقعی برنامه: [`docs/sample-plan.md`](docs/sample-plan.md)
+🔍 گزارش مهندسی معکوس سایت: [`docs/reverse-engineering-report.md`](docs/reverse-engineering-report.md)
 🧪 نمونهٔ خروجی: جدول و متن برنامه در تب «علمِ پشت برنامه» داخل اپ
 
 > ⚠️ صادقانه: این ابزار جای مشاور انسانی یا روان‌شناس را نمی‌گیرد. برای بی‌خوابی مزمن یا اضطراب شدید،
