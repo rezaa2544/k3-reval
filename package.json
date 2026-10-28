@@ -1,8 +1,8 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "1.1.0",
-  "description": "Reval desktop app - direct dashboard, no login screen",
+  "version": "1.2.0",
+  "description": "Reval desktop app + Smart Study Planner (evidence-based)",
   "main": "src/main.js",
   "author": "Reval Desktop",
   "license": "MIT",
@@ -13,6 +13,7 @@
   },
   "scripts": {
     "start": "electron .",
-    "dist:win": "electron-builder --win nsis --x64"
+    "dist:win": "electron-builder --win nsis --x64",
+    "test": "node test/planner-test.js"
   }
 }

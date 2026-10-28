@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'self';" />
+<title>مشاور هوشمند روال</title>
+<style>
+  :root{
+    --bg:#0a0f1a; --panel:#101827; --panel2:#0d1522; --line:rgba(255,255,255,.09);
+    --fg:#e9eefb; --muted:#93a4bd; --brand:#6366f1; --brand2:#0ea5e9; --ok:#34d399;
+    --warn:#fbbf24; --danger:#f87171; --learn:#6366f1; --review:#0ea5e9; --practice:#14b8a6;
+    --mock:#f59e0b; --analysis:#a855f7; --warmup:#22d3ee;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:"Segoe UI",Tahoma,sans-serif;background:radial-gradient(120% 100% at 80% 0%,#16213f 0%,var(--bg) 55%,#060a12 100%);
+    color:var(--fg);display:flex;flex-direction:column;overflow:hidden;
+  }
+  header{
+    display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);
+    background:rgba(10,15,26,.72);backdrop-filter:blur(8px);-webkit-app-region:drag;
+  }
+  header img{width:34px;height:34px;border-radius:9px}
+  header h1{font-size:15px;margin:0}
+  header .sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .tabs{display:flex;gap:6px;margin-inline-start:auto;-webkit-app-region:no-drag}
+  .tab{
+    border:1px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;
+    padding:7px 13px;border-radius:9px;cursor:pointer
+  }
+  .tab:hover{background:rgba(255,255,255,.05);color:var(--fg)}
+  .tab.active{background:linear-gradient(135deg,rgba(99,102,241,.9),rgba(14,165,233,.9));color:#fff}
+  main{flex:1;overflow:auto;padding:16px 18px 26px}
+  .view{display:none;max-width:1080px;margin:0 auto}
+  .view.active{display:block}
+  h2{font-size:15px;margin:0 0 10px}
+  h3{font-size:13px;margin:18px 0 8px;color:#c7d2fe}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+  .grid{display:grid;gap:10px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:760px){.g3,.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+  label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  input,select{
+    width:100%;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:#0b1320;
+    color:var(--fg);font:inherit;font-size:12.5px;outline:none
+  }
+  input:focus,select:focus{border-color:rgba(99,102,241,.8);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+  input[type=checkbox]{width:auto}
+  .btn{
+    font:inherit;font-size:12.5px;font-weight:600;border:0;border-radius:11px;padding:10px 18px;cursor:pointer;
+    background:#1b2437;color:#dbeafe;transition:transform .1s,filter .15s
+  }
+  .btn:hover{filter:brightness(1.12)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;box-shadow:0 10px 22px rgba(79,70,229,.25)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn.small{padding:7px 12px;font-size:11.5px;font-weight:500}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .row.end{justify-content:flex-end}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:7px 6px;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-weight:600;font-size:11px}
+  td input{padding:6px 8px;font-size:12px}
+  .muted{color:var(--muted);font-size:12px;line-height:1.9}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px}
+  .stat b{display:block;font-size:19px;margin-bottom:3px}
+  .stat span{font-size:11px;color:var(--muted)}
+  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+  .badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;font-weight:600}
+  .b-learn{background:rgba(99,102,241,.18);color:#a5b4fc}
+  .b-review{background:rgba(14,165,233,.18);color:#7dd3fc}
+  .b-practice{background:rgba(20,184,166,.18);color:#5eead4}
+  .b-mock{background:rgba(245,158,11,.18);color:#fcd34d}
+  .b-analysis{background:rgba(168,85,247,.18);color:#d8b4fe}
+  .b-warmup{background:rgba(34,211,238,.18);color:#67e8f9}
+  .notes{margin:0;padding-inline-start:16px;font-size:12.5px;line-height:2}
+  .notes li{margin-bottom:4px}
+  .warn{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;border-radius:12px;padding:10px 13px;font-size:12px;line-height:1.9}
+  .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
+  .day-pill{
+    flex:0 0 auto;border:1px solid var(--line);background:#0d1522;color:var(--muted);border-radius:11px;
+    padding:8px 11px;font:inherit;font-size:11.5px;cursor:pointer;text-align:center;min-width:74px
+  }
+  .day-pill.active{border-color:rgba(99,102,241,.75);background:rgba(99,102,241,.16);color:#c7d2fe}
+  .day-pill small{display:block;font-size:10px;color:var(--muted);margin-top:2px}
+  .block{
+    display:grid;grid-template-columns:78px 1fr auto;gap:10px;align-items:start;
+    background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px
+  }
+  .block .time{font-size:12px;color:#c7d2fe;font-weight:600;font-variant-numeric:tabular-nums}
+  .block .time small{display:block;color:var(--muted);font-weight:400;margin-top:3px}
+  .block .t{font-size:13px;font-weight:600;margin-bottom:3px}
+  .block .c{font-size:11.5px;color:var(--muted);line-height:1.85}
+  .block .tech{font-size:10.5px;color:#93c5fd;margin-top:4px}
+  details{font-size:11px;color:var(--muted);margin-top:6px}
+  summary{cursor:pointer;color:#a5b4fc}
+  .chk{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .kbd{font:11px Consolas,monospace;background:#0b1320;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .sci h4{font-size:12.5px;margin:14px 0 6px;color:#c7d2fe}
+  .sci p,.sci li{font-size:12px;line-height:2;color:#c2cee2}
+  .sci table{font-size:11.5px}
+  .toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:#111c2f;border:1px solid var(--line);color:var(--fg);padding:10px 18px;border-radius:12px;
+    font-size:12.5px;transition:.25s;z-index:99;box-shadow:0 18px 40px rgba(0,0,0,.4)
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 10px;line-height:2}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px}
+</style>
+</head>
+<body>
+<header>
+  <img src="../assets/icon.png" alt="" />
+  <div>
+    <h1>مشاور هوشمند روال</h1>
+    <div class="sub">برنامه‌ریزی خودکار بر پایهٔ علم یادگیری — نه حدس</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-view="setup">تنظیمات</button>
+    <button class="tab" data-view="plan">برنامه</button>
+    <button class="tab" data-view="science">علمِ پشت برنامه</button>
+  </div>
+</header>
+
+<main>
+  <!-- ═══════════ تنظیمات ═══════════ -->
+  <section class="view active" id="view-setup">
+    <div class="card">
+      <h2>۱) دربارهٔ تو</h2>
+      <div class="grid g3">
+        <div><label>نام</label><input id="name" placeholder="مثلاً آرمان" /></div>
+        <div><label>پایه</label>
+          <select id="grade">
+            <option>دهم</option><option>یازدهم</option><option selected>دوازدهم</option><option>فارغ‌التحصیل</option>
+          </select>
+        </div>
+        <div><label>گروه آزمایشی</label>
+          <select id="field">
+            <option value="tajrobi" selected>علوم تجربی</option>
+            <option value="riazi">علوم ریاضی</option>
+            <option value="ensani">علوم انسانی</option>
+            <option value="zaban">زبان‌های خارجی</option>
+            <option value="honar">هنر</option>
+          </select>
+        </div>
+        <div><label>تیپ زیستی (چه وقتی سرت بهتر کار می‌کند؟)</label>
+          <select id="chronotype">
+            <option value="morning">صبح‌زی — صبح‌ها بهترم</option>
+            <option value="neutral" selected>متعادل</option>
+            <option value="evening">شب‌زی — شب‌ها بهترم</option>
+          </select>
+        </div>
+        <div><label>تاریخ شروع</label><input id="startDate" type="date" /></div>
+        <div><label>تاریخ آزمون هدف</label><input id="examDate" type="date" /></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>۲) زمان‌های تو</h2>
+      <div class="grid g4" id="availability"></div>
+      <div class="grid g3" style="margin-top:10px">
+        <div><label>ساعت خواب</label><input id="bedtime" type="time" value="23:30" /></div>
+        <div><label>ساعت بیداری</label><input id="wake" type="time" value="07:00" /></div>
+        <div><label>روز استراحت هفتگی</label>
+          <select id="restDay">
+            <option value="5" selected>پنجشنبه</option>
+            <option value="6">جمعه</option>
+            <option value="7">بدون روز استراحت</option>
+          </select>
+        </div>
+        <div><label>طول هر بلوک (دقیقه)</label>
+          <select id="blockMinutes"><option value="25">۲۵</option><option value="45" selected>۴۵</option><option value="50">۵۰</option><option value="90">۹۰</option></select>
+        </div>
+        <div><label>استراحت بین بلوک‌ها (دقیقه)</label>
+          <select id="breakMinutes"><option value="5">۵</option><option value="10" selected>۱۰</option><option value="15">۱۵</option></select>
+        </div>
+        <div><label>آزمون جامع هفتگی</label>
+          <select id="weeklyMock"><option value="1" selected>فعال (جمعه)</option><option value="0">غیرفعال</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>۳) وضعیت دروس</h2>
+      <p class="muted" style="margin-top:0">«تسلط» را صادقانه بگذار (۰ = هیچ، ۱۰۰ = مطمئنم). درصد آزمون آخر اختیاری است و برنامه را دقیق‌تر می‌کند.</p>
+      <table id="subjects"></table>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost small" id="resetSubjects">بازگردانی دروس پیش‌فرض گروه</button>
+        <span class="muted" style="font-size:11px">ضرایب پیش‌فرض‌اند؛ اگر رشتهٔ هدف تو زیرگروه خاصی دارد، عدد را عوض کن.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row end">
+        <span class="muted" style="margin-inline-end:auto;font-size:11.5px">خروجی: برنامهٔ روزانه + مرورهای فاصله‌دار + آزمون جامع + دفتر خطا</span>
+        <button class="btn primary" id="build">ساخت برنامهٔ من</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ برنامه ═══════════ -->
+  <section class="view" id="view-plan">
+    <div id="planEmpty" class="empty">
+      هنوز برنامه‌ای ساخته نشده.<br />
+      برو به تب «تنظیمات»، اطلاعاتت را وارد کن و «ساخت برنامهٔ من» را بزن.
+    </div>
+    <div id="planBody" style="display:none">
+      <div class="grid g4" id="stats"></div>
+      <div class="card" style="margin-top:12px">
+        <h2>چرا این برنامه؟</h2>
+        <ul class="notes" id="coachNotes"></ul>
+        <div id="warnBox" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <h2>توزیع زمان بر اساس درس</h2>
+        <div id="subjectBars"></div>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:10px">
+          <h2 style="margin:0">برنامهٔ روزانه</h2>
+          <div class="row" style="margin-inline-start:auto">
+            <button class="btn ghost small" id="prevWeek">هفتهٔ قبل</button>
+            <span id="weekLabel" class="muted" style="font-size:12px"></span>
+            <button class="btn ghost small" id="nextWeek">هفتهٔ بعد</button>
+          </div>
+        </div>
+        <div class="days" id="dayPills"></div>
+        <div id="dayView"></div>
+      </div>
+      <div class="card">
+        <h2>خروجی و بازتنظیم</h2>
+        <div class="row">
+          <button class="btn small" data-export="md">خروجی Markdown</button>
+          <button class="btn small" data-export="csv">خروجی CSV (اکسل)</button>
+          <button class="btn small" data-export="ics">تقویم ICS</button>
+          <button class="btn small" data-export="json">پشتیبان JSON</button>
+          <button class="btn small" data-export="tasks">کپی تسک‌های امروز</button>
+        </div>
+        <h3>ثبت درصد آزمون (بازتنظیم هوشمند)</h3>
+        <p class="muted" style="margin-top:0">درصد هر درس را وارد کن؛ تسلط و فاصلهٔ مرورهای بعدی خودکار اصلاح می‌شود.</p>
+        <div class="grid g4" id="scoreGrid"></div>
+        <div class="row end" style="margin-top:10px">
+          <button class="btn primary small" id="replan">بازبرنامه‌ریزی با نتایج جدید</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ علم ═══════════ -->
+  <section class="view sci" id="view-science">
+    <div class="card">
+      <h2>این برنامه از کجا می‌آید؟</h2>
+      <p>هر بلوکی که می‌بینی از یک یافتهٔ پژوهشی می‌آید، نه از سلیقه. خلاصهٔ قواعد و پشتوانه‌شان:</p>
+      <table>
+        <thead><tr><th>قاعده در برنامهٔ تو</th><th>پشتوانهٔ علمی</th></tr></thead>
+        <tbody>
+          <tr><td>هر بلوک با ۵ دقیقه «بازیابی بدون نگاه کردن» تمام می‌شود</td><td>اثر آزمون — Roediger &amp; Karpicke 2006: یک‌بار خواندن + سه بازیابی ۶۱٪ در برابر چهار بار خواندن ۴۰٪ (یک هفته بعد)</td></tr>
+          <tr><td>هر مبحث در روزهای ۱، ۳، ۷، ۱۶، ۳۵ (تنظیم‌شده با روز آزمون) مرور می‌شود</td><td>مرور فاصله‌دار — Cepeda et al. 2006/2008: فاصلهٔ بهینه ≈ ۱۰–۲۰٪ زمان تا آزمون</td></tr>
+          <tr><td>بلوک‌های یک درس پشت‌سرهم نمی‌آیند؛ ریاضی/فیزیک و مبحث‌های شبیه درهم می‌شوند</td><td>تمرین درهم — Rohrer &amp; Taylor 2007: ۶۳٪ در برابر ۲۰٪ در آزمون با تأخیر</td></tr>
+          <tr><td>سهم هر درس ∝ ضریب × (۱ − تسلط)</td><td>ضرایب آزمون اختصاصی (مثلاً تجربی: زیست ۱۲، شیمی ۹، ریاضی ۷، فیزیک ۷)</td></tr>
+          <tr><td>سخت‌ترین بلوک در ساعت اوج تو؛ خواب قفل است و آخرین بلوک ۴۵ دقیقه قبل خواب</td><td>اثر همزمانی ریتم شبانه‌روزی + نقش خواب در تثبیت حافظه (Rasch &amp; Born 2013)</td></tr>
+          <tr><td>هفتهٔ چهارم سبک‌تر؛ هفته‌های اول با بار کمتر شروع می‌شود</td><td>نظریهٔ بار شناختی و پیشگیری از فرسودگی</td></tr>
+          <tr><td>هر تسک جملهٔ «اگر ساعت … شد، آنگاه …» دارد</td><td>نیت‌های اجرایی — Gollwitzer &amp; Sheeran 2006 (d ≈ 0.65)</td></tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin-top:14px">
+        سند کامل پژوهشی با منابع در فایل <code>docs/research-study-methods.md</code> مخزن پروژه است.
+        این ابزار جای مشاور انسانی یا روان‌شناس را نمی‌گیرد؛ اگر بی‌خوابی یا اضطراب شدید داری، حتماً با متخصص صحبت کن.
+      </p>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+<script src="engine.js"></script>
+<script src="presets.js"></script>
+<script src="planner.js"></script>
+</body>
+</html>

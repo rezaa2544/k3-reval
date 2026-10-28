@@ -31,10 +31,14 @@ const ACCOUNT_HTML = path.join(__dirname, 'account.html');
 const SPLASH_HTML = path.join(__dirname, 'splash.html');
 const OFFLINE_HTML = path.join(__dirname, 'offline.html');
 const GATE_SKIP_SRC = path.join(__dirname, 'inject', 'gate-skip.js');
+const PLANNER_HTML = path.join(__dirname, 'planner', 'planner.html');
+const PLANNER_PRELOAD = path.join(__dirname, 'planner', 'planner-preload.js');
+const PLANNER_STATE = () => path.join(app.getPath('userData'), 'planner-state.json');
 
 /** @type {BrowserWindow|null} */ let mainWindow = null;
 /** @type {BrowserWindow|null} */ let splashWindow = null;
 /** @type {BrowserWindow|null} */ let accountWindow = null;
+/** @type {BrowserWindow|null} */ let plannerWindow = null;
 /** @type {Tray|null} */ let tray = null;
 /** @type {NodeJS.Timeout|null} */ let splashTimeout = null;
 
@@ -194,6 +198,36 @@ function openAccountWindow() {
   return accountWindow;
 }
 
+function openPlannerWindow() {
+  if (plannerWindow && !plannerWindow.isDestroyed()) {
+    plannerWindow.show();
+    plannerWindow.focus();
+    return plannerWindow;
+  }
+  plannerWindow = new BrowserWindow({
+    width: 1180,
+    height: 860,
+    minWidth: 900,
+    minHeight: 640,
+    title: 'مشاور هوشمند روال',
+    backgroundColor: '#0a0f1a',
+    icon: process.platform === 'win32' ? ICON_ICO : ICON_PNG,
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: PLANNER_PRELOAD,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  plannerWindow.removeMenu();
+  plannerWindow.loadFile(PLANNER_HTML);
+  plannerWindow.once('ready-to-show', () => plannerWindow && plannerWindow.show());
+  plannerWindow.on('closed', () => { plannerWindow = null; });
+  return plannerWindow;
+}
+
 function loadHome(win) {
   if (!win) return;
   win.loadURL(HOME_URL);
@@ -300,6 +334,8 @@ function buildMenu() {
         { label: 'میزکار روال (داشبورد)', accelerator: 'CmdOrCtrl+H', click: () => mainWindow && loadHome(mainWindow) },
         { label: 'ورود خودکار: اعمال دوباره', accelerator: 'CmdOrCtrl+L', click: () => applyGateSkip(mainWindow) },
         { type: 'separator' },
+        { label: '🧠  مشاور هوشمند (برنامه‌ریزی خودکار)', accelerator: 'CmdOrCtrl+Shift+P', click: () => openPlannerWindow() },
+        { type: 'separator' },
         { label: 'چاپ صفحه', accelerator: 'CmdOrCtrl+P', click: () => mainWindow && mainWindow.webContents.print({}) },
         { type: 'separator' },
         { label: 'خروج', accelerator: 'Alt+F4', role: 'quit' },
@@ -376,6 +412,7 @@ function buildTray() {
       } },
       { label: 'ورود خودکار: اعمال دوباره', click: () => applyGateSkip(mainWindow) },
       { label: 'تنظیمات حساب…', click: () => openAccountWindow() },
+      { label: '🧠 مشاور هوشمند', click: () => openPlannerWindow() },
       { type: 'separator' },
       { label: 'خروج', click: () => { app.isQuitting = true; app.quit(); } },
     ]));
@@ -487,6 +524,47 @@ if (!gotLock) {
   ipcMain.handle('account:clear', () => {
     clearAccount();
     if (mainWindow) setTimeout(() => loadHome(mainWindow), 250);
+    return { ok: true };
+  });
+
+  /* ---- IPC: مشاور هوشمند ---- */
+  ipcMain.handle('planner:load-state', () => {
+    try {
+      return JSON.parse(fs.readFileSync(PLANNER_STATE(), 'utf8'));
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('planner:save-state', (_e, data) => {
+    try {
+      fs.mkdirSync(path.dirname(PLANNER_STATE()), { recursive: true });
+      fs.writeFileSync(PLANNER_STATE(), JSON.stringify(data), 'utf8');
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('planner:save-file', async (_e, payload) => {
+    try {
+      const name = String((payload && payload.name) || 'plan.md');
+      const content = String((payload && payload.content) || '');
+      const res = await dialog.showSaveDialog(plannerWindow || mainWindow, {
+        title: 'ذخیرهٔ برنامه',
+        defaultPath: path.join(app.getPath('documents'), name),
+        filters: [{ name: 'همه فایل‌ها', extensions: [String((payload && payload.ext) || 'txt')] }],
+      });
+      if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+      fs.writeFileSync(res.filePath, content, 'utf8');
+      return { ok: true, path: res.filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('planner:close', () => {
+    if (plannerWindow && !plannerWindow.isDestroyed()) plannerWindow.close();
     return { ok: true };
   });
 
