@@ -189,7 +189,21 @@
     </div>
 
     <div class="card">
-      <h2>۳) وضعیت دروس</h2>
+      <h2>۳) کلاس‌های آنلاین هفتگی <span class="muted" style="font-size:11px;font-weight:400">(رویداد ثابت — برنامه دور این‌ها چیده می‌شود)</span></h2>
+      <p class="muted" style="margin-top:0">هر کلاس را با روز و ساعت وارد کن. بعد از هر کلاس، برنامه خودش یک بلوک «تثبیت کلاس» می‌گذارد.</p>
+      <div id="classRows"></div>
+      <button class="btn ghost small" id="addClass" style="margin-top:8px">+ افزودن کلاس</button>
+    </div>
+
+    <div class="card">
+      <h2>۴) آزمون‌های آزمایشی <span class="muted" style="font-size:11px;font-weight:400">(تاریخ‌دار)</span></h2>
+      <p class="muted" style="margin-top:0">با ثبت آزمون‌ها، سه روز آخر قبل از هر آزمون خودکار «فقط مرور» می‌شود و روز بعد از آزمون بلوک «تحلیل خطا» می‌گیرد.</p>
+      <div id="examRows"></div>
+      <button class="btn ghost small" id="addExam" style="margin-top:8px">+ افزودن آزمون</button>
+    </div>
+
+    <div class="card">
+      <h2>۵) وضعیت دروس</h2>
       <p class="muted" style="margin-top:0">«تسلط» را صادقانه بگذار (۰ = هیچ، ۱۰۰ = مطمئنم). درصد آزمون آخر اختیاری است و برنامه را دقیق‌تر می‌کند.</p>
       <table id="subjects"></table>
       <div class="row" style="margin-top:10px">
@@ -268,6 +282,10 @@
           <tr><td>سهم هر درس ∝ ضریب × (۱ − تسلط)</td><td>ضرایب آزمون اختصاصی (مثلاً تجربی: زیست ۱۲، شیمی ۹، ریاضی ۷، فیزیک ۷)</td></tr>
           <tr><td>سخت‌ترین بلوک در ساعت اوج تو؛ خواب قفل است و آخرین بلوک ۴۵ دقیقه قبل خواب</td><td>اثر همزمانی ریتم شبانه‌روزی + نقش خواب در تثبیت حافظه (Rasch &amp; Born 2013)</td></tr>
           <tr><td>هفتهٔ چهارم سبک‌تر؛ هفته‌های اول با بار کمتر شروع می‌شود</td><td>نظریهٔ بار شناختی و پیشگیری از فرسودگی</td></tr>
+          <tr><td>بعد از هر کلاس، یک بلوک «تثبیت کلاس» (۲۰–۲۵ دقیقه، همان شب و بعد از کلاس)</td><td>کلاس تازه رمزگذاری کرده؛ کوتاه‌ترین بازیابی در ۲۴ ساعت اول بیشترین اثر را روی ماندگاری دارد (همان اصل آزمون)</td></tr>
+          <tr><td>۳ روز آخر قبل از هر آزمون آزمایشی: بدون مبحث جدید، فقط مرور مباحث همان آزمون؛ روز قبل سبک و با خواب زودتر</td><td>تثبیت حافظه نیازمند زمان و خواب است؛ یادگیری جدید در این پنجره فقط تداخل می‌سازد (Rasch &amp; Born 2013)</td></tr>
+          <tr><td>بلافاصله بعد از آزمون، بلوک «تحلیل خطا» (دسته‌بندی: بی‌دقتی / نبود مفهوم / کمبود سرعت)</td><td>اثر آزمون وقتی مؤثر است که بازخورد داشته باشد؛ تحلیل خطا، خودتنظیمی می‌سازد</td></tr>
+          <tr><td>مطالعه فقط در «بازه‌های آزاد واقعی» بین کلاس‌ها چیده می‌شود + ۱۰ دقیقه فاصله بعد از کلاس</td><td>توجه پس از جلسهٔ طولانی تحلیل می‌رود؛ فاصلهٔ کوتاه، کیفیت بلوک بعدی را بالا می‌برد (بار شناختی)</td></tr>
           <tr><td>هر تسک جملهٔ «اگر ساعت … شد، آنگاه …» دارد</td><td>نیت‌های اجرایی — Gollwitzer &amp; Sheeran 2006 (d ≈ 0.65)</td></tr>
         </tbody>
       </table>
@@ -279,6 +297,19 @@
   </section>
 </main>
 
+<style>
+  .dyn-row{display:grid;gap:8px;align-items:end;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+  .dyn-row.class{grid-template-columns:1.4fr 1fr .8fr .8fr auto}
+  .dyn-row.exam{grid-template-columns:1.3fr 1fr .8fr .8fr 1.3fr auto}
+  .dyn-row .del{background:transparent;border:1px solid rgba(248,113,113,.35);color:#f87171;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
+  .dyn-row .del:hover{background:rgba(248,113,113,.12)}
+  .dyn-row select[multiple]{height:70px}
+  @media(max-width:820px){.dyn-row.class,.dyn-row.exam{grid-template-columns:1fr 1fr}}
+  .evt{display:flex;gap:8px;align-items:center;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);border-radius:11px;padding:8px 12px;margin-bottom:8px;font-size:12px}
+  .evt.exam{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.4)}
+  .evt b{font-weight:600}
+  .evt .t{margin-inline-start:auto;color:var(--muted);font-size:11px}
+</style>
 <div class="toast" id="toast"></div>
 <script src="engine.js"></script>
 <script src="presets.js"></script>

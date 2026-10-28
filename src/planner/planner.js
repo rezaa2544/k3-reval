@@ -102,6 +102,102 @@
       '<tbody>' + subjects.map(subjectRow).join('') + '</tbody>';
   }
 
+  /* ---------------- کلاس‌ها و آزمون‌ها ---------------- */
+
+  function subjectOptions(selected) {
+    const subs = state.config && state.config.subjects ? state.config.subjects : presets.subjectsFor('tajrobi');
+    return subs.map((x) => '<option value="' + esc(x.id) + '"' + (selected === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
+  }
+
+  function renderClassRows(classes) {
+    const box = $('classRows');
+    box.innerHTML = '';
+    (classes && classes.length ? classes : []).forEach((c, i) => {
+      const div = document.createElement('div');
+      div.className = 'dyn-row class';
+      div.innerHTML =
+        '<div><label>عنوان کلاس</label><input data-cf="title" value="' + esc(c.title || '') + '" placeholder="مثلاً کلاس زیست" /></div>' +
+        '<div><label>درس</label><select data-cf="subjectId">' + subjectOptions(c.subjectId) + '</select></div>' +
+        '<div><label>روز</label><select data-cf="weekday">' +
+          WEEKDAY_FA.map((w, k) => '<option value="' + k + '"' + ((c.weekdays || [])[0] === k ? ' selected' : '') + '>' + w + '</option>').join('') +
+        '</select></div>' +
+        '<div><label>از</label><input type="time" data-cf="start" value="' + (c.start || '18:00') + '" /></div>' +
+        '<div><label>تا</label><input type="time" data-cf="end" value="' + (c.end || '20:00') + '" /></div>' +
+        '<button class="del" title="حذف">✕</button>';
+      div.querySelector('.del').addEventListener('click', () => { div.remove(); toast('کلاس حذف شد — برای اعمال، برنامه را دوباره بساز.'); });
+      box.appendChild(div);
+    });
+    if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">کلاسی اضافه نشده.</div>';
+  }
+
+  function renderExamRows(exams) {
+    const box = $('examRows');
+    box.innerHTML = '';
+    (exams && exams.length ? exams : []).forEach((e) => {
+      const div = document.createElement('div');
+      div.className = 'dyn-row exam';
+      div.innerHTML =
+        '<div><label>عنوان آزمون</label><input data-ef="title" value="' + esc(e.title || '') + '" placeholder="آزمون آزمایشی" /></div>' +
+        '<div><label>تاریخ</label><input type="date" data-ef="date" value="' + (e.date || '') + '" /></div>' +
+        '<div><label>از</label><input type="time" data-ef="start" value="' + (e.start || '08:00') + '" /></div>' +
+        '<div><label>تا</label><input type="time" data-ef="end" value="' + (e.end || '11:30') + '" /></div>' +
+        '<div><label>درس‌های آزمون</label><select multiple data-ef="subjectIds">' +
+          (state.config && state.config.subjects ? state.config.subjects : []).map((x) =>
+            '<option value="' + esc(x.id) + '"' + ((e.subjectIds || []).indexOf(x.id) !== -1 ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
+        '</select></div>' +
+        '<button class="del" title="حذف">✕</button>';
+      div.querySelector('.del').addEventListener('click', () => { div.remove(); toast('آزمون حذف شد — برای اعمال، برنامه را دوباره بساز.'); });
+      box.appendChild(div);
+    });
+    if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">آزمونی اضافه نشده.</div>';
+  }
+
+  function readClasses() {
+    const out = [];
+    $('classRows').querySelectorAll('.dyn-row').forEach((row) => {
+      const get = (f) => row.querySelector('[data-cf="' + f + '"]');
+      out.push({
+        title: get('title').value.trim() || 'کلاس آنلاین',
+        subjectId: get('subjectId').value || null,
+        weekdays: [Number(get('weekday').value)],
+        start: get('start').value || '18:00',
+        end: get('end').value || '20:00',
+      });
+    });
+    return out;
+  }
+
+  function readExams() {
+    const out = [];
+    $('examRows').querySelectorAll('.dyn-row').forEach((row) => {
+      const get = (f) => row.querySelector('[data-ef="' + f + '"]');
+      const date = get('date').value;
+      if (!date) return;
+      const sel = get('subjectIds');
+      out.push({
+        title: get('title').value.trim() || 'آزمون آزمایشی',
+        date,
+        start: get('start').value || '08:00',
+        end: get('end').value || '11:30',
+        subjectIds: Array.prototype.map.call(sel.selectedOptions, (o) => o.value),
+      });
+    });
+    return out;
+  }
+
+  $('addClass').addEventListener('click', () => {
+    const rows = readClasses();
+    rows.push({ title: '', subjectId: null, weekdays: [0], start: '18:00', end: '20:00' });
+    renderClassRows(rows);
+  });
+
+  $('addExam').addEventListener('click', () => {
+    const rows = readExams();
+    const d = new Date(); d.setDate(d.getDate() + 14);
+    rows.push({ title: 'آزمون آزمایشی', date: iso(d), start: '08:00', end: '11:30', subjectIds: [] });
+    renderExamRows(rows);
+  });
+
   function readSubjects() {
     const rows = $('subjects').querySelectorAll('tbody tr');
     const out = [];
@@ -147,6 +243,8 @@
       breakMinutes: Number($('breakMinutes').value) || 10,
       restDay: Number($('restDay').value),
       weeklyMock: $('weeklyMock').value === '1',
+      classes: readClasses(),
+      exams: readExams(),
       subjects,
     };
   }
@@ -167,6 +265,8 @@
     $('weeklyMock').value = cfg.weeklyMock === false ? '0' : '1';
     buildAvailabilityGrid(cfg.availability || {});
     renderSubjects(cfg.subjects || presets.subjectsFor('tajrobi'));
+    renderClassRows(cfg.classes || []);
+    renderExamRows(cfg.exams || []);
   }
 
   function defaultConfig() {
@@ -187,6 +287,8 @@
       breakMinutes: 10,
       restDay: 5,
       weeklyMock: true,
+      classes: [],
+      exams: [],
       subjects: presets.subjectsFor(field),
     };
   }
@@ -243,6 +345,8 @@
       stat(faNum(s.avgHoursPerDay), 'میانگین ساعت روزانه'),
       stat(faNum(s.learnedTopics), 'مبحث پوشش‌داده‌شده'),
       stat(faNum(s.totalReviewEvents), 'جلسهٔ مرور فاصله‌دار'),
+      stat(faNum(s.classFixBlocks || 0), 'تثبیت کلاس'),
+      stat(faNum(s.examDays || 0), 'روز آزمون'),
     ].join('');
 
     $('coachNotes').innerHTML = s.coachNotes.map((n) => '<li>' + esc(n) + '</li>').join('');
@@ -306,6 +410,14 @@
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
       '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') + '</div>';
 
+    const events = (d.events || []).map((e) =>
+      '<div class="evt' + (e.type === 'exam' ? ' exam' : '') + '">' +
+      '<span>' + (e.type === 'exam' ? '📝' : '📌') + '</span>' +
+      '<b>' + esc(e.title) + '</b>' +
+      (e.subjectName ? '<span class="muted">· ' + esc(e.subjectName) + '</span>' : '') +
+      '<span class="t">' + faNum(e.start) + '–' + faNum(e.end) + (e.type === 'exam' ? ' · آزمون' : ' · کلاس') + '</span>' +
+      '</div>').join('');
+
     const blocks = d.blocks.map((b, i) => {
       const key = d.date + '#' + i;
       const done = state.done[key] ? 'checked' : '';
@@ -322,7 +434,8 @@
         '</div>';
     }).join('');
 
-    $('dayView').innerHTML = head + (blocks || '<div class="empty">این روز خالی است (استراحت).</div>');
+    const body = events + blocks;
+    $('dayView').innerHTML = head + (body || '<div class="empty">این روز خالی است (استراحت).</div>');
     $('dayView').querySelectorAll('[data-done]').forEach((chk) => {
       chk.addEventListener('change', () => {
         state.done[chk.dataset.done] = chk.checked;
