@@ -142,6 +142,58 @@ app.whenReady().then(async () => {
   await wait(800);
   await shot('17-deadlines-report.png');
 
+  // ۹) آزمون‌های دوره‌ای (نسخهٔ ۲.۱)
+  await win.webContents.executeJavaScript(`
+    (function(){
+      document.querySelector('.tab[data-view="setup"]').click();
+      document.getElementById('suggestMocks').click();
+      const rows = document.querySelectorAll('#mockRows .dyn-row');
+      if (rows[0]) {
+        rows[0].querySelector('[data-mk="title"]').value = 'زیستاز';
+        rows[0].querySelector('[data-mk="day"]').value = '5';
+        rows[0].querySelector('[data-mk="everyNWeeks"]').value = '2';
+        rows[0].querySelector('[data-mk="start"]').value = '08:00';
+        rows[0].querySelector('[data-mk="minutes"]').value = '180';
+        const o = rows[0].querySelector('[data-mk="subjectIds"] option[value="bio"]'); if (o) o.selected = true;
+      }
+      if (rows[1]) {
+        rows[1].querySelector('[data-mk="title"]').value = 'آلفا';
+        rows[1].querySelector('[data-mk="day"]').value = '5';
+        rows[1].querySelector('[data-mk="everyNWeeks"]').value = '2';
+        rows[1].querySelector('[data-mk="start"]').value = '11:30';
+        rows[1].querySelector('[data-mk="minutes"]').value = '120';
+      }
+      document.getElementById('mockRows').scrollIntoView({ block: 'center' });
+      return document.getElementById('mockRows').innerText.slice(0, 120);
+    })()
+  `).then((r) => console.log('mocks:', r));
+  await wait(700);
+  await shot('18-mock-schedule.png');
+
+  // ۱۰) ساخت برنامه با آزمون‌های دوره‌ای + گزارش ظرفیت
+  await win.webContents.executeJavaScript(`document.getElementById('build').click(); true`);
+  await wait(3500);
+  await win.webContents.executeJavaScript(`
+    (function(){
+      document.querySelector('.tab[data-view="report"]').click();
+      const el = document.getElementById('capacityBox');
+      if (el) el.scrollIntoView({ block: 'start' });
+      return (el ? el.innerText : '').slice(0, 240);
+    })()
+  `).then((r) => console.log('capacity:', r));
+  await wait(800);
+  await shot('19-capacity-advisory.png');
+
+  await win.webContents.executeJavaScript(`
+    (function(){
+      const el = document.getElementById('mocksReport');
+      if (el) el.scrollIntoView({ block: 'center' });
+      return el ? el.innerText.slice(0, 200) : '';
+    })()
+  `).then((r) => console.log('mocksReport:', r));
+  await wait(600);
+  await shot('20-mocks-report.png');
+
   win.destroy();
   app.quit();
 });

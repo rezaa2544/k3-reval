@@ -1,8 +1,8 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "2.0.0",
-  "description": "Reval desktop 2.0: دو مدل مهلت (کتابی و آزمون‌های کوتاه) + سوابق تحصیلی + برنامه‌ریز هوشمند تطبیقی",
+  "version": "2.1.0",
+  "description": "Reval desktop 2.1: آزمون‌های دوره‌ای قابل تنظیم، ظرفیت تست استاندارد، هشدار ساعت لازم، دو مدل مهلت",
   "main": "src/main.js",
   "author": "Reval Desktop",
   "license": "MIT",

@@ -77,8 +77,24 @@ const lastDone = (pl, sid) => {
 const freeFinish = lastDone(free, 'bio');
 ok(!!bioD.finishDate, 'تاریخ اتمام واقعی کتاب گزارش می‌شود (' + bioD.finishDate + ')');
 ok(!!freeFinish, 'برنامهٔ شاهد (بدون مهلت) تاریخ اتمام زیست را می‌دهد (' + freeFinish + ')');
-ok(bioD.finishDate < freeFinish,
-  'با مهلت، کتاب زودتر تمام می‌شود (' + bioD.finishDate + ' < ' + freeFinish + ')');
+/* ملاک درست: «پیش از تاریخ مهلت» چقدر از کتاب خوانده شده، نه تاریخ اتمامِ آخرین فصل
+   (فصلی که بعداً نیاز به بازآموزی پیدا می‌کند ممکن است دیرتر بسته شود). */
+const learnedBy = (pl, sid, untilDate) => {
+  let m = 0;
+  pl.days.filter((d) => d.date <= untilDate).forEach((d) => d.blocks
+    .filter((b) => b.subjectId === sid && ['learn', 'reteach', 'boost'].indexOf(b.kind) !== -1)
+    .forEach((b) => { m += b.minutes; }));
+  return Math.round(m);
+};
+const bioNeed = tight.summary.chapterStats.filter((c) => c.subjectId === 'bio')
+  .reduce((a, c) => a + c.needMinutes, 0);
+const withDeadline = learnedBy(tight, 'bio', '2026-12-28');
+const withoutDeadline = learnedBy(free, 'bio', '2026-12-28');
+ok(withDeadline > withoutDeadline * 1.5,
+  'مهلت، مطالعهٔ زیست را قبل از تاریخ جلو نمی‌اندازد (' + withDeadline + ' ↔ ' + withoutDeadline + ')');
+ok(withDeadline / bioNeed >= 0.7,
+  'تا تاریخ مهلت، دست‌کم ۷۰٪ کتاب خوانده نشده (' + Math.round((withDeadline / bioNeed) * 100) + '٪)');
+ok(!!bioD.finishDate, 'تاریخ اتمام کتاب گزارش می‌شود (' + bioD.finishDate + ')');
 ok(free.summary.coverage.deadlines.length === 0, 'برنامهٔ بدون مهلت، ردیف مهلت ندارد');
 
 /* فصل‌های مهلت‌دار جلوتر از فصل‌های بی‌مهلت در برنامه می‌آیند */

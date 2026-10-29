@@ -45,6 +45,26 @@ check(String(window.document.body.innerHTML).indexOf('گزارش و آنالیز
 check(!!$('finalsTable') && $('finalsTable').innerHTML.indexOf('فارسی ۳') !== -1, 'جدول دروس نهایی پر شد');
 check(!!$('startTimes') && $('startTimes').querySelectorAll('[data-start]').length === 7, 'ساعت شروع ۷ روز ساخته شد');
 check(!!$('offRows'), 'بخش روزهای خارج از برنامه ساخته شد');
+check(!!$('mockRows'), 'کارت آزمون‌های دوره‌ای در UI هست');
+check(!!$('addMock') && !!$('suggestMocks'), 'دکمهٔ افزودن/پیشنهاد آزمون دوره‌ای هست');
+check(!!$('examDatePreset'), 'انتخاب سریع تاریخ کنکور هست');
+
+/* آزمون دوره‌ای: اضافه‌کردن، تنظیم دو آزمون در یک روز، خواندن مقدار */
+const beforeMocks = $('mockRows').querySelectorAll('.dyn-row').length;
+$('addMock').click();
+const mockRows = $('mockRows').querySelectorAll('.dyn-row');
+check(mockRows.length === beforeMocks + 1, 'ردیف آزمون دوره‌ای اضافه شد (' + beforeMocks + ' → ' + mockRows.length + ')');
+mockRows[0].querySelector('[data-mk="title"]').value = 'زیستاز';
+mockRows[0].querySelector('[data-mk="day"]').value = '5';
+mockRows[0].querySelector('[data-mk="everyNWeeks"]').value = '2';
+mockRows[0].querySelector('[data-mk="minutes"]').value = '180';
+mockRows[mockRows.length - 1].querySelector('[data-mk="title"]').value = 'آلفا';
+mockRows[mockRows.length - 1].querySelector('[data-mk="day"]').value = '5';
+mockRows[mockRows.length - 1].querySelector('[data-mk="everyNWeeks"]').value = '2';
+const firstSubj = mockRows[0].querySelector('[data-mk="subjectIds"] option[value="bio"]');
+if (firstSubj) firstSubj.selected = true;
+$('suggestMocks').click();
+check($('mockRows').querySelectorAll('.dyn-row').length === 2, 'پیشنهاد هوشمند آزمون‌ها را می‌سازد');
 
 // ساخت برنامه
 $('build').click();
@@ -62,6 +82,9 @@ setTimeout(() => {
     check($('chapterTable').innerHTML.indexOf('پیشرفت') !== -1, 'جدول فصل‌به‌فصل پیشرفت دارد');
     check($('reportStats').innerHTML.length > 30, 'کارت‌های آماری گزارش پر شد');
     check($('finalsReport').innerHTML.indexOf('فارسی') !== -1, 'گزارش سوابق تحصیلی پر شد');
+    check($('capacityBox').innerHTML.indexOf('ساعت') !== -1, 'کارت ظرفیت/ساعت لازم پر شد');
+    check($('testCapacityTable').innerHTML.indexOf('زیست') !== -1, 'جدول ظرفیت تست هر درس پر شد');
+    check($('mocksReport').innerHTML.length > 20, 'گزارش آزمون‌های دوره‌ای پر شد');
 
     // فیلتر فصل‌ها
     $('reportFilter').value = 'open';

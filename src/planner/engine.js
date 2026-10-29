@@ -148,6 +148,32 @@
     cfg.restDay = clamp(Number(cfg.restDay), 0, 7);
     cfg.weeklyMock = cfg.weeklyMock !== false;
 
+    /* ---------------- آزمون‌های دوره‌ای (weekly mocks) ----------------
+       مدل قدیمی فقط یک آزمون جمعه داشت. حالا هر روز هفته، هر N هفته،
+       چند آزمون در یک روز (مثل زیستاز + آلفا) و با ساعت ثابت اختیاری. */
+    const WDAY_INDEX = { 'شنبه': 0, 'یکشنبه': 1, 'دوشنبه': 2, 'سه‌شنبه': 3, 'چهارشنبه': 4, 'پنجشنبه': 5, 'جمعه': 6 };
+    const rawMocks = Array.isArray(cfg.weeklyMocks) && cfg.weeklyMocks.length
+      ? cfg.weeklyMocks
+      : (cfg.weeklyMock ? [{ title: 'آزمون جامع هفتگی', day: cfg.WEEKLY_MOCK_DAY != null ? cfg.WEEKLY_MOCK_DAY : 5 }] : []);
+    cfg.weeklyMocks = rawMocks.map((m, i) => {
+      const dayRaw = m.day != null ? m.day : (m.weekday != null ? m.weekday : 5);
+      const day = typeof dayRaw === 'string'
+        ? (WDAY_INDEX[dayRaw] != null ? WDAY_INDEX[dayRaw] : WEEKDAY_KEY.indexOf(dayRaw))
+        : Number(dayRaw);
+      return {
+        id: 'M' + (i + 1),
+        title: String(m.title || 'آزمون دوره‌ای').slice(0, 60),
+        day: clamp(Number.isFinite(day) ? day : 5, 0, 6),
+        everyNWeeks: clamp(Number(m.everyNWeeks || m.every || 1), 1, 8),
+        minutes: clamp(Number(m.minutes || 100), 30, 300),
+        start: /^\d{1,2}:\d{2}$/.test(String(m.start || '')) ? String(m.start) : null,
+        subjectIds: Array.isArray(m.subjectIds) ? m.subjectIds.filter((x) => typeof x === 'string') : [],
+        enabled: m.enabled !== false,
+      };
+    }).filter((m) => m.enabled);
+    /* اگر همه غیرفعال باشند، آزمون دوره‌ای ساخته نمی‌شود (weeklyMock=false) */
+    if (!cfg.weeklyMocks.length) cfg.weeklyMock = false;
+
     cfg.subjects = (cfg.subjects || []).map((s, i) => {
       const chapterCount = clamp(Number(s.chapters) || 1, 1, 120);
       /* ارزیابی فصل‌به‌فصل: [{name, read, mastery}] — اگر نبود، از masteredChapters/mastery عقب‌گرد می‌کنیم */
@@ -330,11 +356,22 @@
       chapterId: c.chapterId ? String(c.chapterId) : null,   // فصل واقعیِ پشتِ این جبران
     }));
 
-    /* ---------------- هدف تست روزانه ---------------- */
+    /* ---------------- هدف تست روزانه (استاندارد، نه عدد دلبخواه) ----------------
+       نورم واقعی: هر ساعت مطالعهٔ مؤثر ≈ ۱۲–۱۵ تست در دروس مفهومی و ۸–۱۰ در دروس محاسباتی.
+       پس سقف عملی روز = ساعت اعلامی × ۱۲ (با میانگین ~۲ دقیقه برای هر تست).
+       و کف موردنیاز = مجموع تست لازمِ فصل‌ها ÷ روزهای در دسترس.
+       هدف = بین این دو؛ اگر «لازم» از «سقف عملی» بیشتر بود، هشدار صادقانه داده می‌شود. */
     const totalAvailHours = sum(WEEKDAY_KEY.map((k) => cfg.availability[k]));
-    /* هدف تست روزانه: متناسب با ساعت اعلامی (۳۰ ساعت در هفته ≈ ۵۰ تست در روز).
-       نورم حرفه‌ای برای دانش‌آموز پشت‌کنکوری ۱۰۰–۱۵۰ است، برای ۴ ساعت روزانه حدود ۵۰. */
-    const autoDaily = clamp(Math.round(totalAvailHours * 1.5), 25, 150);
+    const activeWeekdays = WEEKDAY_KEY.filter((k) => cfg.availability[k] > 0 && WEEKDAY_KEY.indexOf(k) !== cfg.restDay).length || 6;
+    cfg.testTarget = cfg.testTarget || {};
+    const declaredDailyMinutes = (totalAvailHours * 60) / Math.max(1, activeWeekdays);
+    /* زمان واقعیِ روز = ساعت اعلامی × رَمپ‌آپ × (۱ − بافر)؛ هدف تست باید با همین سنجیده شود */
+    const effFactor = (cfg.RAMP_UP.start + cfg.RAMP_UP.step * 3) * (1 - (cfg.BUFFER_RATIO != null ? cfg.BUFFER_RATIO : 0.15));
+    const effectiveDailyMinutes = declaredDailyMinutes * Math.min(1, effFactor);
+    const feasibleDailyTests = Math.round((effectiveDailyMinutes * 0.45) / 2.0);  // ~۴۵٪ روز، ۲ دقیقه/تست
+    cfg._feasibleDailyTests = clamp(feasibleDailyTests, 20, 220);
+    const normByHours = clamp(Math.round(totalAvailHours * 2.2), 30, 200);      // نورم: ۲۲ تست به ازای هر ساعت هفتگی
+    const autoDaily = clamp(Math.min(normByHours, cfg._feasibleDailyTests), 25, 200);
     cfg.testTarget = {
       daily: clamp(Number((cfg.testTarget || {}).daily) || autoDaily, 0, 250),
     };
@@ -1125,18 +1162,43 @@
            وگرنه کارِ جا نشده بی‌صدا از بین می‌رود. */
       });
 
-      /* ---- ۴) آزمون جامع هفتگی (اگر کاربر آزمون دستی نداده) ---- */
+      /* ---- ۴) آزمون‌های دوره‌ای (هر روز هفته، هر N هفته، چند آزمون در یک روز) ---- */
       const hasManualExamToday = busy.some((b) => b.type === 'exam');
-      const isMockDay = cfg.weeklyMock && cfg.exams.length === 0 && !isFinalExam &&
-        wd === cfg.WEEKLY_MOCK_DAY && dayIndex > 5 && daysLeft > 3;
-      if (isMockDay && !hasManualExamToday) {
+      const weekNo = Math.floor(dayIndex / 7);
+      const todaysMocks = (!isFinalExam && dayIndex > 5 && daysLeft > 3 && !hasManualExamToday)
+        ? cfg.weeklyMocks.filter((m) => m.day === wd && (weekNo % m.everyNWeeks) === 0)
+        : [];
+      const isMockDay = todaysMocks.length > 0;
+      let occupiedUntil = -1;   // آزمون‌های ثابت همان روز نباید روی هم بیفتند
+      const orderedMocks = todaysMocks.slice().sort((a, b) =>
+        (a.start ? minutesSinceMidnight(a.start) : 9999) - (b.start ? minutesSinceMidnight(b.start) : 9999));
+      let mockMinutesUsed = 0;
+      orderedMocks.forEach((m, mi) => {
+        /* مجموع آزمون‌های یک روز از ۸۰٪ ظرفیت آن روز بیشتر نشود (بقیه باید بماند برای درس) */
+        const room = Math.max(45, Math.round(load.minutes * 0.8) - mockMinutesUsed);
+        const dur = Math.max(30, Math.min(m.minutes, room));
+        mockMinutesUsed += dur;
+        const subjects = m.subjectIds && m.subjectIds.length
+          ? m.subjectIds.map((id) => (cfg.subjects.find((x) => x.id === id) || {}).name).filter(Boolean)
+          : [];
+        const task = {
+          kind: 'mock', subjectId: 'MOCK', subjectName: m.title,
+          topicLabel: subjects.length ? subjects.join('، ') : 'همه دروس',
+          minutesLeft: dur, priority: 480 - mi,
+          practiceCount: Math.round(dur * 0.8),
+        };
+        if (m.start) {
+          let st = minutesSinceMidnight(m.start);
+          if (st < occupiedUntil) st = occupiedUntil + 15;      // پشت سر هم، نه روی هم
+          occupiedUntil = st + dur;
+          task.fixed = { start: st, end: st + dur };
+        }
+        tasks.push(task);
+      });
+      if (isMockDay) {
         tasks.push({
-          kind: 'mock', subjectId: 'MOCK', subjectName: 'آزمون جامع هفتگی', topicLabel: 'همه دروس',
-          minutesLeft: Math.min(cfg.WEEKLY_MOCK_MIN, Math.max(60, load.minutes * 0.6)), priority: 480,
-          practiceCount: Math.round(Math.min(cfg.WEEKLY_MOCK_MIN, Math.max(60, load.minutes * 0.6)) * 0.8),
-        });
-        tasks.push({
-          kind: 'analysis', subjectId: 'MOCK', subjectName: 'تحلیل آزمون', topicLabel: 'دفتر اشتباهات',
+          kind: 'analysis', subjectId: 'MOCK', subjectName: 'تحلیل آزمون ' + todaysMocks[0].title,
+          topicLabel: 'دفتر اشتباهات',
           minutesLeft: Math.min(cfg.MOCK_ANALYSIS_MIN, Math.max(20, load.minutes * 0.3)), priority: 470,
         });
       }
@@ -1216,8 +1278,11 @@
         const finBudget = load.minutes * 0.72;
         let usedFin = 0;
         const capPerCourse = Math.max(cfg.blockMinutes, finBudget * 0.55);
+        /* round-robin: درس‌هایی که در بازهٔ نهایی کمتر دیده شده‌اند اول می‌آیند
+           تا هر ۱۰ درس (نه ۸ درس) در خرداد جلسه بگیرند. */
+        const served = (t) => (t.finalsServed || 0);
         finalTopics.filter((t) => t.needMinutes > 0)
-          .sort((a, b) => (b.needMinutes - a.needMinutes) || (b.weight - a.weight))
+          .sort((a, b) => (served(a) - served(b)) || (b.needMinutes - a.needMinutes) || (b.weight - a.weight))
           .forEach((ft) => {
             if (usedFin >= finBudget) return;
             const chunk = Math.min(cfg.blockMinutes * 2, ft.needMinutes, finBudget - usedFin, capPerCourse);
@@ -1228,6 +1293,7 @@
               minutesLeft: chunk, priority: 380, practiceCount: Math.round(chunk / 3),
             });
             usedFin += chunk;
+            ft.finalsServed = (ft.finalsServed || 0) + 1;
           });
       }
 
@@ -1341,9 +1407,14 @@
       /* سهم تست از روز از قبل کنار گذاشته می‌شود؛ وگرنه یادگیری همهٔ وقت را می‌گیرد
          و هدف تست (نورم ~۵۰ تست در ۴ ساعت) هیچ‌وقت محقق نمی‌شود. */
       /* در برنامهٔ تنگ (عقب‌ماندگی زیاد) سهم تست نصف می‌شود تا پوشش فصل‌ها قربانی نشود */
+      /* سهم تست = همان چیزی که برای رسیدن به هدف تستِ امروز لازم است،
+         ولی هرگز بیشتر از ۴۰٪ روز (بقیه مال یادگیری است). */
+      const targetTodayReserve = Math.round((cfg.testTarget.daily || 0) *
+        clamp(load.minutes / 240, 0.4, 1.4) * 2.0);        // ~۲ دقیقه برای هر تست
       const testReserve = (isFinalExam || !cfg.testTarget.daily) ? 0
-        : Math.round(load.minutes * (inFinals ? 0.3 : finalPhase ? 0.26 : 0.24) *
-          (backlogRatio > 0.7 ? 0.5 : 1));
+        : Math.round(Math.min(load.minutes * (inFinals ? 0.30 : finalPhase ? 0.32 : 0.40),
+          Math.max(load.minutes * 0.18, targetTodayReserve)) *
+          (backlogRatio > 0.7 ? 0.75 : 1));
       if (!isFinalExam && !noNewLearning) {
         addLearnChunks(Math.max(45, load.minutes * learnBudgetRatio - testReserve));
         yesterdayLearned = tasks
@@ -1359,7 +1430,10 @@
       /* تا وقتی مبحث نخوانده جدی مانده، تمرین فقط تا سقفِ سهمِ تست اضافه می‌شود؛
          وقتی یادگیری جلو افتاد، ظرفیت آزاد با تمرین پر می‌شود (روزهای پشت‌کنکوری). */
       const learnHeavy = peekLearnNeed() > load.minutes * Math.max(1, daysLeft) * 0.2;
-      if (learnHeavy) spare = Math.min(spare, Math.max(testReserve + 20, 0));
+      /* اما «تست» استاندارد حق خودش را دارد: تا رسیدن به هدف تستِ امروز،
+         ظرفیت آزاد برای تمرین باز می‌ماند (سقف: ۵۰٪ روز). */
+      const practiceAllowance = Math.min(load.minutes * 0.45, testReserve + 20);
+      if (learnHeavy) spare = Math.min(spare, practiceAllowance);
       let practiceUsed = 0;
       if (spare >= 20 && !isFinalExam) {
         const ordered = cfg.subjects
@@ -1367,15 +1441,28 @@
           .slice()
           .sort((a, b) => (b.weight * (1 - b.mastery / 100)) - (a.weight * (1 - a.mastery / 100)));
         const todaySubjects = new Set(tasks.map((t) => t.subjectId));
-        const weakestOf = (sid) => topics
-          .filter((t) => t.subjectId === sid && t.read)
-          .sort((a, b) => a.mastery - b.mastery)[0] || topics
-          .filter((t) => t.subjectId === sid)
-          .sort((a, b) => topicPriority(b) - topicPriority(a))[0];
-        let i = 0;
+        /* چرخش بین فصل‌های همان درس: هر فصل سهم تست خودش را می‌گیرد.
+           قبلاً همهٔ تست‌ها روی «ضعیف‌ترین فصل» می‌نشست و بعد از پر شدنِ سهم آن،
+           بقیهٔ تست‌ها به هیچ فصلی نسبت داده نمی‌شد (گزارش تست صفر می‌ماند). */
+        const practiceCursor = {};
+        const poolOf = (sid) => topics
+          .filter((t) => t.subjectId === sid && (t.testsNeed || 0) - (t.testsDone || 0) > 0)
+          .sort((a, b) => (a.mastery - b.mastery) || ((b.testsNeed - (b.testsDone || 0)) - (a.testsNeed - (a.testsDone || 0))));
+        const weakestOf = (sid) => {
+          const pool = poolOf(sid);
+          if (!pool.length) {
+            return topics.filter((t) => t.subjectId === sid && t.read)
+              .sort((a, b) => a.mastery - b.mastery)[0] || null;
+          }
+          const i = practiceCursor[sid] || 0;
+          practiceCursor[sid] = i + 1;
+          return pool[i % pool.length];
+        };
+        /* شروع چرخه از درسی متفاوت هر روز تا تست‌زنی روی یک درس قفل نشود */
+        let i = ordered.length ? (dayIndex % ordered.length) : 0;
         const targetToday = Math.round((cfg.testTarget.daily || 0) * clamp(load.minutes / 240, 0.4, 1.4));
         const testsNow = () => sum(tasks.map((t) => t.practiceCount || 0));
-        const maxPracticeBlocks = learnHeavy ? 5 : 12;   // در روزهای آزاد، ظرفیت با تمرین پر می‌شود
+        const maxPracticeBlocks = learnHeavy ? 7 : 12;   // در روزهای آزاد، ظرفیت با تمرین پر می‌شود
         while (spare >= 20 && i < maxPracticeBlocks && ordered.length) {
           /* به‌محض رسیدن به هدف تست روز، پر کردن متوقف می‌شود تا وقت یادگیری بماند */
           if (cfg.testTarget.daily > 0 && testsNow() >= targetToday) break;
@@ -1388,7 +1475,9 @@
             topicLabel: w
               ? w.label + (todaySubjects.has(s.id) ? ' — تست هدفمند' : ' — تست هدفمند (فصل ضعیف)')
               : 'تست‌زنی زمان‌دار',
-            minutesLeft: minutes, priority: 60, topic: w || null, practiceCount: Math.max(5, Math.round(minutes / (s.type === 'problem' ? 3.5 : 1.6))),
+            minutesLeft: minutes, priority: 60, topic: w || null,
+            /* استاندارد: در درس محاسباتی ~۲.۶ دقیقه و در مفهومی ~۱.۶ دقیقه برای هر تست */
+            practiceCount: Math.max(5, Math.round(minutes / (s.type === 'problem' ? 2.6 : 1.6))),
           });
           spare -= minutes;
           practiceUsed += minutes;
@@ -1399,9 +1488,15 @@
       /* ---- ۷.۵) سقف روز: مجموع تسک‌ها از ساعت اعلامیِ خودِ دانش‌آموز بیشتر نشود ---- */
       (function trimToDailyLoad() {
         const movableTasks = tasks.filter((t) => !t.fixed);
+        /* آزمون‌های ثابت (دستی/دوره‌ای) هم بخشی از ظرفیت روز هستند */
+        const fixedMinutes = sum(tasks.filter((t) => t.fixed).map((t) => t.fixed.end - t.fixed.start));
+        /* در روز آزمون، دست‌کم «تحلیل آزمون» باید جا داشته باشد */
+        const floorMovable = (hasManualExamToday || todaysMocks.length)
+          ? (cfg.POST_EXAM_ANALYSIS_MIN || 30) : 0;
+        const availableForMovable = Math.max(floorMovable, load.minutes - fixedMinutes);
         let total = sum(movableTasks.map((t) => t.minutesLeft || 0));
-        if (total <= load.minutes) return;
-        let excess = total - load.minutes;
+        if (total <= availableForMovable) return;
+        let excess = total - availableForMovable;
         movableTasks
           .slice()
           /* ابتدا مرور/آماده‌سازی کوتاه می‌شود؛ «تست روزانه» آخرین چیزی است که قربانی می‌شود */
@@ -1522,6 +1617,7 @@
           start: fmtHM(b.start), end: fmtHM(b.end),
         })),
         isMockDay: Boolean(isMockDay || hasManualExamToday),
+        mocks: todaysMocks.map((m) => ({ title: m.title, minutes: m.minutes, subjects: m.subjectIds })),
         isExamDay: isFinalExam || hasManualExamToday,
         isRestDay: outBlocks.length === 0,
         isDeload: load.isDeload,
@@ -1538,16 +1634,6 @@
     }
 
     /* ---- جمع‌بندی ---- */
-    if (learnQueue.length) {
-      const missing = Math.max(0, Math.round(peekLearnNeed()));
-      const low = cfg.subjects.filter((s) => s.weight < 3).sort((a, b) => a.weight - b.weight).slice(0, 2);
-      warnings.push(
-        'با زمان‌های فعلی (با احتساب کلاس‌ها و آزمون‌ها) حدود ' + Math.round(missing / 60) + ' ساعت برای پوشش کاملِ ' +
-        learnQueue.length + ' مبحث باقی‌مانده کم است. ' +
-        (low.length ? 'پیشنهاد: فصل‌های کم‌ضریب (' + low.map((s) => s.name).join('، ') + ') را عقب بینداز یا یک بازهٔ اضافه در روزهای آزاد بساز.'
-                    : 'پیشنهاد: ۱ ساعت به روزهای آزاد اضافه کن یا تعداد فصل‌ها را واقعی‌تر کن.')
-      );
-    }
     if (sum(cfg.classes.map(() => 0)) === 0 && !cfg.classes.length) {
       notes.push('کلاسی ثبت نکردی؛ اگر کلاس آنلاین داری، در بخش «کلاس‌ها» اضافه کن تا برنامه دور آن‌ها چیده شود.');
     }
@@ -1631,10 +1717,32 @@
     const coreCovered = coreChapters.filter((c) => c.covered).length;
     const coverageRatio = Math.round((coreCovered / Math.max(1, coreChapters.length)) * 100);
     const coverageRatioAll = Math.round((coveredCount / Math.max(1, chapterStats.length)) * 100);
-    const testsPlanned = days.reduce((a, d) => a + sum(d.blocks.map((b) => b.practiceCount || 0)), 0);
+    /* «تست» فقط تمرین واقعی است؛ نمونه‌سؤالِ سوابق و آزمون‌ها جدا شمرده می‌شوند */
+    const testsPlanned = days.reduce((a, d) => a + sum(d.blocks.filter((b) => b.kind === 'practice')
+      .map((b) => b.practiceCount || 0)), 0);
+    const mockTests = days.reduce((a, d) => a + sum(d.blocks.filter((b) => b.kind === 'mock')
+      .map((b) => b.practiceCount || 0)), 0);
+    const finalsSampleTests = days.reduce((a, d) => a + sum(d.blocks.filter((b) => b.kind === 'finalprep')
+      .map((b) => b.practiceCount || 0)), 0);
     const activeDays = days.filter((d) => !d.isRestDay && !d.isOff).length || 1;
     const testsPerDay = Math.round((testsPlanned / activeDays) * 10) / 10;
     const targetDaily = (cfg.testTarget && cfg.testTarget.daily) || 0;
+
+    /* ---------- ظرفیت تست در برابر استاندارد ---------- */
+    const testsNeedTotal = Math.round(sum(topics.map((t) => t.testsNeed || 0)));
+    const requiredDailyTests = Math.round(testsNeedTotal / Math.max(1, activeDays));
+    const feasibleDailyTests = Math.round(cfg._feasibleDailyTests || targetDaily);
+    const testCoverageRatio = testsNeedTotal > 0 ? Math.round((testsPlanned / testsNeedTotal) * 100) / 100 : 1;
+    const testsBySubject = cfg.subjects.map((sub) => {
+      const rows = chapterStats.filter((c) => c.subjectId === sub.id);
+      return {
+        subjectId: sub.id, name: sub.name,
+        need: Math.round(sum(rows.map((c) => c.testsNeed || 0))),
+        done: Math.round(sum(rows.map((c) => c.testsDone || 0))),
+        planned: Math.round(sum(rows.map((c) => c.testsDone || 0))),
+      };
+    });
+
     /* هدف تست هر روز متناسب با حجم همان روز سنجیده می‌شود (روز ۳ ساعته = هدف کمتر) */
     const dayTestTarget = (d) => targetDaily * clamp((d.plannedMinutes || 0) / 240, 0.5, 1.3);
     const testTargetMetRatio = targetDaily > 0
@@ -1645,9 +1753,99 @@
     const unread = topics.filter((t) => t.mode === 'learn');
     const reteachList = topics.filter((t) => t.mode === 'reteach').sort((a, b) => topicPriority(b) - topicPriority(a));
     const boostList = topics.filter((t) => t.mode === 'boost').sort((a, b) => topicPriority(b) - topicPriority(a));
-    const remainingNeed = Math.round(sum(topics.map((t) => Math.max(0, t.needMinutes))));
     const spareCapacity = Math.max(0, Math.round(capacityTotal - totalStudy));
+    const remainingNeed = Math.round(sum(topics.map((t) => Math.max(0, t.needMinutes))));
     const willCover = remainingNeed <= spareCapacity;
+
+    /* ---------- ساعت لازم در روز (هشدار صادقانه، بر پایهٔ خروجی واقعی برنامه) ----------
+       کاربر می‌تواند ساعت را آزادانه بالا/پایین ببرد؛ چیزی سقف نمی‌زند.
+       اگر با ساعتِ اعلامی (منهای کلاس/آزمون ثابت) پوشش کامل نشود،
+       «حداقل ساعت لازم» با همان راندمان زمانِ فعلی تخمین زده و صریح گفته می‌شود. */
+    const declaredDailyHours = Math.round((sum(WEEKDAY_KEY.map((k) => cfg.availability[k])) / 7) * 10) / 10;
+    const fixedWeeklyMinutes = sum(cfg.classes.map((c) => Math.max(0, (c.end || 0) - (c.start || 0)))) +
+      sum(cfg.exams.map((e) => Math.max(60, (e.end || 0) - (e.start || 0))));
+    const capacityDailyMinutes = Math.round(capacityTotal / Math.max(1, days.filter((d) => !d.isRestDay).length));
+
+    /* پنجرهٔ آزاد واقعی روز: از ساعت شروع تا ۴۵ دقیقه قبل خواب، منهای کلاس‌های ثابت.
+       اگر کاربر بگوید «۱۲ ساعت می‌خوانم» ولی پنجرهٔ آزادش ۶ ساعت است،
+       مشکل ساعت اعلامی نیست؛ باید ساعت شروع/خواب یا کلاس‌ها اصلاح شود. */
+    let windowTotal = 0;
+    let windowDays = 0;
+    for (let i = 0; i < 7; i += 1) {
+      const dt = addDays(cfg._start, i);
+      const wdSample = persianWeekday(dt);
+      if (cfg.restDay !== 7 && wdSample === cfg.restDay) continue;
+      const busySample = busyEventsFor(cfg, dt, i);
+      const segs = freeSegments(cfg, dt, busySample);
+      windowTotal += sum(segs.map((x) => x.end - x.start));
+      windowDays += 1;
+    }
+    const freeWindowMinutes = windowDays ? Math.round(windowTotal / windowDays) : 0;
+    const freeWindowHours = Math.round((freeWindowMinutes / 60) * 10) / 10;
+    /* اگر پوشش ۹۸٪ به بالا نیست، ساعت لازم ≈ ساعت فعلی × (۱۰۰ ÷ پوشش) */
+    const covFactor = coverageRatio > 0 ? Math.min(2.5, 100 / coverageRatio) : 2.5;
+    const effPerDeclared = declaredDailyHours > 0
+      ? clamp((capacityDailyMinutes / 60) / declaredDailyHours, 0.3, 1) : 1;
+    const wantsMoreThanWindow = declaredDailyHours * 60 > freeWindowMinutes * 1.1;
+    let minDailyHoursNeeded = Math.round(((capacityDailyMinutes / 60) * covFactor / effPerDeclared) * 10) / 10;
+    /* اگر گلوگاه «پنجرهٔ آزاد» است، عدد پیشنهادی نباید از پنجره بزرگ‌تر شود */
+    if (wantsMoreThanWindow) minDailyHoursNeeded = Math.min(minDailyHoursNeeded, freeWindowHours);
+    const shortfallMinutes = Math.max(0, Math.round((minDailyHoursNeeded * effPerDeclared * 60) - capacityDailyMinutes));
+    const capacityAdvisory = {
+      declaredDailyHours,
+      fixedWeeklyMinutes,
+      capacityDailyMinutes,
+      minDailyHoursNeeded,
+      shortfallMinutes,
+      achievable: coverageRatio >= 98,
+      freeWindowMinutes,
+      freeWindowHours,
+      limiter: coverageRatio >= 98 ? 'none' : (wantsMoreThanWindow ? 'window' : 'time'),
+      coverageRatio,
+      testCoverageRatio,
+      testsNeedTotal,
+      requiredDailyTests: Math.round(testsNeedTotal / Math.max(1, activeDays)),
+      feasibleDailyTests: Math.round(cfg._feasibleDailyTests || 0),
+      totalCapacityMinutes: Math.round(capacityTotal),
+    };
+
+    if (!capacityAdvisory.achievable && capacityAdvisory.limiter === 'window') {
+      warnings.push(
+        'ساعت اعلامی‌ات (' + toFa(declaredDailyHours) + ' ساعت در روز) از پنجرهٔ آزادی که داری بزرگ‌تر است: ' +
+        'بین ساعت شروع مطالعه و خواب، منهای کلاس/آزمون‌های ثابت، روزی حدود ' + toFa(freeWindowHours) +
+        ' ساعت جا داری. با همین پنجره پوشش فصل‌ها ' + toFa(coverageRatio) + '٪ می‌شود. ' +
+        'برای استفاده از ساعت‌های بیشتر، ساعت شروع را جلوتر ببر، یا ساعت خواب را عقب‌تر، ' +
+        'یا یکی از کلاس‌های ثابت را جابه‌جا کن (یا چند فصل کم‌ضریب را عقب بینداز).'
+      );
+    } else if (!capacityAdvisory.achievable) {
+      warnings.push(
+        'ساعت‌های فعلی برای پوشش کامل کافی نیست: با ' + toFa(declaredDailyHours) +
+        ' ساعت اعلامی (حدود ' + toFa(Math.round(capacityDailyMinutes / 60 * 10) / 10) +
+        ' ساعت مؤثر در روز' + (fixedWeeklyMinutes ? ' بعد از کلاس/آزمون‌های ثابت' : '') +
+        ')، پوشش فصل‌ها ' + toFa(coverageRatio) + '٪ می‌شود. برای پوشش کامل روزی حداقل ' +
+        toFa(minDailyHoursNeeded) + ' ساعت لازم است (کمبود ~' +
+        toFa(Math.round(shortfallMinutes / 60 * 10) / 10) + ' ساعت در روز). ' +
+        'ساعت مطالعه را بالا ببر یا چند فصل کم‌ضریب را عقب بینداز.'
+      );
+    }
+    if (learnQueue.length && capacityAdvisory.achievable) {
+      const missing = Math.max(0, Math.round(peekLearnNeed()));
+      const low = cfg.subjects.filter((s) => s.weight < 3).sort((a, b) => a.weight - b.weight).slice(0, 2);
+      warnings.push(
+        'با زمان‌های فعلی (با احتساب کلاس‌ها و آزمون‌ها) حدود ' + Math.round(missing / 60) + ' ساعت برای پوشش کاملِ ' +
+        learnQueue.length + ' مبحث باقی‌مانده کم است. ' +
+        (low.length ? 'پیشنهاد: فصل‌های کم‌ضریب (' + low.map((s) => s.name).join('، ') + ') را عقب بینداز یا یک بازهٔ اضافه در روزهای آزاد بساز.'
+                    : 'پیشنهاد: ۱ ساعت به روزهای آزاد اضافه کن یا تعداد فصل‌ها را واقعی‌تر کن.')
+      );
+    }
+    if (testCoverageRatio < 0.85) {
+      warnings.push(
+        'ظرفیت تست کمتر از استاندارد است: برای پوشش کامل تست‌ها روزی ~' +
+        toFa(capacityAdvisory.requiredDailyTests) + ' تست لازم است؛ همین برنامه روزی ~' +
+        toFa(Math.round(testsPerDay)) + ' تست می‌چیند (هدف ' + toFa(targetDaily) + ' · پوشش تست: ' +
+        toFa(Math.round(testCoverageRatio * 100)) + '٪). با افزایش ساعت مطالعه (یا ساعت شروع زودتر) ظرفیت تست هم بالا می‌رود.'
+      );
+    }
     const weakChapters = chapterStats
       .filter((c) => c.read && c.mastery < DEFAULTS.BOOST_BELOW)
       .sort((a, b) => {
@@ -1741,6 +1939,15 @@
       testsPerDay,
       testTargetDaily: targetDaily,
       testTargetMetRatio,
+      testsNeedTotal,
+      testsBySubject,
+      mockTests,
+      finalsSampleTests,
+      requiredDailyTests,
+      feasibleDailyTests,
+      testCoverageRatio,
+      capacityAdvisory,
+      weeklyMocks: cfg.weeklyMocks,
       finalsCount: finalTopics.length,
       finalsReadiness,
       finalsProjectedScore,
@@ -1803,11 +2010,13 @@
 
     return {
       meta: {
-        version: '2.0.0', createdAt: new Date().toISOString(),
+        version: '2.1.0', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
         classesCount: cfg.classes.length, examsCount: cfg.exams.length,
+        weeklyMocks: cfg.weeklyMocks,
+        subjects: cfg.subjects.map((x) => ({ id: x.id, name: x.name })),
         config: configForStorage(cfg),
       },
       summary: {
@@ -1887,6 +2096,7 @@
       student: cfg.student, startDate: cfg.startDate, examDate: cfg.examDate, sleep: cfg.sleep,
       availability: cfg.availability, startTimes: cfg.startTimes, blockMinutes: cfg.blockMinutes,
       breakMinutes: cfg.breakMinutes, restDay: cfg.restDay, weeklyMock: cfg.weeklyMock,
+      weeklyMocks: cfg.weeklyMocks,
       classes: cfg.classes, exams: cfg.exams, subjects: cfg.subjects,
       finals: cfg.finals, deadlines: cfg.deadlines, offDates: cfg.offDates,
       carryOver: cfg.carryOver, testTarget: cfg.testTarget,

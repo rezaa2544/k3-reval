@@ -212,7 +212,17 @@
           </select>
         </div>
         <div><label>تاریخ شروع (شمسی)</label><input id="startDate" data-jdate placeholder="۱۴۰۵/۰۸/۰۷" /></div>
-        <div><label>تاریخ آزمون هدف (شمسی)</label><input id="examDate" data-jdate placeholder="۱۴۰۶/۰۱/۱۶" /></div>
+        <div>
+          <label>تاریخ آزمون هدف (شمسی)</label>
+          <input id="examDate" data-jdate placeholder="۱۴۰۶/۰۴/۱۱" />
+          <select id="examDatePreset" style="margin-top:6px">
+            <option value="">— انتخاب سریع تاریخ کنکور ۱۴۰۶ —</option>
+            <option value="2027-07-02">۱۱ تیر ۱۴۰۶ (پیش‌فرض کنونی)</option>
+            <option value="2027-06-25">۴ تیر ۱۴۰۶</option>
+            <option value="2027-07-09">۱۸ تیر ۱۴۰۶</option>
+          </select>
+          <div class="muted" style="font-size:10.5px;margin-top:4px">تاریخ رسمی کنکور ۱۴۰۶ هنوز اعلام نشده؛ محاسبات روی همین تاریخ بسته می‌شود و با تغییر آن، همه‌چیز خودکار جابه‌جا می‌شود.</div>
+        </div>
       </div>
     </div>
 
@@ -236,9 +246,23 @@
         <div><label>استراحت بین بلوک‌ها (دقیقه)</label>
           <select id="breakMinutes"><option value="5">۵</option><option value="10" selected>۱۰</option><option value="15">۱۵</option></select>
         </div>
-        <div><label>آزمون جامع هفتگی</label>
-          <select id="weeklyMock"><option value="1" selected>فعال (جمعه)</option><option value="0">غیرفعال</option></select>
+        <div><label>آزمون‌های دوره‌ای</label>
+          <select id="weeklyMock"><option value="1" selected>فعال (در کارت ۲.۶ تنظیم می‌شود)</option><option value="0">غیرفعال</option></select>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>۲.۶) آزمون‌های دوره‌ای <span class="muted" style="font-size:11px;font-weight:400">(هر روز هفته · هر ۱ تا ۴ هفته · چند آزمون در یک روز)</span></h2>
+      <p class="muted" style="margin:0 0 10px;font-size:11.5px">
+        هر آزمونی که واقعاً می‌دهی را اینجا بنویس — مثلاً «زیستاز» پنجشنبه‌های فرد و «آلفا» پنجشنبه‌های زوج.
+        موتور روزِ آزمون را به‌عنوان بلوک ثابت می‌چیند، روزهای قبلش را سبک می‌کند و بلوک «تحلیل آزمون» را بلافاصله بعدش می‌گذارد.
+      </p>
+      <div id="mockRows"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn small" id="addMock">+ افزودن آزمون دوره‌ای</button>
+        <button class="btn ghost small" id="suggestMocks">پیشنهاد هوشمند</button>
+        <span class="muted" style="font-size:11px;margin-inline-start:auto">اگر خالی بگذاری، یک آزمون جامع هفتگی ساده چیده می‌شود.</span>
       </div>
     </div>
 
@@ -443,6 +467,25 @@
     <div id="reportBody" style="display:none">
       <div class="grid g4" id="reportStats"></div>
 
+      <div class="card" id="capacityCard" style="margin-top:12px">
+        <h2>ظرفیت و استاندارد — آیا ساعت‌هایت کافی است؟</h2>
+        <div id="capacityBox"></div>
+      </div>
+
+      <div class="card">
+        <h2>ظرفیت تست هر درس (استاندارد)</h2>
+        <p class="muted" style="margin-top:0;font-size:11.5px">
+          «لازم» از حجم واقعی فصل‌ها می‌آید (مفهومی ~۵۵ تست، محاسباتی ~۴۵ تست به ازای هر فصل × ضریب سختی)،
+          «چیده‌شده» چیزی است که همین برنامه واقعاً جا داده است.
+        </p>
+        <div id="testCapacityTable" class="tablewrap"></div>
+      </div>
+
+      <div class="card">
+        <h2>آزمون‌های دوره‌ای</h2>
+        <div id="mocksReport"></div>
+      </div>
+
       <div class="card" style="margin-top:12px">
         <h2>مهلت‌ها — آیا به تاریخ‌ها می‌رسی؟</h2>
         <p class="muted" style="margin-top:0;font-size:11.5px">مدل کتابی (کل کتاب تا یک تاریخ) و مدل کوتاه (آزمون تک‌درس/جامع). وضعیت بر پایهٔ همین برنامه محاسبه می‌شود، نه حدس.</p>
@@ -527,10 +570,18 @@
   .dyn-row{display:grid;gap:8px;align-items:end;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
   .dyn-row.class{grid-template-columns:1.4fr 1fr .8fr .8fr auto}
   .dyn-row.exam{grid-template-columns:1.3fr 1fr .8fr .8fr 1.3fr auto}
+  .dyn-row.mock{grid-template-columns:1.25fr .85fr .85fr .9fr .8fr 1.1fr auto}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center}
+  .kpi b{display:block;font-size:18px;font-weight:700;color:#1e293b;margin-bottom:2px}
+  .kpi span{display:block;font-size:11px;color:var(--muted);line-height:1.5}
+  .dyn-row.mock select[multiple]{height:64px}
+  .dyn-row dlbook,.dyn-row.dlbook{grid-template-columns:1fr 1fr 1.1fr auto}
+  .dyn-row.dlexam{grid-template-columns:1.2fr .8fr .7fr .7fr 1fr 1fr auto}
+  .dyn-row.off{grid-template-columns:1fr 1fr 1.4fr auto}
   .dyn-row .del{background:#fff;border:1px solid #f5c2c2;color:#dc2626;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
   .dyn-row .del:hover{background:#fef2f2}
   .dyn-row select[multiple]{height:70px}
-  @media(max-width:820px){.dyn-row.class,.dyn-row.exam{grid-template-columns:1fr 1fr}}
+  @media(max-width:900px){.dyn-row.class,.dyn-row.exam,.dyn-row.mock,.dyn-row.dlbook,.dyn-row.dlexam,.dyn-row.off{grid-template-columns:1fr 1fr}}
   .grade-chip{
     border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:99px;
     padding:6px 14px;font:inherit;font-size:12px;cursor:pointer;transition:.15s

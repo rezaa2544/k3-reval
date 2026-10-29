@@ -1,5 +1,5 @@
 /**
- * شبیه‌سازی کامل «پشت‌کنکوری + ترمیم نهایی» — نسخهٔ ۲.۰
+ * شبیه‌سازی کامل «پشت‌کنکوری + ترمیم نهایی» — نسخهٔ ۲.۱
  * ------------------------------------------------------------------
  * ۱) برنامهٔ سالِ کامل برای یک پشت‌کنکوری (۱۲ ساعت روزانه، ۶ روز در هفته)
  * ۲) اجرای روزبه‌روز با خرابی‌های واقعی: سفر، بیماری، روزهای ازدست‌رفته، افت انرژی
@@ -71,7 +71,7 @@ const snap = (p) => ({
   reviews: p.summary.coverage.reviewSessions,
 });
 
-say('═══════ شبیه‌سازی کامل پشت‌کنکوری + ترمیم نهایی — روال ۲.۰ ═══════');
+say('═══════ شبیه‌سازی کامل پشت‌کنکوری + ترمیم نهایی — روال ۲.۱ ═══════');
 say('');
 say('۱) دانش‌آموز: فارغ‌التحصیل تجربی، ۱۰ ساعت روزانه × ۶ روز، روز استراحت جمعه');
 say('   بازه: ' + J.fmtLong(START) + ' تا کنکور ' + J.fmtLong(EXAM) + ' (' + plan.days.length + ' روز)');
@@ -410,9 +410,13 @@ say('');
 say('۵) بررسی سلامت برنامه');
 const allDays = plan.days.slice(0, lastIdx);
 const EXAM_DAY = allDays[allDays.length - 1];
+/* آزمون‌هایی که کاربر خودش روی روز استراحت گذاشته مجاز است؛ تحلیل خطای همان آزمون هم بخشی از آن روز است */
 const REST_OK = ['exam', 'mock', 'finalprep'];
-const restViolationDays = allDays.filter((d) => d.weekday === 'جمعه' && d !== EXAM_DAY &&
-  d.blocks.some((b) => REST_OK.indexOf(b.kind) === -1));
+const restViolationDays = allDays.filter((d) => {
+  if (d.weekday !== 'جمعه' || d === EXAM_DAY) return false;
+  const hasExam = d.blocks.some((b) => b.kind === 'exam' || b.kind === 'mock');
+  return d.blocks.some((b) => REST_OK.indexOf(b.kind) === -1 && !(hasExam && b.kind === 'analysis'));
+});
 const restViolation = restViolationDays.length;
 if (restViolation) {
   restViolationDays.slice(0, 5).forEach((d) => say('   ⚠ روز استراحت با بلوک: ' + d.date + ' → ' +
@@ -447,7 +451,7 @@ if (fails.length) {
     finReal + '٪ سوابق جمع کرد.');
 }
 
-require('fs').writeFileSync('/home/user/k3-reval/docs/simulation-2.0.0.md',
+require('fs').writeFileSync('/home/user/k3-reval/docs/simulation-2.1.0.md',
   '# شبیه‌سازی کامل پشت‌کنکوری + ترمیم نهایی — روال ۲.۰\n\n```\n' + log.join('\n') + '\n```\n', 'utf8');
 say('');
-say('گزارش در docs/simulation-2.0.0.md ذخیره شد.');
+say('گزارش در docs/simulation-2.1.0.md ذخیره شد.');

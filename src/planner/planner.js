@@ -16,6 +16,8 @@
     finalprep: 'b-final', deadlinecheck: 'b-deadline', carry: 'b-carry', carryreview: 'b-carry',
   };
 
+  const WEEKDAYS_FA = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+
   const DL_STATUS = {
     met: { fa: 'سر وقت تمام شد', cls: 'ok' },
     ontrack: { fa: 'روی مسیر', cls: 'ok' },
@@ -230,6 +232,91 @@
       : [];
     renderBookDeadlineRows(state.deadlineBooks);
     toast('مهلت پیشنهادی ساخته شد — هر تاریخ را می‌توانی عوض کنی.');
+  });
+
+  /* ---------------- آزمون‌های دوره‌ای (هر روز هفته، هر N هفته) ---------------- */
+
+  function subjectOptionsAll(selected) {
+    const list = (state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi'));
+    return list.map((s) => '<option value="' + s.id + '"' +
+      ((selected || []).indexOf(s.id) !== -1 ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('');
+  }
+
+  function renderMockRows(rows) {
+    const box = $('mockRows');
+    if (!box) return;
+    box.innerHTML = '';
+    (rows || []).forEach((m) => {
+      const div = document.createElement('div');
+      div.className = 'dyn-row mock';
+      div.innerHTML =
+        '<div><label>عنوان آزمون</label><input data-mk="title" value="' + esc(m.title || '') + '" placeholder="زیستاز / آلفا / قلم‌چی" /></div>' +
+        '<div><label>روز هفته</label><select data-mk="day">' +
+          WEEKDAYS_FA.map((d, i) => '<option value="' + i + '"' + (Number(m.day) === i ? ' selected' : '') + '>' + d + '</option>').join('') +
+        '</select></div>' +
+        '<div><label>تکرار</label><select data-mk="everyNWeeks">' +
+          [[1, 'هر هفته'], [2, 'هر ۲ هفته'], [3, 'هر ۳ هفته'], [4, 'هر ۴ هفته']]
+            .map(([v, t]) => '<option value="' + v + '"' + (Number(m.everyNWeeks || 1) === v ? ' selected' : '') + '>' + t + '</option>').join('') +
+        '</select></div>' +
+        '<div><label>ساعت شروع (اختیاری)</label><input data-mk="start" type="time" value="' + esc(m.start || '') + '" /></div>' +
+        '<div><label>مدت (دقیقه)</label><select data-mk="minutes">' +
+          [60, 90, 100, 120, 150, 180, 210]
+            .map((v) => '<option value="' + v + '"' + (Number(m.minutes || 100) === v ? ' selected' : '') + '>' + faNum(v) + '</option>').join('') +
+        '</select></div>' +
+        '<div><label>دروس (خالی = همه)</label><select data-mk="subjectIds" multiple size="4">' + subjectOptionsAll(m.subjectIds) + '</select></div>' +
+        '<button class="del" title="حذف">✕</button>';
+      div.querySelector('.del').addEventListener('click', () => div.remove());
+      box.appendChild(div);
+    });
+    if (!box.children.length) {
+      box.innerHTML = '<div class="muted" style="font-size:11.5px">آزمون دوره‌ای ثبت نشده — یک آزمون جامع هفتگی ساده چیده می‌شود.</div>';
+    }
+  }
+
+  function readMocks() {
+    const out = [];
+    const box = $('mockRows');
+    if (!box) return out;
+    box.querySelectorAll('.dyn-row').forEach((row) => {
+      const title = (row.querySelector('[data-mk="title"]').value || '').trim();
+      const day = Number(row.querySelector('[data-mk="day"]').value);
+      const every = Number(row.querySelector('[data-mk="everyNWeeks"]').value) || 1;
+      const start = row.querySelector('[data-mk="start"]').value || null;
+      const minutes = Number(row.querySelector('[data-mk="minutes"]').value) || 100;
+      const subjectIds = Array.from(row.querySelector('[data-mk="subjectIds"]').selectedOptions).map((o) => o.value);
+      if (!title && !subjectIds.length) return;
+      out.push({ title: title || 'آزمون دوره‌ای', day, everyNWeeks: every, start, minutes, subjectIds });
+    });
+    return out;
+  }
+
+  $('addMock') && $('addMock').addEventListener('click', () => {
+    state.weeklyMocks = readMocks().concat([{
+      title: 'آزمون دوره‌ای', day: 5, everyNWeeks: 1, minutes: 100, subjectIds: [],
+    }]);
+    renderMockRows(state.weeklyMocks);
+  });
+
+  $('suggestMocks') && $('suggestMocks').addEventListener('click', () => {
+    /* پیشنهاد حرفه‌ای: آزمون آزمایشی هر ۲ هفته + آزمون تک‌درس هفتگی */
+    state.weeklyMocks = [
+      { title: 'آزمون جامع آزمایشی', day: 5, everyNWeeks: 2, minutes: 180, subjectIds: [] },
+      { title: 'آزمون تک‌درس هفته', day: 5, everyNWeeks: 2, minutes: 100, subjectIds: [] },
+    ];
+    renderMockRows(state.weeklyMocks);
+    toast('دو آزمون دوره‌ای پیشنهاد شد (پنجشنبه‌ها، یکی‌درمیان).');
+  });
+
+  $('examDatePreset') && $('examDatePreset').addEventListener('change', (e) => {
+    const v = e.target.value;
+    if (!v) return;
+    const inp = $('examDate');
+    const d = new Date(v + 'T00:00:00');
+    inp.value = J ? J.fmt(v) : v;
+    inp.dataset.iso = v;
+    if (J && J.setIso) J.setIso(inp, v);
+    toast('تاریخ آزمون هدف: ' + (J ? J.fmt(v) : v));
+    e.target.value = '';
   });
 
   /* ---------------- مدل ۲: آزمون تک‌درس / جامع ---------------- */
@@ -964,6 +1051,7 @@
       breakMinutes: Number($('breakMinutes').value) || 10,
       restDay: Number($('restDay').value),
       weeklyMock: $('weeklyMock').value === '1',
+      weeklyMocks: readMocks(),
       classes: readClasses(),
       exams: readExams(),
       generalGrades: state.gradeSel.slice(),
@@ -998,6 +1086,8 @@
     $('blockMinutes').value = String(cfg.blockMinutes || 45);
     $('breakMinutes').value = String(cfg.breakMinutes == null ? 10 : cfg.breakMinutes);
     $('weeklyMock').value = cfg.weeklyMock === false ? '0' : '1';
+    state.weeklyMocks = cfg.weeklyMocks || [];
+    renderMockRows(state.weeklyMocks);
     buildAvailabilityGrid(cfg.availability || {});
     const allSubs = cfg.subjects || presets.subjectsFor('tajrobi');
     /* ارزیابی فصل‌به‌فصل ذخیره‌شده را برگردان */
@@ -1081,6 +1171,7 @@
       breakMinutes: 10,
       restDay: 5,
       weeklyMock: true,
+      weeklyMocks: [{ title: 'آزمون جامع هفتگی', day: 5, everyNWeeks: 1, minutes: 100, subjectIds: [] }],
       classes: [],
       exams: [],
       generalGrades: state.gradeSel.slice(),
@@ -1285,6 +1376,57 @@
           '<td>' + progressBar(x.progress) + '</td></tr>').join('') +
         '</tbody></table>'
       : '<div class="muted" style="font-size:12px">لایهٔ سوابق غیرفعال است (تنظیمات، بخش ۱۰).</div>';
+
+    /* --- ظرفیت و استاندارد --- */
+    const adv = c.capacityAdvisory || {};
+    const covOk = c.coverageRatio >= 98;
+    $('capacityBox').innerHTML =
+      '<div class="grid g3">' +
+        '<div class="kpi"><b>' + faNum(adv.declaredDailyHours || 0) + ' ساعت</b><span>ساعت اعلامی تو در روز</span></div>' +
+        '<div class="kpi"><b>' + faNum(adv.minDailyHoursNeeded || 0) + ' ساعت</b><span>حداقل لازم برای پوشش کامل</span></div>' +
+        '<div class="kpi"><b>' + faNum(Math.round((adv.fixedWeeklyMinutes || 0) / 60 * 10) / 10) + ' ساعت</b><span>کلاس/آزمون ثابت در هفته</span></div>' +
+      '</div>' +
+      '<p style="margin:10px 0 0;font-size:12.5px;' + (covOk ? 'color:#047857' : 'color:#b45309') + '">' +
+        (covOk
+          ? '✓ با ساعت‌های فعلی، پوشش کامل فصل‌ها در دسترس است.'
+          : '⚠ با ساعت‌های فعلی پوشش ' + faNum(c.coverageRatio) + '٪ می‌شود. ' +
+            'برای پوشش کامل روزی حداقل ' + faNum(adv.minDailyHoursNeeded) + ' ساعت لازم است؛ ' +
+            'می‌توانی ساعت‌ها را بالا ببری (تا ۱۶ ساعت را پشتیبانی می‌کند) یا چند فصل کم‌ضریب را عقب بیندازی.') +
+      '</p>' +
+      '<p class="muted" style="margin:6px 0 0;font-size:11.5px">' +
+        'ظرفیت تست: هدف ' + faNum(c.testTargetDaily) + ' تست در روز · ' +
+        'میانگین واقعی برنامه ' + faNum(c.testsPerDay) + ' تست · ' +
+        'لازم برای استاندارد ' + faNum(c.requiredDailyTests || 0) + ' تست در روز.' +
+      '</p>';
+
+    /* --- ظرفیت تست هر درس --- */
+    const tRows = c.testsBySubject || [];
+    $('testCapacityTable').innerHTML = tRows.length
+      ? '<table class="chap"><thead><tr><th>درس</th><th>تست لازم</th><th>چیده‌شده</th><th>پوشش</th><th style="width:130px">پیشرفت</th></tr></thead><tbody>' +
+        tRows.map((t) => {
+          const pct = t.need > 0 ? Math.min(100, Math.round((t.planned / t.need) * 100)) : 100;
+          return '<tr><td><b style="font-size:12px">' + esc(t.name) + '</b></td>' +
+            '<td class="num">' + faNum(t.need) + '</td>' +
+            '<td class="num">' + faNum(t.planned) + '</td>' +
+            '<td>' + faNum(pct) + '٪</td>' +
+            '<td>' + progressBar(pct) + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<div class="muted" style="font-size:12px">داده‌ای نیست.</div>';
+
+    /* --- آزمون‌های دوره‌ای --- */
+    const mocks = (plan.meta && plan.meta.weeklyMocks) || state.weeklyMocks || [];
+    $('mocksReport').innerHTML = mocks.length
+      ? '<table class="chap"><thead><tr><th>آزمون</th><th>روز</th><th>تکرار</th><th>مدت</th><th>دروس</th></tr></thead><tbody>' +
+        mocks.map((m) => '<tr><td><b style="font-size:12px">' + esc(m.title) + '</b></td>' +
+          '<td>' + (WEEKDAYS_FA[Number(m.day) || 0] || '—') + '</td>' +
+          '<td>' + (Number(m.everyNWeeks) <= 1 ? 'هر هفته' : 'هر ' + faNum(m.everyNWeeks) + ' هفته') + '</td>' +
+          '<td class="num">' + faNum(m.minutes) + ' دقیقه</td>' +
+          '<td>' + ((m.subjectIds || []).length ? (m.subjectIds || []).map((id) => {
+            const sub = (plan.meta.subjects || []).find((x) => x.id === id);
+            return esc(sub ? sub.name : id);
+          }).join('، ') : 'همه دروس') + '</td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="muted" style="font-size:12px">آزمون دوره‌ای تعریف نشده.</div>';
 
     renderBookTable(plan);
     renderChapterTable(plan);
