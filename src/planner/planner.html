@@ -75,6 +75,10 @@
   .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
   .badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;font-weight:600}
   .b-learn{background:#eef0ff;color:#4338ca}
+  .b-reteach{background:#fef2f2;color:#b91c1c}
+  .b-boost{background:#fff7ed;color:#b45309}
+  .b-cum{background:#ecfeff;color:#0e7490}
+  .b-classfix{background:#f5f3ff;color:#6d28d9}
   .b-review{background:#e6f4fd;color:#0369a1}
   .b-practice{background:#e5f7f5;color:#0f766e}
   .b-mock{background:#fdf1e0;color:#b45309}
@@ -91,6 +95,35 @@
   .day-pill.active{border-color:rgba(79,70,229,.55);background:#eef0ff;color:#3730a3;font-weight:600}
   .day-pill small{display:block;font-size:10px;color:var(--muted);margin-top:2px}
   .day-pill .xp-day{font-size:10.5px;color:#4338ca;font-weight:600;margin-top:3px}
+  /* --- ارزیابی فصل به فصل --- */
+  .assess-top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);
+    border-radius:12px;background:var(--panel2);margin-bottom:10px}
+  .acard{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;background:#fff}
+  .acard.open{border-color:#c7d2fe;box-shadow:0 6px 18px -14px rgba(79,70,229,.55)}
+  .acard-h{display:flex;align-items:center;gap:12px;padding:9px 12px;cursor:pointer;flex-wrap:wrap}
+  .acard-h:hover{background:#f8fafc}
+  .acard-t{font-size:12.5px;font-weight:700;min-width:190px}
+  .acard-t small{display:block;font-weight:400;font-size:10.5px;color:var(--muted);margin-top:2px}
+  .acard-m{font-size:11.5px;color:var(--muted);flex:1;min-width:150px}
+  .acard-bar{width:150px;height:7px;border-radius:99px;background:#e8edf6;overflow:hidden}
+  .acard-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#6366f1,#0ea5e9)}
+  .acard-b{padding:0 12px 12px;border-top:1px dashed var(--line2)}
+  table.chap{width:100%;border-collapse:collapse;margin-top:8px}
+  table.chap th{font-size:11px;color:var(--muted);text-align:right;font-weight:500;padding:6px 6px;border-bottom:1px solid var(--line)}
+  table.chap td{padding:5px 6px;border-bottom:1px solid var(--line2);font-size:12px}
+  table.chap input[type=text],table.chap input:not([type]){padding:6px 8px;font-size:12px}
+  table.chap input[type=number]{padding:5px 7px;font-size:12px;text-align:center}
+  .mrow{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .mini{font:inherit;font-size:10.5px;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:#f2f5fb;
+    color:#334155;cursor:pointer}
+  .mini:hover{background:#e8edf8}
+  .mini.del{color:#dc2626;border-color:#fecaca;background:#fef2f2}
+  .mini:disabled{opacity:.45;cursor:not-allowed}
+  .hint{font-size:11.5px;background:#eef6ff;border:1px solid #cfe3fb;color:#1e40af;border-radius:10px;padding:9px 11px;margin-bottom:10px}
+  .weakrow{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2);font-size:12px}
+  .pill{font-size:10.5px;padding:2px 7px;border-radius:99px;background:#eef2ff;color:#3730a3;border:1px solid #e0e7ff}
+  .pill.hot{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+  .pill.warm{background:#fff7ed;color:#b45309;border-color:#fed7aa}
   .block{
     display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:start;
     background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px
@@ -202,14 +235,14 @@
     </div>
 
     <div class="card">
-      <h2>۴) آزمون‌های آزمایشی <span class="muted" style="font-size:11px;font-weight:400">(تاریخ‌دار)</span></h2>
+      <h2>۴) آزمون‌های آزمایشی <span class="muted" style="font-size:11px;font-weight:400">(تاریخ‌دار — ۳ روز آخر قبل از هر آزمون خودکار «فقط مرور» می‌شود)</span></h2>
       <p class="muted" style="margin-top:0">با ثبت آزمون‌ها، سه روز آخر قبل از هر آزمون خودکار «فقط مرور» می‌شود و روز بعد از آزمون بلوک «تحلیل خطا» می‌گیرد.</p>
       <div id="examRows"></div>
       <button class="btn ghost small" id="addExam" style="margin-top:8px">+ افزودن آزمون</button>
     </div>
 
     <div class="card">
-      <h2>۵) وضعیت دروس</h2>
+      <h2>۵) دروس اختصاصی و ضرایب <span class="muted" style="font-size:11px;font-weight:400">(ارزیابی فصل‌به‌فصل در بخش ۶)</span></h2>
       <p class="muted" style="margin-top:0">«تسلط» را صادقانه بگذار (۰ = هیچ، ۱۰۰ = مطمئنم). درصد آزمون آخر اختیاری است و برنامه را دقیق‌تر می‌کند.</p>
       <table id="subjects"></table>
       <div class="row" style="margin-top:10px">
@@ -218,8 +251,18 @@
       </div>
     </div>
 
+    <div class="card" id="assessCard">
+      <h2>۶) ارزیابی فصل به فصل <span class="muted" style="font-size:11px;font-weight:400">— مهم‌ترین بخش: چه فصل‌هایی را خوانده‌ای و چقدر مسلطی؟</span></h2>
+      <p class="muted" style="margin:0 0 10px;font-size:11.5px">
+        روی هر درس کلیک کن تا فهرست فصل‌های کتابش باز شود. برای هر فصل «خوانده‌ام» را تیک بزن و درصد تسلطت را وارد کن
+        (۰ = هیچ، ۱۰۰ = کامل). برنامه بر همین اساس ساخته می‌شود: فصل تیک‌نخورده ← <b>یادگیری از صفر</b>،
+        تسلط زیر ۴۵٪ ← <b>جبران و بازآموزی</b>، بین ۴۵ تا ۷۵٪ ← <b>ارتقا با تست هدفمند</b>، بالای ۷۵٪ ← <b>فقط مرور فاصله‌دار</b>.
+      </p>
+      <div id="assessment"></div>
+    </div>
+
     <div class="card">
-      <h2>۶) دروس عمومی <span class="muted" style="font-size:11px;font-weight:400">(فارسی، عربی، دین و زندگی، زبان انگلیسی)</span></h2>
+      <h2>۷) دروس عمومی <span class="muted" style="font-size:11px;font-weight:400">(فارسی، عربی، دین و زندگی، زبان انگلیسی)</span></h2>
       <p class="muted" style="margin-top:0">
         فصل‌بندی بر اساس کتاب درسی رسمی است (فارسی: ۸ فصل · دینی: ۱۲/۱۲/۱۰ درس · عربی: ۸/۷/۴ درس ·
         انگلیسی: ۴ درس · سلامت و بهداشت: ۱۴ درس و هویت اجتماعی: ۱۰ درس در پایهٔ دوازدهم).
@@ -255,6 +298,16 @@
     </div>
     <div id="planBody" style="display:none">
       <div class="grid g4" id="stats"></div>
+      <div class="card" style="margin-top:12px">
+        <h2>مشاور: آمادگی و نقشهٔ جبران</h2>
+        <div class="grid g4" id="coachStats" style="margin-bottom:10px"></div>
+        <div id="coachVerdict" style="font-size:12px;margin-bottom:10px"></div>
+        <h3 style="margin-top:6px">فصل‌هایی که باید جبران شوند (زمان اختصاص‌یافته)</h3>
+        <div id="weakList"></div>
+        <h3>اولویت‌های این بازه</h3>
+        <ol id="priorityList" class="notes"></ol>
+      </div>
+
       <div class="card" style="margin-top:12px">
         <h2>چرا این برنامه؟</h2>
         <ul class="notes" id="coachNotes"></ul>
@@ -315,6 +368,10 @@
           <tr><td>مطالعه فقط در «بازه‌های آزاد واقعی» بین کلاس‌ها چیده می‌شود + ۱۰ دقیقه فاصله بعد از کلاس</td><td>توجه پس از جلسهٔ طولانی تحلیل می‌رود؛ فاصلهٔ کوتاه، کیفیت بلوک بعدی را بالا می‌برد (بار شناختی)</td></tr>
           <tr><td>دروس عمومی هم در چرخهٔ روزانه سهم دارند (ضریب×فاصله از تسلط) و مرور فاصله‌دار می‌گیرند</td><td>همان قواعد اثبات‌شدهٔ بالا برای همهٔ دروس برقرارند؛ عمومی‌ها معمولاً حفظی‌ترند، پس بلوک‌های کوتاه‌تر و بازیابی مکرر می‌گیرند</td></tr>
           <tr><td>هر تسک جملهٔ «اگر ساعت … شد، آنگاه …» دارد</td><td>نیت‌های اجرایی — Gollwitzer &amp; Sheeran 2006 (d ≈ 0.65)</td></tr>
+          <tr><td>ارزیابی فصل‌به‌فصل: هر فصل یکی از چهار حالت «یادگیری از صفر / جبران / ارتقا / فقط مرور» می‌گیرد</td><td>«اثر دانش پیشین»: یادگیری روی پایهٔ ناقص بی‌بازده است؛ تشخیص نقطهٔ ضعف قبل از تخصیص زمان، بازده را چند برابر می‌کند (Hattie 2009, prior achievement d≈0.67)</td></tr>
+          <tr><td>فصل با تسلط کم، اول «جبران» (بازآموزی هدفمند) و بعد تست؛ فصل با تسلط متوسط فقط تست هدفمند و تحلیل خطا</td><td>در تسلط متوسط، «دوباره خواندن» کم‌بازده است؛ بازیابی و تمرین واکشی، سود بیشتری می‌دهد (Dunlosky 2013، Roediger &amp; Karpicke 2006)</td></tr>
+          <tr><td>هر فصل تا نزدیک کنکور در چرخهٔ مرور می‌ماند (مرور نگهدارندهٔ ۳۰ روزه) و بلندترین فاصلهٔ بدون مرور زیر ~۳۵ روز است</td><td>حفظ ماندگاری بلندمدت نیازمند مرور با فاصلهٔ فزاینده است؛ فاصلهٔ بیش از ۱ ماه برای دانشِ حفظی، افت شدید می‌سازد (Cepeda 2008، Bjork 2011)</td></tr>
+          <tr><td>۳۰ روز آخر: «فاز جمع‌بندی» — هیچ مبحث تازه‌ای شروع نمی‌شود؛ فقط مرور، تست زمان‌دار و آزمون</td><td>آزمون واقعی، آزمون حافظه است نه یادگیری تازه؛ ماه آخر باید صرف تثبیت، سرعت و رفع خطا شود (Testing effect + تداخل یادگیری جدید)</td></tr>
         </tbody>
       </table>
       <p class="muted" style="margin-top:14px">

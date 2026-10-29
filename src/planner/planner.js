@@ -12,6 +12,7 @@
   const KIND_CLASS = {
     learn: 'b-learn', review: 'b-review', practice: 'b-practice',
     mock: 'b-mock', analysis: 'b-analysis', warmup: 'b-warmup',
+    reteach: 'b-reteach', boost: 'b-boost', cumreview: 'b-cum', classfix: 'b-classfix',
   };
 
   const $ = (id) => document.getElementById(id);
@@ -28,6 +29,9 @@
     general: null,
     gradeSel: ['دوازدهم'],   // پایه‌های انتخابی برای دروس عمومی
     generalEdits: {},        // ویرایش‌های کاربر روی هر درس عمومی (با id)
+    chapters: {},            // ارزیابی فصل‌به‌فصل: sid → [{name, read, mastery}]
+    coreSubjects: [],        // آخرین فهرست دروس اختصاصی نمایش‌داده‌شده
+    assessOpen: {},          // کدام درس‌ها در بخش ارزیابی باز است
   };
 
   /* ---------------- ابزار ---------------- */
@@ -118,13 +122,14 @@
     const typeOpts = Object.keys(types)
       .map((t) => '<option value="' + t + '"' + (s.type === t ? ' selected' : '') + '>' + types[t] + '</option>')
       .join('');
+    const rows = chapterRows(s);
+    const s2 = assessSummary(rows);
     return '' +
       '<tr data-row="' + index + '" data-id="' + esc(s.id) + '">' +
       '<td><input data-f="name" value="' + esc(s.name) + '" /></td>' +
       '<td><input data-f="weight" type="number" min="0.5" max="20" step="0.5" value="' + s.weight + '" style="width:64px" /></td>' +
-      '<td><input data-f="chapters" type="number" min="1" max="40" value="' + s.chapters + '" style="width:64px" /></td>' +
-      '<td><input data-f="masteredChapters" type="number" min="0" max="40" value="' + (s.masteredChapters || 0) + '" style="width:64px" /></td>' +
-      '<td><input data-f="mastery" type="number" min="0" max="100" step="5" value="' + s.mastery + '" style="width:70px" /></td>' +
+      '<td><span class="muted" style="font-size:12px">' + faNum(s2.readCount) + ' / ' + faNum(s2.total) + '</span></td>' +
+      '<td><span class="muted" style="font-size:12px">' + faNum(s2.avg) + '٪</span></td>' +
       '<td><select data-f="difficulty">' +
       [1, 2, 3].map((d) => '<option value="' + d + '"' + (s.difficulty === d ? ' selected' : '') + '>' + ['آسان', 'متوسط', 'سخت'][d - 1] + '</option>').join('') +
       '</select></td>' +
@@ -138,11 +143,291 @@
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   }
 
+  /* ---------------- ارزیابی فصل به فصل ---------------- */
+
+  function faToEn(t) {
+    return String(t).replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+  }
+
+  /** فهرست پیش‌فرض فصل‌های یک درس (نخوانده) */
+  function defaultChapterRows(sub) {
+    const names = sub && Array.isArray(sub.topicNames) && sub.topicNames.length ? sub.topicNames : null;
+    const n = names ? names.length : clampNum(sub && sub.chapters, 1, 120);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      out.push({
+        name: names ? String(names[i]) : ((sub && sub.topicLabel) || 'فصل') + ' ' + faNum(i + 1),
+        read: false,
+        mastery: 0,
+      });
+    }
+    return out;
+  }
+
+  function clampNum(v, lo, hi) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return lo;
+    return Math.max(lo, Math.min(hi, n));
+  }
+
+  /** سطرهای ارزیابی یک درس (منبع حقیقت: state.chapters) */
+  function chapterRows(sub) {
+    if (!sub || !sub.id) return [];
+    if (!state.chapters[sub.id] || !state.chapters[sub.id].length) {
+      state.chapters[sub.id] = defaultChapterRows(sub);
+    }
+    return state.chapters[sub.id];
+  }
+
+  /** خلاصهٔ ارزیابی یک درس */
+  function assessSummary(rows) {
+    const total = rows.length || 1;
+    const read = rows.filter((r) => r.read);
+    const avgAll = Math.round(rows.reduce((a, r) => a + (r.read ? Number(r.mastery) || 0 : 0), 0) / total);
+    const weak = read.filter((r) => r.mastery < 45).length;
+    const boost = read.filter((r) => r.mastery >= 45 && r.mastery < 75).length;
+    const solid = read.filter((r) => r.mastery >= 75).length;
+    return { total: rows.length, readCount: read.length, avg: avgAll, weak, boost, solid };
+  }
+
+  /** دروس قابل ارزیابی = اختصاصی‌ها + عمومی‌های فعال */
+  function assessSubjects() {
+    const core = (state.coreSubjects || []).map((x) => ({
+      id: x.id, name: x.name, weight: x.weight, chapters: x.chapters,
+      topicLabel: x.topicLabel, topicNames: x.topicNames, general: false,
+    }));
+    const gen = (state.general || []).filter((x) => x.include !== false).map((x) => ({
+      id: x.id, name: x.name, weight: x.weight, chapters: x.chapters,
+      topicLabel: x.topicLabel, topicNames: x.topicNames, general: true, grade: x.grade,
+    }));
+    return core.concat(gen);
+  }
+
+  function assessmentRowHtml(row, i) {
+    return '<tr data-ci="' + i + '">' +
+      '<td><input data-cf="name" value="' + esc(row.name) + '" /></td>' +
+      '<td style="text-align:center"><input type="checkbox" data-cf="read"' + (row.read ? ' checked' : '') + ' /></td>' +
+      '<td><div class="mrow">' +
+        '<input type="number" min="0" max="100" step="5" data-cf="mastery" value="' + (row.read ? row.mastery : 0) + '"' +
+          (row.read ? '' : ' disabled') + ' style="width:66px" />' +
+        '<span class="muted" style="font-size:11px">٪</span>' +
+        [0, 25, 50, 75, 90].map((v) => '<button class="mini" data-set="' + v + '"' + (row.read ? '' : ' disabled') + '>' + faNum(v) + '</button>').join('') +
+      '</div></td>' +
+      '<td style="text-align:center"><button class="mini del" data-del="' + i + '" title="حذف">✕</button></td>' +
+    '</tr>';
+  }
+
+  /** رندر کل بخش ارزیابی فصل‌به‌فصل */
+  function renderAssessment() {
+    const box = $('assessment');
+    if (!box) return;
+    const subs = assessSubjects();
+    if (!subs.length) { box.innerHTML = '<div class="muted">درسی برای ارزیابی نیست.</div>'; return; }
+
+    /* خلاصهٔ کل */
+    let allRows = [];
+    subs.forEach((sub) => { allRows = allRows.concat(chapterRows(sub)); });
+    const g = assessSummary(allRows);
+    const filled = g.readCount > 0;
+
+    box.innerHTML =
+      '<div class="assess-top">' +
+        '<div><b style="font-size:13px">' + faNum(g.total) + ' فصل/درس</b>' +
+          '<div class="muted" style="font-size:11.5px;margin-top:3px">' +
+            faNum(g.readCount) + ' خوانده‌شده · ' + faNum(g.weak) + ' ضعیف (زیر ۴۵٪) · ' +
+            faNum(g.boost) + ' نیازمند ارتقا · ' + faNum(g.solid) + ' مسلط</div></div>' +
+        '<div style="flex:1;min-width:160px"><div class="acard-bar" style="height:9px"><i style="width:' + g.avg + '%"></i></div>' +
+          '<div class="muted" style="font-size:11px;margin-top:4px">آمادگی فعلی (میانگین وزنی تسلط): ' + faNum(g.avg) + '٪</div></div>' +
+        '<div class="row" style="gap:6px">' +
+          '<button class="btn ghost small" data-all="open">باز کردن همه</button>' +
+          '<button class="btn ghost small" data-all="close">بستن همه</button>' +
+        '</div>' +
+      '</div>' +
+      (!filled
+        ? '<div class="hint">هنوز چیزی علامت نزده‌ای. هر درسی که خوانده‌ای را تیک بزن و درصد تسلطش را بزن؛ ' +
+          'فصل‌های تیک‌نخورده در برنامه «یادگیری از صفر» و فصل‌های ضعیف خودکار «جبران/ارتقا» می‌گیرند.</div>'
+        : '') +
+      subs.map((sub) => {
+        const rows = chapterRows(sub);
+        const s2 = assessSummary(rows);
+        const open = state.assessOpen[sub.id] === true;
+        return '<div class="acard' + (open ? ' open' : '') + '" data-sid="' + esc(sub.id) + '">' +
+          '<div class="acard-h" data-head="' + esc(sub.id) + '">' +
+            '<span class="acard-t">' + esc(sub.name) +
+              '<small>' + (sub.grade ? esc(sub.grade) + ' · ' : '') + 'ضریب ' + faNum(sub.weight) + ' · ' + faNum(s2.total) + ' ' +
+              esc(sub.general ? 'درس' : 'فصل') + '</small></span>' +
+            '<span class="acard-m">' + (s2.readCount ? faNum(s2.readCount) + ' از ' + faNum(s2.total) + ' خوانده · میانگین ' + faNum(s2.avg) + '٪' +
+              (s2.weak ? ' · <b style="color:#dc2626">' + faNum(s2.weak) + ' ضعیف</b>' : '') : 'ارزیابی نشده') + '</span>' +
+            '<div class="acard-bar"><i style="width:' + s2.avg + '%"></i></div>' +
+            '<button class="mini" data-toggle="' + esc(sub.id) + '">' + (open ? 'بستن' : 'باز کردن') + '</button>' +
+          '</div>' +
+          '<div class="acard-b"' + (open ? '' : ' hidden') + '>' +
+            '<div class="row" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">' +
+              '<button class="btn ghost small" data-fill="' + esc(sub.id) + '" data-val="85">همه را خوانده‌ام (۸۵٪)</button>' +
+              '<button class="btn ghost small" data-fill="' + esc(sub.id) + '" data-val="60">همه را خوانده‌ام (۶۰٪)</button>' +
+              '<button class="btn ghost small" data-fill="' + esc(sub.id) + '" data-val="0">همه را نخوانده‌ام</button>' +
+              '<button class="btn ghost small" data-add="' + esc(sub.id) + '">+ افزودن مبحث</button>' +
+            '</div>' +
+            '<table class="chap"><thead><tr><th>' + esc(sub.general ? 'درس' : 'فصل / مبحث') +
+              '</th><th style="width:74px">خوانده‌ام</th><th style="width:270px">تسلط</th><th style="width:36px"></th></tr></thead><tbody>' +
+              rows.map(assessmentRowHtml).join('') +
+            '</tbody></table>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+    /* رویدادها */
+    box.querySelectorAll('[data-head]').forEach((h) => {
+      h.addEventListener('click', (ev) => {
+        if (ev.target.closest('button')) return;
+        const id = h.dataset.head;
+        state.assessOpen[id] = !(state.assessOpen[id] === true);
+        renderAssessment();
+      });
+    });
+    box.querySelectorAll('[data-all]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const open = b.dataset.all === 'open';
+        subs.forEach((sub) => { state.assessOpen[sub.id] = open; });
+        renderAssessment();
+      });
+    });
+    box.querySelectorAll('[data-fill]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const id = b.dataset.fill;
+        const v = Number(b.dataset.val);
+        const sub = subs.find((x) => x.id === id);
+        const rows = chapterRows(sub);
+        rows.forEach((r) => { r.read = v > 0; r.mastery = v > 0 ? v : 0; });
+        state.assessOpen[id] = true;
+        renderAssessment();
+        toast('برای «' + (sub ? sub.name : '') + '» ' + (v > 0 ? 'همه فصل‌ها با تسلط ' + faNum(v) + '٪' : 'همه فصل‌ها نخوانده') + ' ثبت شد.');
+      });
+    });
+    box.querySelectorAll('[data-add]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const id = b.dataset.add;
+        const sub = subs.find((x) => x.id === id);
+        const rows = chapterRows(sub);
+        rows.push({ name: 'مبحث تازه ' + faNum(rows.length + 1), read: false, mastery: 0 });
+        state.assessOpen[id] = true;
+        renderAssessment();
+      });
+    });
+    box.querySelectorAll('[data-toggle]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const id = b.dataset.toggle;
+        state.assessOpen[id] = !(state.assessOpen[id] === true);
+        renderAssessment();
+      });
+    });
+    box.querySelectorAll('[data-set]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const tr = b.closest('tr');
+        const card = b.closest('.acard');
+        const sub = subs.find((x) => x.id === card.dataset.sid);
+        const rows = chapterRows(sub);
+        const row = rows[Number(tr.dataset.ci)];
+        if (!row) return;
+        row.read = true;
+        row.mastery = Number(b.dataset.set);
+        renderAssessment();
+      });
+    });
+    box.querySelectorAll('[data-del]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const card = b.closest('.acard');
+        const sub = subs.find((x) => x.id === card.dataset.sid);
+        const rows = chapterRows(sub);
+        if (rows.length <= 1) { toast('حداقل یک مبحث باید بماند.'); return; }
+        rows.splice(Number(b.dataset.del), 1);
+        renderAssessment();
+      });
+    });
+    /* ورودی‌ها: بدون رندر مجدد (تا فوکوس از دست نرود) */
+    box.querySelectorAll('.acard').forEach((card) => {
+      const sub = subs.find((x) => x.id === card.dataset.sid);
+      const rows = chapterRows(sub);
+      card.querySelectorAll('tbody tr').forEach((tr) => {
+        const i = Number(tr.dataset.ci);
+        const row = rows[i];
+        if (!row) return;
+        const nameEl = tr.querySelector('[data-cf="name"]');
+        const readEl = tr.querySelector('[data-cf="read"]');
+        const mEl = tr.querySelector('[data-cf="mastery"]');
+        if (nameEl) nameEl.addEventListener('input', () => { row.name = nameEl.value; });
+        if (readEl) readEl.addEventListener('change', () => {
+          row.read = readEl.checked;
+          if (row.read && !row.mastery) row.mastery = 50;
+          if (mEl) { mEl.disabled = !row.read; mEl.value = row.read ? row.mastery : 0; }
+          tr.querySelectorAll('[data-set]').forEach((x) => { x.disabled = !row.read; });
+          updateAssessHeader(card, sub);
+          updateAssessTop(box, subs);
+        });
+        if (mEl) mEl.addEventListener('input', () => {
+          const v = clampNum(faToEn(mEl.value), 0, 100);
+          row.mastery = v;
+          if (v > 0) row.read = true;
+          updateAssessHeader(card, sub);
+          updateAssessTop(box, subs);
+        });
+      });
+    });
+  }
+
+  function updateAssessHeader(card, sub) {
+    const rows = chapterRows(sub);
+    const s2 = assessSummary(rows);
+    const m = card.querySelector('.acard-m');
+    if (m) {
+      m.innerHTML = s2.readCount
+        ? faNum(s2.readCount) + ' از ' + faNum(s2.total) + ' خوانده · میانگین ' + faNum(s2.avg) + '٪' +
+          (s2.weak ? ' · <b style="color:#dc2626">' + faNum(s2.weak) + ' ضعیف</b>' : '')
+        : 'ارزیابی نشده';
+    }
+    const bar = card.querySelector('.acard-bar i');
+    if (bar) bar.style.width = s2.avg + '%';
+  }
+
+  function updateAssessTop(box, subs) {
+    let allRows = [];
+    subs.forEach((sub) => { allRows = allRows.concat(chapterRows(sub)); });
+    const g = assessSummary(allRows);
+    const top = box.querySelector('.assess-top');
+    if (!top) return;
+    const sub2 = top.querySelector('div > div.muted');
+    if (sub2) {
+      sub2.innerHTML = faNum(g.readCount) + ' خوانده‌شده · ' + faNum(g.weak) + ' ضعیف (زیر ۴۵٪) · ' +
+        faNum(g.boost) + ' نیازمند ارتقا · ' + faNum(g.solid) + ' مسلط';
+    }
+    const bar = top.querySelector('.acard-bar i');
+    if (bar) bar.style.width = g.avg + '%';
+    const lbl = top.querySelectorAll('.muted');
+    if (lbl && lbl[1]) lbl[1].textContent = 'آمادگی فعلی (میانگین وزنی تسلط): ' + faNum(g.avg) + '٪';
+  }
+
+  /** چسباندن داده‌های ارزیابی فصل‌به‌فصل به یک درس در config */
+  function withChapters(sub) {
+    const rows = state.chapters[sub.id];
+    if (!rows || !rows.length) return sub;
+    const s2 = assessSummary(rows);
+    return Object.assign({}, sub, {
+      chapters: rows.length,
+      chaptersData: rows.map((r) => ({ name: r.name, read: !!r.read, mastery: r.read ? clampNum(r.mastery, 0, 100) : 0 })),
+      masteredChapters: rows.filter((r) => r.read && r.mastery >= 75).length,
+      mastery: s2.avg,
+      topicNames: rows.map((r) => r.name),
+    });
+  }
+
   function renderSubjects(subjects) {
+    state.coreSubjects = (subjects || []).map((s) => Object.assign({}, s));
     const table = $('subjects');
+    if (!table) return;
     table.innerHTML = '' +
-      '<thead><tr><th>درس</th><th>ضریب</th><th>تعداد فصل</th><th>فصل‌های خوانده‌شده</th><th>تسلط٪</th><th>سختی</th><th>نوع</th><th>درصد آزمون</th><th>در برنامه</th></tr></thead>' +
-      '<tbody>' + subjects.map(subjectRow).join('') + '</tbody>';
+      '<thead><tr><th>درس</th><th>ضریب</th><th>خوانده / کل</th><th>میانگین تسلط</th><th>سختی</th><th>نوع</th><th>درصد آزمون</th><th>در برنامه</th></tr></thead>' +
+      '<tbody>' + (subjects || []).map(subjectRow).join('') + '</tbody>';
+    renderAssessment();
   }
 
   /* ---------------- دروس عمومی ---------------- */
@@ -188,18 +473,21 @@
     const table = $('general');
     if (!table) return;
     table.innerHTML = '' +
-      '<thead><tr><th>درس</th><th>پایه</th><th>ضریب</th><th>تعداد درس/فصل</th><th>خوانده‌شده</th><th>تسلط٪</th><th>در برنامه</th></tr></thead>' +
-      '<tbody>' + rows.map((s) => '' +
+      '<thead><tr><th>درس</th><th>پایه</th><th>ضریب</th><th>خوانده / کل</th><th>میانگین تسلط</th><th>در برنامه</th></tr></thead>' +
+      '<tbody>' + rows.map((s) => {
+        const _gs = assessSummary(chapterRows(s));
+        return '' +
         '<tr data-gid="' + esc(s.id) + '">' +
         '<td><input data-gf="name" value="' + esc(s.name) + '" /></td>' +
         '<td><span class="grade-tag">' + esc(s.grade || '—') + '</span></td>' +
         '<td><input data-gf="weight" type="number" min="0.5" max="20" step="0.5" value="' + s.weight + '" style="width:64px" /></td>' +
-        '<td><input data-gf="chapters" type="number" min="1" max="40" value="' + s.chapters + '" style="width:64px" />' +
+        '<td><span class="muted" style="font-size:12px">' + faNum(_gs.readCount) + ' / ' + faNum(_gs.total) + '</span>' +
           '<div class="muted" style="font-size:10px;margin-top:2px">' + esc(s.topicLabel || 'درس') + '</div></td>' +
-        '<td><input data-gf="masteredChapters" type="number" min="0" max="40" value="' + (s.masteredChapters || 0) + '" style="width:64px" /></td>' +
-        '<td><input data-gf="mastery" type="number" min="0" max="100" step="5" value="' + (s.mastery == null ? 45 : s.mastery) + '" style="width:70px" /></td>' +
+        '<td><span class="muted" style="font-size:12px">' + faNum(_gs.avg) + '٪</span></td>' +
         '<td><input data-gf="include" type="checkbox" ' + (s.include === false ? '' : 'checked') + ' /></td>' +
-        '</tr>').join('') + '</tbody>';
+        '</tr>';
+      }).join('') + '</tbody>';
+    renderAssessment();
   }
 
   function readGeneral() {
@@ -211,13 +499,15 @@
     table.querySelectorAll('tbody tr').forEach((tr, i) => {
       const get = (f) => tr.querySelector('[data-gf="' + f + '"]');
       const base = byId[tr.dataset.gid] || {};
+      const gid = tr.dataset.gid || ('G' + (i + 1));
+      const gRows = chapterRows(Object.assign({}, base, { id: gid }));
       const row = Object.assign({}, base, {
-        id: tr.dataset.gid || ('G' + (i + 1)),
+        id: gid,
         name: get('name').value.trim() || base.name || ('درس عمومی ' + (i + 1)),
         weight: Number(get('weight').value) || 2,
-        chapters: Number(get('chapters').value) || 1,
-        masteredChapters: Number(get('masteredChapters').value) || 0,
-        mastery: Number(get('mastery').value) || 0,
+        chapters: gRows.length,
+        masteredChapters: gRows.filter((r) => r.read && r.mastery >= 75).length,
+        mastery: assessSummary(gRows).avg,
         include: get('include').checked,
         general: true,
         type: base.type || 'conceptual',
@@ -340,17 +630,22 @@
     const out = [];
     rows.forEach((tr, i) => {
       const get = (f) => tr.querySelector('[data-f="' + f + '"]');
+      const id = tr.dataset.id || ('S' + (i + 1));
+      const base = (state.coreSubjects || []).find((x) => x.id === id) || {};
+      const rows = chapterRows(base.id ? base : { id: id, chapters: 1 });
       out.push({
-        id: tr.dataset.id || ('S' + (i + 1)),
+        id: id,
         name: get('name').value.trim() || 'درس ' + (i + 1),
         weight: Number(get('weight').value) || 1,
-        chapters: Number(get('chapters').value) || 1,
-        masteredChapters: Number(get('masteredChapters').value) || 0,
-        mastery: Number(get('mastery').value) || 0,
+        chapters: rows.length,
+        masteredChapters: rows.filter((r) => r.read && r.mastery >= 75).length,
+        mastery: assessSummary(rows).avg,
         difficulty: Number(get('difficulty').value) || 2,
         type: get('type').value,
         examPercent: get('examPercent').value === '' ? null : Number(get('examPercent').value),
         include: get('include').checked,
+        topicLabel: base.topicLabel || 'فصل',
+        topicNames: rows.map((r) => r.name),
       });
     });
     return out;
@@ -361,7 +656,9 @@
     document.querySelectorAll('[data-avail]').forEach((inp) => {
       availability[inp.dataset.avail] = Number(inp.value) || 0;
     });
-    const subjects = readSubjects().concat(readGeneral().filter((x) => x.include));
+    const subjects = readSubjects()
+      .concat(readGeneral().filter((x) => x.include))
+      .map(withChapters);
     const schoolDays = { sat: '16:00', sun: '16:00', mon: '16:00', tue: '16:00', wed: '16:00', thu: '09:00', fri: '09:00' };
     return {
       student: {
@@ -402,6 +699,17 @@
     $('weeklyMock').value = cfg.weeklyMock === false ? '0' : '1';
     buildAvailabilityGrid(cfg.availability || {});
     const allSubs = cfg.subjects || presets.subjectsFor('tajrobi');
+    /* ارزیابی فصل‌به‌فصل ذخیره‌شده را برگردان */
+    state.chapters = {};
+    allSubs.forEach((sub) => {
+      if (Array.isArray(sub.chaptersData) && sub.chaptersData.length) {
+        state.chapters[sub.id] = sub.chaptersData.map((c) => ({
+          name: String(c.name || ''),
+          read: Boolean(c.read),
+          mastery: clampNum(c.mastery, 0, 100),
+        }));
+      }
+    });
     const core = allSubs.filter((x) => !x.general);
     const gen = allSubs.filter((x) => x.general);
     renderSubjects(core.length ? core : presets.subjectsFor(cfg.student && cfg.student.field || 'tajrobi'));
@@ -448,12 +756,20 @@
   }
 
   $('field').addEventListener('change', () => {
+    presets.subjectsFor($('field').value).forEach((s) => {
+      const keep = state.chapters[s.id];
+      state.chapters[s.id] = (keep && keep.length === s.chapters) ? keep : defaultChapterRows(s);
+    });
     renderSubjects(presets.subjectsFor($('field').value));
-    toast('دروس پیش‌فرض گروه تغییر کرد — تسلط‌ها را بازبینی کن.');
+    toast('دروس پیش‌فرض گروه تغییر کرد — ارزیابی فصل‌ها را بازبینی کن.');
   });
 
   $('resetSubjects').addEventListener('click', () => {
+    presets.subjectsFor($('field').value).forEach((s) => {
+      state.chapters[s.id] = defaultChapterRows(s);
+    });
     renderSubjects(presets.subjectsFor($('field').value));
+    toast('دروس و ارزیابی فصل‌ها بازگردانی شد.');
   });
 
   $('grade').addEventListener('change', () => {
@@ -539,8 +855,60 @@
         '<div class="bar"><i style="width:' + w + '%"></i></div></div>';
     }).join('');
 
+    renderCoach(plan);
     renderWeek();
     renderScoreGrid();
+  }
+
+  /* ---------------- کارت مشاور: آمادگی و نقشهٔ جبران ---------------- */
+
+  const MODE_FA = {
+    learn: 'یادگیری از صفر',
+    reteach: 'جبران و بازآموزی',
+    boost: 'ارتقای تسلط',
+    solid: 'فقط مرور',
+  };
+
+  function renderCoach(plan) {
+    const c = (plan.summary && plan.summary.coverage) || null;
+    if (!c) return;
+    $('coachStats').innerHTML = [
+      stat(faNum(c.readiness) + '٪', 'آمادگی فعلی'),
+      stat(faNum(c.projectedReadiness) + '٪', 'برآورد پایان دوره'),
+      stat(faNum(c.readChapters) + ' / ' + faNum(c.totalChapters), 'فصل خوانده‌شده'),
+      stat(faNum(c.reteachChapters + c.boostChapters), 'فصل نیازمند جبران/ارتقا'),
+    ].join('');
+
+    const verdict = $('coachVerdict');
+    verdict.innerHTML =
+      '<div class="' + (c.willCover ? 'hint' : 'warn') + '">' +
+        (c.willCover ? '✓ ' : '⚠ ') + esc(c.verdict) +
+        ' <span class="muted" style="font-size:11px">(نیاز باقی‌مانده: ' + faNum(Math.round(c.remainingMinutes / 60)) +
+        ' ساعت · ظرفیت آزاد تا کنکور: ' + faNum(Math.round(c.spareMinutes / 60)) + ' ساعت)</span>' +
+      '</div>';
+
+    const weak = (plan.summary.weakChapters || []).slice(0, 10);
+    $('weakList').innerHTML = weak.length
+      ? weak.map((w) => {
+        const subj = (plan.summary.bySubject || []).find((x) => x.id === w.subjectId) || { weight: 1 };
+        const cls = w.mastery < 45 ? 'hot' : 'warm';
+        return '<div class="weakrow">' +
+          '<span class="pill ' + cls + '">' + faNum(w.mastery) + '٪</span>' +
+          '<b style="font-size:12px">' + esc(w.subjectName) + '</b>' +
+          '<span style="flex:1">' + esc(w.label) + '</span>' +
+          '<span class="muted" style="font-size:11px">' + esc(MODE_FA[w.mode] || w.mode) +
+            ' · ضریب ' + faNum(subj.weight) + '</span>' +
+          '<span class="muted" style="font-size:11px;min-width:78px;text-align:left">' +
+            faNum(w.plannedMinutes) + ' دقیقه در برنامه</span>' +
+        '</div>';
+      }).join('')
+      : '<div class="muted" style="font-size:12px">هیچ فصلی زیر ۷۵٪ تسلط نیست — وضعیت خوبی است؛ مرور فاصله‌دار ادامه پیدا می‌کند.</div>';
+
+    const pr = plan.summary.priorities || [];
+    $('priorityList').innerHTML = pr.length
+      ? pr.map((x) => '<li>' + esc(x.subject) + ' — ' + esc(x.chapter) + ' <span class="pill ' +
+          (x.mode === 'reteach' ? 'hot' : x.mode === 'boost' ? 'warm' : '') + '">' + esc(MODE_FA[x.mode] || x.mode) + '</span></li>').join('')
+      : '<li class="muted">همهٔ فصل‌ها در وضعیت خوب‌اند؛ اولویت، حفظ تسلط با مرور و آزمون است.</li>';
   }
 
   function stat(value, label) {
@@ -638,6 +1006,22 @@
     });
   }
 
+  /* درصد آزمون هر درس را به ارزیابی فصل‌به‌فصل همان درس منتقل می‌کند
+     (فصل‌های خوانده‌شده نصفِ فاصله به‌سمت درصد آزمون حرکت می‌کنند) */
+  function syncScoresToChapters() {
+    Object.keys(state.scores).forEach((sid) => {
+      const v = state.scores[sid];
+      if (v === undefined || v === '' || v === null) return;
+      const rows = state.chapters[sid];
+      if (!rows || !rows.length) return;
+      const target = Math.max(0, Math.min(100, Number(v)));
+      rows.forEach((r) => {
+        if (!r.read) return;
+        r.mastery = Math.round(Math.max(0, Math.min(100, r.mastery + 0.5 * (target - r.mastery))));
+      });
+    });
+  }
+
   $('replan').addEventListener('click', () => {
     if (!state.plan) return;
     const cfg = JSON.parse(JSON.stringify(state.config));
@@ -646,11 +1030,14 @@
       const v = state.scores[s.id];
       if (v === undefined || v === '') return s;
       changed++;
-      return engine.updateMastery(s, Number(v));
+      return engine.applySubjectScore ? engine.applySubjectScore(s, Number(v)) : engine.updateMastery(s, Number(v));
     });
     if (!changed) return toast('اول درصد آزمون حداقل یک درس را وارد کن.');
     // تاریخ شروع = امروز
     cfg.startDate = iso(new Date());
+    // ارزیابی فصل‌ها هم با درصد آزمون به‌روز شود تا برنامهٔ جبران دقیق بماند
+    syncScoresToChapters();
+    cfg.subjects = cfg.subjects.map(withChapters);
     try {
       state.plan = engine.createPlan(cfg);
       state.config = cfg;

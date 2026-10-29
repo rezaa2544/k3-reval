@@ -48,6 +48,15 @@
     WEEKLY_MOCK_MIN: 100,
     MOCK_ANALYSIS_MIN: 35,
     MIN_BLOCK: 20,
+    FINAL_PHASE_DAYS: 30,     // از این تعداد روز مانده: فاز جمع‌بندی (هیچ مبحث تازه‌ای)
+    FINAL_NO_RETEACH_DAYS: 14,// آخرین ۲ هفته: فقط مرور و آزمون
+    RETEACH_BELOW: 45,        // تسلط کمتر از این ⇒ «جبران» (بازآموزی)
+    BOOST_BELOW: 75,          // بین این دو ⇒ «ارتقا» (تست هدفمند + رفع اشکال)
+    RETEACH_FACTOR: 0.55,     // نسبت زمان بازآموزی به یادگیری از صفر
+    BOOST_FACTOR: 0.3,        // نسبت زمان ارتقا
+    RETEACH_PRIORITY: 1.35,   // ضریب اولویت فصل‌های ضعیف در صف
+    CUM_REVIEW_MIN: 45,       // بلوک مرور تجمعی هفتگی
+    CUM_REVIEW_EVERY: 7,      // هر چند روز یک‌بار
   };
 
   const WEEKDAY_FA = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
@@ -128,21 +137,45 @@
     cfg.restDay = clamp(Number(cfg.restDay), 0, 7);
     cfg.weeklyMock = cfg.weeklyMock !== false;
 
-    cfg.subjects = (cfg.subjects || []).map((s, i) => ({
-      id: s.id || 'S' + (i + 1),
-      name: s.name || 'درس ' + (i + 1),
-      weight: Math.max(0.2, Number(s.weight) || 1),
-      chapters: clamp(Number(s.chapters) || 1, 1, 100),
-      masteredChapters: clamp(Number(s.masteredChapters) || 0, 0, 100),
-      mastery: clamp(Number(s.mastery) || 0, 0, 100),
-      difficulty: clamp(Number(s.difficulty) || 2, 1, 3),
-      type: s.type || 'conceptual',
-      examPercent: s.examPercent == null ? null : clamp(Number(s.examPercent), -33, 100),
-      include: s.include !== false,
-      general: !!s.general,
-      topicLabel: s.topicLabel || null,
-      topicNames: Array.isArray(s.topicNames) ? s.topicNames.slice(0, 100) : null,
-    })).filter((s) => s.include);
+    cfg.subjects = (cfg.subjects || []).map((s, i) => {
+      const chapterCount = clamp(Number(s.chapters) || 1, 1, 120);
+      /* ارزیابی فصل‌به‌فصل: [{name, read, mastery}] — اگر نبود، از masteredChapters/mastery عقب‌گرد می‌کنیم */
+      let data = null;
+      if (Array.isArray(s.chaptersData) && s.chaptersData.length) {
+        data = [];
+        for (let c = 0; c < chapterCount; c++) {
+          const raw = s.chaptersData[c] || {};
+          const read = raw.read === true || Number(raw.mastery) > 0;
+          data.push({
+            name: String(raw.name || (s.topicNames && s.topicNames[c]) || ('فصل ' + toFa(c + 1))).slice(0, 80),
+            read,
+            mastery: read ? clamp(Number(raw.mastery) || 0, 0, 100) : 0,
+          });
+        }
+      }
+      const readList = data ? data.filter((c) => c.read) : null;
+      const avgMastery = data
+        ? (data.length ? Math.round(sum(data.map((c) => (c.read ? c.mastery : 0))) / data.length) : 0)
+        : clamp(Number(s.mastery) || 0, 0, 100);
+      return {
+        id: s.id || 'S' + (i + 1),
+        name: s.name || 'درس ' + (i + 1),
+        weight: Math.max(0.2, Number(s.weight) || 1),
+        chapters: chapterCount,
+        masteredChapters: readList
+          ? readList.filter((c) => c.mastery >= DEFAULTS.BOOST_BELOW).length
+          : clamp(Number(s.masteredChapters) || 0, 0, 120),
+        mastery: avgMastery,
+        difficulty: clamp(Number(s.difficulty) || 2, 1, 3),
+        type: s.type || 'conceptual',
+        examPercent: s.examPercent == null ? null : clamp(Number(s.examPercent), -33, 100),
+        include: s.include !== false,
+        general: !!s.general,
+        topicLabel: s.topicLabel || null,
+        topicNames: Array.isArray(s.topicNames) ? s.topicNames.slice(0, 120) : null,
+        chaptersData: data,
+      };
+    }).filter((s) => s.include);
     if (!cfg.subjects.length) throw new Error('حداقل یک درس لازم است.');
 
     const subjectIds = new Set(cfg.subjects.map((s) => s.id));
@@ -191,31 +224,71 @@
   /* مدل مباحث و اولویت                                                  */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * ساخت فهرست مباحث از ارزیابی فصل‌به‌فصل.
+   * هر فصل یکی از سه حالت را می‌گیرد:
+   *   learn   → خوانده نشده؛ یادگیری از صفر
+   *   reteach → خوانده شده ولی تسلط < ۴۵٪؛ «جبران» با بازآموزی + تست هدفمند
+   *   boost   → تسلط ۴۵–۷۵٪؛ «ارتقا» با تست هدفمند و رفع اشکال
+   *   solid   → تسلط ≥ ۷۵٪؛ فقط مرور فاصله‌دار (زمان یادگیری صفر)
+   */
   function buildTopics(cfg) {
     const topics = [];
     cfg.subjects.forEach((s) => {
       const base = s.type === 'memorization' ? 60 : s.type === 'problem' ? 120 : 85;
+      const data = s.chaptersData;
       for (let i = 1; i <= s.chapters; i++) {
-        const isMastered = i <= Math.floor(s.masteredChapters);
-        const mastered = isMastered ? 100 : s.mastery;
-        const need = base * s.difficulty * ((100 - mastered) / 100);
+        const row = data ? data[i - 1] : null;
+        const read = data ? Boolean(row && row.read) : (i <= Math.floor(s.masteredChapters));
+        const mastery = data
+          ? (row && row.read ? row.mastery : 0)
+          : (read ? 100 : 0);
+        let mode;
+        let need;
+        if (!read) {
+          mode = 'learn';
+          need = base * s.difficulty;
+        } else if (mastery < DEFAULTS.RETEACH_BELOW) {
+          mode = 'reteach';
+          need = 20 + base * s.difficulty * DEFAULTS.RETEACH_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW);
+        } else if (mastery < DEFAULTS.BOOST_BELOW) {
+          mode = 'boost';
+          need = 15 + base * s.difficulty * DEFAULTS.BOOST_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW);
+        } else {
+          mode = 'solid';
+          need = 0;
+        }
         topics.push({
           id: s.id + '.c' + i,
           subjectId: s.id,
           subjectName: s.name,
+          weight: s.weight,
           chapter: i,
-          label: (s.topicNames && s.topicNames[i - 1])
-            ? String(s.topicNames[i - 1])
-            : (s.topicLabel || 'فصل') + ' ' + toFa(i),
+          label: (data && row && row.name)
+            ? String(row.name)
+            : (s.topicNames && s.topicNames[i - 1])
+              ? String(s.topicNames[i - 1])
+              : (s.topicLabel || 'فصل') + ' ' + toFa(i),
           general: !!s.general,
-          mastery: mastered,
+          read: Boolean(read),
+          mode,
+          mastery: clamp(mastery, 0, 100),
           needMinutes: Math.max(0, roundTo5(need)),
+          initialNeedMinutes: Math.max(0, roundTo5(need)),
+          plannedMinutes: 0,
           learnedOn: null,
           reviews: [],
         });
       }
     });
     return topics;
+  }
+
+  /** اولویت فصل برای صف یادگیری/جبران: ضریب × شکاف تسلط (فصل ضعیفِ پرضریب اول) */
+  function topicPriority(t) {
+    const gap = (100 - t.mastery) / 100;
+    const kindFactor = t.mode === 'reteach' ? DEFAULTS.RETEACH_PRIORITY : t.mode === 'boost' ? 1.1 : 1;
+    return Math.max(0.01, t.weight * (0.15 + 0.85 * gap) * kindFactor);
   }
 
   function scoreSubjects(cfg) {
@@ -492,6 +565,9 @@
   function kindLabel(kind) {
     return {
       learn: 'یادگیری جدید',
+      reteach: 'جبران و بازآموزی',
+      boost: 'ارتقای تسلط',
+      cumreview: 'مرور تجمعی هفته',
       review: 'مرور فاصله‌دار',
       practice: 'تمرین/تست',
       mock: 'آزمون جامع',
@@ -506,6 +582,9 @@
   function techniqueFor(kind) {
     return {
       learn: 'یادگیری + خودتوضیحی + بازیابی ۵ دقیقه‌ای',
+      reteach: 'بازآموزی هدفمند + تست تشخیصی + دفتر اشتباهات',
+      boost: 'تست هدفمند زمان‌دار + رفع اشکال (خطاهای تکراری)',
+      cumreview: 'مرور تجمعی با بازیابی فعال + آزمون کوتاه',
       review: 'بازیابی فعال (Active Recall)',
       practice: 'تمرین درهم (Interleaving)',
       mock: 'آزمون‌محوری (Testing Effect)',
@@ -518,6 +597,9 @@
 
   function contentFor(t, block) {
     if (t.kind === 'learn') return 'مطالعهٔ فعال + نت‌برداریِ پرسشی (سؤال‌هایی که بعداً از خودت می‌پرسی)';
+    if (t.kind === 'reteach') return 'این فصل را «از نو و کوچک‌تر» بخوان: فقط بخش‌هایی که در تست غلط زدی؛ بعد ۱۰ تست همان فصل + ثبت ۳ خطای اصلی';
+    if (t.kind === 'boost') return 'بدون خواندن دوبارهٔ کل فصل: ۱۵–۲۰ تست هدفمند از همین فصل، زمان‌دار، بعد تحلیل غلط‌ها';
+    if (t.kind === 'cumreview') return 'مرور تجمعی: از فصل‌های ضعیف این هفته، بدون کتاب به سؤال‌ها جواب بده و فقط جاهایی که لنگ زدی را بازکن';
     if (t.kind === 'review') return 'بازیابی بدون کتاب: تعریف‌ها/فرمول‌ها را از حافظه بنویس، بعد چک کن';
     if (t.kind === 'practice') return (block.practiceCount || 10) + ' تست زمان‌دار از مبحث‌های قبلی (درهم)';
     if (t.kind === 'warmup') return 'نوشتن هر چه از دیروز یادت مانده، بدون نگاه کردن';
@@ -533,6 +615,9 @@
       warmup: 'مرور ۲۴ساعته: یادآوریِ مبحث دیروز درست پیش از فراموشی، حافظه را تثبیت می‌کند (اصل فاصله‌گذاری).',
       classfix: 'کلاس، رمزگذاریِ تازه ساخته؛ کوتاه‌ترین بازیابی در ۲۴ ساعت اول بیشترین اثر را روی ماندگاری دارد.',
       learn: 'یادگیری اولیه در پنجره اوجِ توجه؛ پایان بلوک با ۵ دقیقه بازیابی فعال بدون نگاه کردن به جزوه.',
+      reteach: 'فصلی که خوانده‌ای ولی تسلطش کم است، با «یادگیری مجدد هدفمند» سریع‌تر از خواندن کل کتاب جبران می‌شود؛ نقطهٔ شروع، غلط‌های خودت است.',
+      boost: 'در تسلط متوسط، خواندن دوباره کم‌بازده است؛ چیزی که درصد را بالا می‌برد تست هدفمند + تحلیل خطاست (اثر آزمون).',
+      cumreview: 'مرور تجمعی هفتگی می‌گذارد مبحث‌های قدیمی از حافظه بیرون نروند و «حافظهٔ بلندمدت» تا روز کنکور زنده بماند.',
       review: 'مرور فاصله‌دار: فاصله طوری انتخاب شده که بازیابی کمی سخت باشد — همین سختی حافظه را می‌سازد.',
       practice: 'تمرین درهم: تشخیص «کدام روش/فرمول؟» همان مهارتی است که در آزمون سنجیده می‌شود.',
       mock: 'آزمون خودش یادگیری است، نه فقط اندازه‌گیری (اثر آزمون).',
@@ -545,6 +630,9 @@
     const time = fmtHM(startMin);
     const base = {
       learn: 'اگر ساعت ' + time + ' شد، آنگاه گوشی را بی‌صدا می‌کنم و فقط ' + subjectName + ' — ' + topicLabel + ' را شروع می‌کنم.',
+      reteach: 'اگر ساعت ' + time + ' شد، آنگاه فقط بخش‌های ضعیف ' + subjectName + ' (' + topicLabel + ') را بازآموزی می‌کنم و ۱۰ تست همان فصل می‌زنم.',
+      boost: 'اگر ساعت ' + time + ' شد، آنگاه ' + (practiceCount || 15) + ' تست هدفمند از ' + subjectName + ' — ' + topicLabel + ' می‌زنم و غلط‌ها را دسته‌بندی می‌کنم.',
+      cumreview: 'اگر ساعت ' + time + ' شد، آنگاه مرور تجمعی را بدون کتاب و با تست شروع می‌کنم و فقط ضعف‌ها را باز می‌کنم.',
       review: 'اگر ساعت ' + time + ' شد، آنگاه اول ۵ سؤال از ' + subjectName + ' را بدون کتاب جواب می‌دهم، بعد چک می‌کنم.',
       practice: 'اگر ساعت ' + time + ' شد، آنگاه ' + (practiceCount || 10) + ' تستِ ' + subjectName + ' را زمان‌دار می‌زنم.',
       exam: 'اگر ساعت ' + time + ' شد، آنگاه گوشی را خاموش می‌کنم و آزمون را مثل کنکور مدیریت می‌کنم.',
@@ -576,7 +664,8 @@
       learnNeedTotal += t.needMinutes;
     });
     Object.keys(learnBySubject).forEach((id) => {
-      learnBySubject[id].sort((a, b) => b.needMinutes - a.needMinutes);
+      /* فصل‌های ضعیف و پرضریب اول، بعد حجم بزرگ‌تر */
+      learnBySubject[id].sort((a, b) => (topicPriority(b) - topicPriority(a)) || (b.needMinutes - a.needMinutes));
     });
     const learnSpent = {};
     const learnQueue = []; // فقط برای گزارش «مباحث باقی‌مانده»
@@ -597,7 +686,28 @@
     let learnedCount = 0;
     let unplacedTotal = 0;
     let yesterdayLearned = [];
+    let capacityTotal = 0;
+    const initialNeedTotal = sum(topics.map((t) => t.initialNeedMinutes));
     let classFixBacklog = []; // تثبیت کلاس‌هایی که همان روز جا نشدند
+
+    /* ---- مرورهای اولیه: فصل‌های خوانده‌شده از امروز وارد چرخهٔ مرور می‌شوند ---- */
+    (function seedInitialReviews() {
+      topics.filter((t) => t.read).forEach((t, idx) => {
+        /* فصل ضعیف‌تر زودتر مرور می‌شود؛ فصل مسلط دیرتر (ولی قبل از فراموشی) */
+        const baseGap = t.mastery < DEFAULTS.RETEACH_BELOW ? 1 + (idx % 3)
+          : t.mastery < DEFAULTS.BOOST_BELOW ? 3 + (idx % 4)
+            : firstReviewGap(totalDays) + (idx % 5);
+        let gap = clamp(baseGap, 1, Math.max(2, totalDays - 1));
+        let cursor = addDays(cfg._start, gap);
+        let prev = gap;
+        for (let r = 0; r < 3; r++) {
+          if (dayDiff(cfg._start, cursor) > totalDays - 1) break;
+          dueReviews.push({ date: cursor, topic: t, gap: prev, minutes: t.mastery < DEFAULTS.RETEACH_BELOW ? 20 : 15 });
+          prev = reviewInterval(prev, t.mastery, totalDays);
+          cursor = addDays(cursor, prev);
+        }
+      });
+    })();
 
     const examDates = cfg.exams.map((e) => e.date);
     const nextExamOn = (iso) => cfg.exams.find((e) => e.date === iso) || null;
@@ -626,9 +736,18 @@
         exam: dNext !== null ? cfg.exams.find((e) => dayDiff(date, toDate(e.date)) === dNext) : null,
       };
       const reviewOnly = preExam.level >= 1;
+      const finalPhase = daysLeft <= (cfg.FINAL_PHASE_DAYS || DEFAULTS.FINAL_PHASE_DAYS);
+      const hardFinal = daysLeft <= (cfg.FINAL_NO_RETEACH_DAYS || DEFAULTS.FINAL_NO_RETEACH_DAYS);
+      /* در فاز جمع‌بندی فقط وقتی یادگیری تعطیل می‌شود که چیزی باقی نمانده باشد؛
+         اگر مبحث نخوانده مانده، با نصف بودجه ادامه می‌دهیم تا از کنکور عقب نمانیم. */
+      const learnBacklog = peekLearnNeed();
+      const learnBudgetRatio = reviewOnly || isFinalExam ? 0
+        : finalPhase ? (learnBacklog > 0 ? 0.5 : 0) : 0.85;
+      const noNewLearning = learnBudgetRatio === 0;
       const scope = preExam.exam && preExam.exam.subjectIds.length ? new Set(preExam.exam.subjectIds) : null;
 
       const freeMinutes = sum(segments.map((s) => s.end - s.start));
+      capacityTotal += freeMinutes;
       const load = isFinalExam ? { minutes: 30, isDeload: false } : dayLoad(cfg, date, dayIndex, totalDays, freeMinutes, preExam);
       const tasks = [];
 
@@ -710,6 +829,23 @@
         });
       }
 
+      /* ---- ۴.۵) مرور تجمعی هفتگی (ضد فراموشی تا روز کنکور) ---- */
+      const cumEvery = cfg.CUM_REVIEW_EVERY || DEFAULTS.CUM_REVIEW_EVERY;
+      const cumDay = dayIndex > 3 && dayIndex % cumEvery === Math.floor(cumEvery / 2) && !isFinalExam && !reviewOnly;
+      if (cumDay) {
+        const weakPool = topics
+          .filter((t) => t.read && (!scope || scope.has(t.subjectId)))
+          .sort((a, b) => (a.mastery * a.weight) - (b.mastery * b.weight))
+          .slice(0, 3);
+        const labels = weakPool.map((t) => t.subjectName + ' — ' + t.label);
+        tasks.push({
+          kind: 'cumreview', subjectId: 'CUM', subjectName: 'مرور تجمعی هفته',
+          topicLabel: labels.length ? labels.join(' / ') : 'فصل‌های خوانده‌شدهٔ قبلی',
+          minutesLeft: Math.min(cfg.CUM_REVIEW_MIN || DEFAULTS.CUM_REVIEW_MIN, Math.max(25, Math.round(load.minutes * 0.25))),
+          priority: 340,
+        });
+      }
+
       /* ---- ۵) تحلیل پس از آزمون آزمایشی ---- */
       if (hasManualExamToday) {
         const examEv = busy.find((b) => b.type === 'exam');
@@ -726,11 +862,22 @@
         const sub = cfg.subjects.find((s) => s.id === topic.subjectId);
         let gap = firstReviewGap(daysLeft);
         let cursorDate = addDays(fromDate, gap);
-        for (let r = 0; r < (cfg.MAX_REVIEWS_PER_TOPIC || DEFAULTS.MAX_REVIEWS_PER_TOPIC); r++) {
+        /* تعداد مرورها طوری انتخاب می‌شود که مبحث تا نزدیک کنکور در چرخه بماند */
+        const maxReviews = Math.max(
+          cfg.MAX_REVIEWS_PER_TOPIC || DEFAULTS.MAX_REVIEWS_PER_TOPIC,
+          Math.min(12, Math.ceil(Math.max(1, daysLeft) / 18))
+        );
+        for (let r = 0; r < maxReviews; r++) {
           if (dayDiff(cfg._start, cursorDate) > totalDays - 1) break;
           dueReviews.push({ date: cursorDate, topic, gap, minutes: sub && sub.type === 'problem' ? 20 : 15 });
           gap = reviewInterval(gap, null, daysLeft);
           cursorDate = addDays(cursorDate, gap);
+        }
+        /* مرور نگهدارنده: تا نزدیک کنکور هر ۳۰ روز یک بازیابی کوتاه (ضد فراموشی) */
+        let guard3 = 0;
+        while (dayDiff(cfg._start, cursorDate) <= totalDays - 8 && guard3++ < 20) {
+          dueReviews.push({ date: cursorDate, topic, gap: 30, minutes: 10, maintenance: true });
+          cursorDate = addDays(cursorDate, 30);
         }
       };
 
@@ -770,8 +917,11 @@
           const chunk = Math.min(cfg.blockMinutes, topic.needMinutes, budget - used);
           if (chunk < 10) break;
           tasks.push({
-            kind: 'learn', subjectId: topic.subjectId, subjectName: topic.subjectName,
-            topicLabel: topic.label, topic, minutesLeft: chunk, priority: 250,
+            kind: topic.mode === 'reteach' ? 'reteach' : topic.mode === 'boost' ? 'boost' : 'learn',
+            subjectId: topic.subjectId, subjectName: topic.subjectName,
+            topicLabel: topic.label, topic, minutesLeft: chunk,
+            priority: topic.mode === 'reteach' ? 290 : topic.mode === 'boost' ? 270 : 250,
+            practiceCount: topic.mode === 'boost' ? Math.max(10, roundTo5(chunk / 3)) : null,
           });
           used += chunk;
           subjectUsedToday[topic.subjectId] = (subjectUsedToday[topic.subjectId] || 0) + chunk;
@@ -789,9 +939,11 @@
         return used;
       };
 
-      if (!isFinalExam && !reviewOnly) {
-        addLearnChunks(load.minutes * 0.85);
-        yesterdayLearned = tasks.filter((t) => t.kind === 'learn').map((t) => t.topic);
+      if (!isFinalExam && !noNewLearning) {
+        addLearnChunks(load.minutes * learnBudgetRatio);
+        yesterdayLearned = tasks
+          .filter((t) => t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost')
+          .map((t) => t.topic);
       } else {
         yesterdayLearned = [];
       }
@@ -805,15 +957,22 @@
           .slice()
           .sort((a, b) => (b.weight * (1 - b.mastery / 100)) - (a.weight * (1 - a.mastery / 100)));
         const todaySubjects = new Set(tasks.map((t) => t.subjectId));
+        const weakestOf = (sid) => topics
+          .filter((t) => t.subjectId === sid && t.read)
+          .sort((a, b) => a.mastery - b.mastery)[0] || topics
+          .filter((t) => t.subjectId === sid)
+          .sort((a, b) => topicPriority(b) - topicPriority(a))[0];
         let i = 0;
         while (spare >= 20 && i < 5 && ordered.length) {
           const s = ordered[i % ordered.length];
+          const w = weakestOf(s.id);
           const minutes = Math.min(cfg.blockMinutes, roundTo5(spare));
           tasks.push({
             kind: 'practice', subjectId: s.id, subjectName: s.name,
-            topicLabel: todaySubjects.has(s.id) ? 'تست‌زنی زمان‌دار' : 'تمرین درهم با مبحث قبلی',
-            minutesLeft: minutes, priority: 60,
-            practiceCount: Math.max(5, Math.round(minutes / (s.type === 'problem' ? 3.5 : 1.6))),
+            topicLabel: w
+              ? w.label + (todaySubjects.has(s.id) ? ' — تست هدفمند' : ' — تست هدفمند (فصل ضعیف)')
+              : 'تست‌زنی زمان‌دار',
+            minutesLeft: minutes, priority: 60, topic: w || null, practiceCount: Math.max(5, Math.round(minutes / (s.type === 'problem' ? 3.5 : 1.6))),
           });
           spare -= minutes;
           i++;
@@ -860,6 +1019,14 @@
         };
       });
 
+      /* ثبت زمان واقعیِ هر فصل — مبنای گزارش «چه فصلی چقدر وقت گرفت» */
+      movable.forEach((t) => {
+        if (!t.topic) return;
+        const placedB = placed.blocks.filter((b) => b.task === t);
+        const usedMin = sum(placedB.map((b) => b.minutes));
+        t.topic.plannedMinutes += usedMin;
+      });
+
       const dayMinutes = sum(outBlocks.filter((b) => b.kind !== 'exam').map((b) => b.minutes));
       outBlocks.forEach((b) => {
         if (stats[b.subjectId]) { stats[b.subjectId].minutes += b.minutes; stats[b.subjectId].blocks += 1; }
@@ -882,7 +1049,7 @@
         studyMinutes: dayMinutes,
         plannedMinutes: dayMinutes,
         blocks: outBlocks,
-        note: dayNote({ isFinalExam, hasManualExamToday, hasClassToday, preExam, reviewOnly, isDeload: load.isDeload, chronotype: cfg.student.chronotype, hasBlocks: outBlocks.length > 0 }),
+        note: dayNote({ isFinalExam, hasManualExamToday, hasClassToday, preExam, reviewOnly, finalPhase, isDeload: load.isDeload, chronotype: cfg.student.chronotype, hasBlocks: outBlocks.length > 0 }),
       });
 
       // ثبت تثبیت‌های جا نشده برای روز بعد
@@ -927,6 +1094,84 @@
     }
 
     const totalStudy = sum(days.map((d) => d.studyMinutes));
+
+    /* ---- آمادگی و پوشش فصل‌به‌فصل ---- */
+    const weightAll = sum(topics.map((t) => t.weight)) || 1;
+    const readiness = Math.round(sum(topics.map((t) => t.mastery * t.weight)) / weightAll);
+    const projectedReadiness = Math.round(sum(topics.map((t) => {
+      if (t.mode === 'solid') return t.mastery * t.weight;
+      const ratio = t.initialNeedMinutes > 0 ? clamp(t.plannedMinutes / t.initialNeedMinutes, 0, 1.15) : 0;
+      const goal = t.mode === 'learn' ? 88 : 92;
+      return clamp(t.mastery + (goal - t.mastery) * Math.min(1, ratio), 0, 100) * t.weight;
+    })) / weightAll);
+
+    const chapterStats = topics.map((t) => ({
+      id: t.id, subjectId: t.subjectId, subjectName: t.subjectName, chapter: t.chapter,
+      label: t.label, mode: t.mode, read: t.read, mastery: t.mastery,
+      needMinutes: t.initialNeedMinutes, plannedMinutes: Math.round(t.plannedMinutes),
+      reviews: dueReviews.filter((r) => r.topic === t).length,
+      covered: t.mode === 'solid' ? t.plannedMinutes > 0 || true : t.plannedMinutes >= t.initialNeedMinutes * 0.9,
+    }));
+
+    const unread = topics.filter((t) => t.mode === 'learn');
+    const reteachList = topics.filter((t) => t.mode === 'reteach').sort((a, b) => topicPriority(b) - topicPriority(a));
+    const boostList = topics.filter((t) => t.mode === 'boost').sort((a, b) => topicPriority(b) - topicPriority(a));
+    const remainingNeed = Math.round(sum(topics.map((t) => Math.max(0, t.needMinutes))));
+    const spareCapacity = Math.max(0, Math.round(capacityTotal - totalStudy));
+    const willCover = remainingNeed <= spareCapacity;
+    const weakChapters = chapterStats
+      .filter((c) => c.read && c.mastery < DEFAULTS.BOOST_BELOW)
+      .sort((a, b) => {
+        const wa = (cfg.subjects.find((x) => x.id === a.subjectId) || { weight: 1 }).weight;
+        const wb = (cfg.subjects.find((x) => x.id === b.subjectId) || { weight: 1 }).weight;
+        return (a.mastery * wa) - (b.mastery * wb);
+      })
+      .slice(0, 12);
+
+    const reviewDays = days.filter((d) => d.blocks.some((b) => b.kind === 'review' || b.kind === 'cumreview'));
+    const lastReviewDay = reviewDays.length ? reviewDays[reviewDays.length - 1].date : null;
+    const finalPhaseDays = days.filter((d) => d.note && d.note.indexOf('فاز جمع‌بندی') === 0).length;
+
+    const coverage = {
+      totalChapters: topics.length,
+      readChapters: topics.filter((t) => t.read).length,
+      unreadChapters: unread.length,
+      weakChapters: reteachList.length + boostList.length,
+      reteachChapters: reteachList.length,
+      boostChapters: boostList.length,
+      solidChapters: topics.filter((t) => t.mode === 'solid').length,
+      needMinutes: Math.round(initialNeedTotal),
+      remainingMinutes: remainingNeed,
+      plannedMinutes: Math.round(sum(topics.map((t) => t.plannedMinutes))),
+      capacityMinutes: Math.round(capacityTotal),
+      spareMinutes: spareCapacity,
+      willCover,
+      verdict: willCover
+        ? 'ظرفیت زمانی تا کنکور برای پوشش همهٔ فصل‌های باقی‌مانده کافی است؛ اگر برنامه را کامل اجرا کنی به هدف می‌رسی.'
+        : 'برای پوشش کاملِ ' + unread.length + ' فصلِ خوانده‌نشده و ' + (reteachList.length + boostList.length) +
+          ' فصلِ ضعیف، حدود ' + Math.round(remainingNeed / 60) + ' ساعت کم داری؛ یا ساعت مطالعه را بالا ببر یا فصل‌های کم‌ضریب را عقب بینداز.',
+      readiness,
+      projectedReadiness,
+      reviewSessions: days.reduce((a, d) => a + d.blocks.filter((b) => b.kind === 'review' || b.kind === 'cumreview').length, 0),
+      reviewDays: reviewDays.length,
+      lastReviewDate: lastReviewDay,
+      finalPhaseDays,
+      daysWithoutReview: (function () {
+        /* طولانی‌ترین فاصلهٔ بدون مرور (روز) — نباید از ~۳۵ روز بیشتر شود */
+        let run = 0; let worst = 0;
+        days.forEach((d) => {
+          const has = d.blocks.some((b) => b.kind === 'review' || b.kind === 'cumreview' || b.kind === 'warmup');
+          run = has ? 0 : run + 1;
+          worst = Math.max(worst, run);
+        });
+        return worst;
+      })(),
+    };
+
+    /* ---- اولویت‌های هفته: از ضعیف‌ترین فصل‌ها ---- */
+    const priorities = reteachList.concat(boostList, unread)
+      .slice(0, 6)
+      .map((t) => ({ subject: t.subjectName, chapter: t.label, mastery: Math.round(t.mastery), mode: t.mode }));
     const bySubject = cfg.subjects.map((s) => ({
       id: s.id, name: s.name, weight: s.weight, mastery: s.mastery,
       minutes: stats[s.id].minutes,
@@ -956,7 +1201,11 @@
         unplacedMinutes: unplacedTotal,
         bySubject,
         warnings,
-        coachNotes: coachNotes(cfg, bySubject, warnings, notes),
+        coachNotes: coachNotes(cfg, bySubject, warnings, notes, coverage),
+        coverage,
+        priorities,
+        weakChapters,
+        chapterStats,
       },
       days,
     };
@@ -967,6 +1216,7 @@
     if (i.hasManualExamToday) return 'روز آزمون آزمایشی: بعد از آزمون، بلوک تحلیل خطا را انجام بده — نمره بدون تحلیل، هدر رفته است.';
     if (i.preExam && i.preExam.days === 1) return 'مرور نهایی: امروز یادگیری جدید نداریم؛ فقط خلاصه‌ها، دفتر اشتباهات و خواب زودتر.';
     if (i.preExam && i.preExam.level === 1) return 'پیش‌آزمون' + (i.preExam.exam ? ' «' + i.preExam.exam.title + '»' : '') + ': فقط مرور مباحث آزمون، بدون مبحث جدید.';
+    if (i.finalPhase) return 'فاز جمع‌بندی: مبحث تازه شروع نمی‌کنیم — فقط مرور، تست زمان‌دار و آزمون؛ هدف، تثبیت و سرعت است.';
     if (i.isRestDay) return 'روز استراحت: مغز بین جلسات همان‌جایی است که تثبیت انجام می‌شود.';
     if (i.hasClassToday) return 'روز کلاس: بلوک «تثبیت کلاس» همان شب کارِ اصلی است.';
     if (i.isDeload) return 'هفتهٔ سبک‌سازی (deload): بار کمتر تا فرسودگی نگیریم.';
@@ -975,8 +1225,25 @@
     return '';
   }
 
-  function coachNotes(cfg, bySubject, warnings, extra) {
+  function coachNotes(cfg, bySubject, warnings, extra, coverage) {
     const out = [];
+    if (coverage) {
+      out.push('ارزیابی فصل‌به‌فصل خوانده شد: ' + coverage.readChapters + ' از ' + coverage.totalChapters +
+        ' فصل خوانده شده؛ ' + coverage.reteachChapters + ' فصل «جبران» و ' + coverage.boostChapters +
+        ' فصل «ارتقا» و ' + coverage.unreadChapters + ' فصل «یادگیری از صفر» در برنامه گذاشته شد.');
+      out.push('آمادگی فعلی (میانگین وزنی تسلط فصل‌ها): ' + coverage.readiness + '٪ — اگر برنامه را کامل اجرا کنی، برآورد پایان دوره: ' +
+        coverage.projectedReadiness + '٪.');
+      out.push('ضد فراموشی: ' + coverage.reviewSessions + ' جلسهٔ مرور فاصله‌دار + مرور تجمعی هفتگی برنامه‌ریزی شد' +
+        (coverage.lastReviewDate ? ' و آخرین مرور جامع ' + jDateLong(coverage.lastReviewDate) + ' است' : '') +
+        '؛ بلندترین فاصلهٔ بدون مرور ' + coverage.daysWithoutReview + ' روز است (هدف: زیر ۳۵ روز).' +
+        (coverage.finalPhaseDays ? ' ۳۰ روز آخر هم کامل «فاز جمع‌بندی» است: فقط مرور، تست زمان‌دار و آزمون.' : ''));
+      out.push(coverage.willCover
+        ? 'پیش‌بینی پوشش: با ' + Math.round(coverage.capacityMinutes / 60) + ' ساعت ظرفیت تا کنکور و ' +
+          Math.round(coverage.remainingMinutes / 60) + ' ساعت نیاز باقی‌مانده، همهٔ فصل‌ها جا می‌شوند (' +
+          Math.round(coverage.spareMinutes / 60) + ' ساعت ذخیره برای مرور و آزمون).'
+        : 'هشدار پوشش: ' + Math.round(coverage.remainingMinutes / 60) + ' ساعت نیاز باقی‌مانده در برابر ' +
+          Math.round(coverage.spareMinutes / 60) + ' ساعت ظرفیت آزاد — ساعت‌های مطالعه یا تعداد فصل‌ها را بازبینی کن.');
+    }
     if (cfg.classes.length) {
       out.push('برنامه دور ' + cfg.classes.length + ' کلاس هفتگی چیده شد: کلاس‌ها ثابت‌اند و مطالعه در بازه‌های آزاد بین آن‌ها قرار گرفته است.');
       out.push('بعد از هر کلاس، بلوک «تثبیت کلاس» گذاشته شده؛ همین ۲۰ دقیقه، ماندگاری کلاس را چند برابر می‌کند.');
@@ -1011,6 +1278,13 @@
     const L = [];
     L.push('# برنامهٔ مطالعه — ' + plan.meta.studentName);
     L.push('');
+    if (plan.summary && plan.summary.coverage) {
+      const c = plan.summary.coverage;
+      L.push('**آمادگی فعلی:** ' + toFa(c.readiness) + '٪ · برآورد پایان دوره: ' + toFa(c.projectedReadiness) + '٪');
+      L.push('**فصل‌ها:** ' + toFa(c.readChapters) + ' از ' + toFa(c.totalChapters) + ' خوانده‌شده · ' +
+        toFa(c.reteachChapters) + ' جبران · ' + toFa(c.boostChapters) + ' ارتقا · ' + toFa(c.unreadChapters) + ' یادگیری از صفر');
+      L.push('');
+    }
     L.push('**بازه:** ' + jDate(plan.meta.startDate) + ' تا ' + jDate(plan.meta.examDate) +
       ' · **مجموع مطالعه:** ' + plan.summary.totalHours + ' ساعت · **میانگین روزانه:** ' + plan.summary.avgHoursPerDay + ' ساعت');
     L.push('');
@@ -1105,6 +1379,28 @@
     return Object.assign({}, subject, { mastery: Math.round(next) });
   }
 
+  /**
+   * درصد آزمون → به‌روزرسانی تسلط «فصل‌به‌فصل».
+   * هر فصلِ خوانده‌شده به‌سمت درصد آزمون نصفِ فاصله جابه‌جا می‌شود؛ فصل‌های
+   * خوانده‌نشده دست‌نخورده می‌مانند (تا کاربر خودش «خوانده‌ام» را علامت بزند).
+   */
+  function applySubjectScore(subject, score) {
+    const target = clamp(Number(score) || 0, 0, 100);
+    if (!Array.isArray(subject.chaptersData) || !subject.chaptersData.length) {
+      return updateMastery(subject, target);
+    }
+    const k = 0.5;
+    const chaptersData = subject.chaptersData.map((c) => {
+      if (!c.read) return c;
+      return Object.assign({}, c, { mastery: Math.round(clamp(c.mastery + k * (target - c.mastery), 0, 100)) });
+    });
+    const readOnes = chaptersData.filter((c) => c.read);
+    const mastery = readOnes.length
+      ? Math.round(sum(readOnes.map((c) => c.mastery)) / chaptersData.length)
+      : 0;
+    return Object.assign({}, subject, { chaptersData, mastery });
+  }
+
   /** خلاصهٔ روز برای اجرای «امروز» */
   function todaySummary(plan, iso) {
     const d = plan.days.find((x) => x.date === iso);
@@ -1120,7 +1416,7 @@
   }
 
   return {
-    createPlan, updateMastery, todaySummary,
+    createPlan, updateMastery, applySubjectScore, todaySummary,
     toMarkdown, toCSV, toICS, toTaskList,
     DEFAULTS, WEEKDAY_FA, WEEKDAY_KEY, SUBJECT_TYPE_FA,
     _internal: { normalizeConfig, dayDiff, persianWeekday, firstReviewGap, reviewInterval, addDays, isoDay, freeSegments, busyEventsFor },

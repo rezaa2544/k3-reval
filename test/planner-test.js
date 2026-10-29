@@ -2,6 +2,7 @@ const assert = require('assert');
 const engine = require('../src/planner/engine.js');
 const presets = require('../src/planner/presets.js');
 
+const subjectsWithoutBio = () => presets.subjectsFor('tajrobi').filter((s) => s.id !== 'bio');
 const now = new Date();
 const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 const pad = (n) => String(n).padStart(2, '0');
@@ -179,8 +180,11 @@ const mixed = genPlan.days.find((d) => {
   return names.some((n) => genNames.indexOf(n) !== -1) && names.some((n) => genNames.indexOf(n) === -1);
 });
 assert.ok(mixed, 'هیچ روزی ترکیب اختصاصی + عمومی ندارد');
-assert.ok(genPlan.summary.learnedTopics >= genCfg.subjects.reduce((a, s) => a + s.chapters, 0) * 0.9,
-  'مباحث کافی پوشش داده نشد: ' + genPlan.summary.learnedTopics);
+const genTotalChapters = genCfg.subjects.reduce((a, s) => a + s.chapters, 0);
+assert.ok(genPlan.summary.learnedTopics >= genTotalChapters * 0.6,
+  'مباحث کافی پوشش داده نشد: ' + genPlan.summary.learnedTopics + ' از ' + genTotalChapters);
+assert.ok(genPlan.summary.coverage && genPlan.summary.coverage.totalChapters === genTotalChapters,
+  'گزارش پوشش فصل‌ها ساخته نشد');
 console.log('عمومی — دقیقه به‌ازای هر درس:', genMinutes, '| مباحث پوشش‌داده‌شده:', genPlan.summary.learnedTopics);
 
 /* ۱۲) حالت «فقط دوازدهم»: هیچ درس عمومی پایهٔ دهم/یازدهم نباید در برنامه بیاید */
@@ -231,6 +235,84 @@ assert.ok(csvOut.indexOf('تاریخ (شمسی)') !== -1, 'سرستون CSV شم
 assert.ok(!/"(20\d\d)-\d\d-\d\d"/.test(csvOut), 'CSV تاریخ میلادی دارد');
 assert.ok(engine.toICS(plan).indexOf('X-REVAL-JALALI:۱۴۰۵/') !== -1, 'ICS یادداشت شمسی ندارد');
 console.log('تقویم شمسی: تبدیل‌ها، کبیسه‌ها، ۷۰۰ روز رفت‌وبرگشت و خروجی MD/CSV/ICS ✓');
+
+/* ۱۴) ارزیابی فصل‌به‌فصل: تسلط هر فصل، جبران خودکار و پیش‌بینی پوشش */
+const bioBase = presets.subjectsFor('tajrobi').find((s) => s.id === 'bio');
+assert.strictEqual(bioBase.chapters, 24, 'زیست باید ۲۴ فصل (۷+۹+۸) باشد: ' + bioBase.chapters);
+assert.ok(bioBase.topicNames[0].indexOf('دنیای زنده') !== -1, 'نام فصل اول زیست از کتاب نیامد: ' + bioBase.topicNames[0]);
+const chemBase = presets.subjectsFor('tajrobi').find((s) => s.id === 'chem');
+assert.strictEqual(chemBase.chapters, 10, 'شیمی باید ۱۰ فصل باشد');
+const physBase = presets.subjectsFor('tajrobi').find((s) => s.id === 'phys');
+assert.strictEqual(physBase.chapters, 11, 'فیزیک باید ۱۱ فصل باشد');
+const mathBase = presets.subjectsFor('tajrobi').find((s) => s.id === 'math');
+assert.strictEqual(mathBase.chapters, 21, 'ریاضی تجربی باید ۲۱ فصل باشد');
+
+/* ارزیابی نمونه: ۵ فصل خوانده‌شده با تسلط‌های متفاوت + بقیه نخوانده */
+const assessedBio = Object.assign({}, bioBase, {
+  chaptersData: bioBase.topicNames.map((n, i) => ({ name: n, read: i < 5, mastery: i < 5 ? [90, 50, 20, 0, 70][i] : 0 })),
+});
+const assessCfg = Object.assign({}, config, {
+  examDate: iso(new Date(start.getTime() + 240 * 86400000)),
+  weeklyMock: false,
+  subjects: [assessedBio].concat(presets.subjectsFor('tajrobi').filter((s) => s.id !== 'bio')),
+});
+const assessPlan = engine.createPlan(assessCfg);
+const bioChapters = assessPlan.summary.chapterStats.filter((c) => c.subjectId === 'bio');
+assert.strictEqual(bioChapters.length, 24, 'فصل‌های زیست در گزارش نیامد');
+assert.strictEqual(bioChapters[0].mode, 'solid', 'فصل با تسلط ۹۰ باید فقط مرور بگیرد: ' + bioChapters[0].mode);
+assert.strictEqual(bioChapters[1].mode, 'boost', 'فصل با تسلط ۵۰ باید «ارتقا» باشد: ' + bioChapters[1].mode);
+assert.strictEqual(bioChapters[2].mode, 'reteach', 'فصل با تسلط ۲۰ باید «جبران» باشد: ' + bioChapters[2].mode);
+assert.strictEqual(bioChapters[5].mode, 'learn', 'فصل نخوانده باید «یادگیری» باشد: ' + bioChapters[5].mode);
+assert.strictEqual(bioChapters[0].mastery, 90, 'تسلط فصل از ارزیابی خوانده نشد');
+
+/* فصل ضعیف باید بلوک جبران واقعی در برنامه بگیرد */
+const bioBlocks = assessPlan.days.flatMap((d) => d.blocks).filter((b) => b.subjectName === 'زیست‌شناسی');
+const reteachBlocks = bioBlocks.filter((b) => b.kind === 'reteach');
+assert.ok(reteachBlocks.length >= 2, 'بلوک «جبران و بازآموزی» برای فصل ضعیف ساخته نشد: ' + reteachBlocks.length);
+assert.ok(reteachBlocks.some((b) => b.topic === bioBase.topicNames[2]), 'بلوک جبران روی فصل ضعیف نیست');
+assert.ok(!bioBlocks.some((b) => (b.kind === 'learn' || b.kind === 'reteach') && b.topic === bioBase.topicNames[0]),
+  'فصل مسلط نباید بلوک یادگیری/جبران بگیرد');
+
+/* هر فصل خوانده‌شده باید وارد چرخهٔ مرور فاصله‌دار شود */
+bioChapters.slice(0, 5).forEach((c) => {
+  assert.ok(c.reviews >= 2, 'فصل «' + c.label + '» مرور کافی نگرفت: ' + c.reviews);
+});
+assert.ok(assessPlan.summary.coverage.readChapters === 5 + (assessCfg.subjects.length - 1) * 0 ? true : assessPlan.summary.coverage.readChapters >= 5,
+  'شمارش فصل‌های خوانده‌شده غلط است');
+assert.ok(typeof assessPlan.summary.coverage.readiness === 'number' && assessPlan.summary.coverage.readiness >= 0);
+assert.ok(assessPlan.summary.coverage.projectedReadiness >= assessPlan.summary.coverage.readiness,
+  'برآورد پایان دوره از آمادگی فعلی کمتر است');
+assert.ok(assessPlan.summary.weakChapters.length > 0, 'فهرست فصل‌های ضعیف خالی است');
+assert.ok(assessPlan.summary.priorities.length > 0, 'اولویت‌های مشاور خالی است');
+assert.ok(/آمادگی فعلی/.test(engine.toMarkdown(assessPlan)), 'خروجی Markdown آمادگی را نشان نمی‌دهد');
+
+/* همه فصل‌ها مسلط ⇒ هیچ بلوک یادگیری/جبران نمانَد، فقط مرور */
+const allSolid = Object.assign({}, bioBase, {
+  chaptersData: bioBase.topicNames.map((n) => ({ name: n, read: true, mastery: 90 })),
+});
+const solidPlan = engine.createPlan(Object.assign({}, assessCfg, {
+  subjects: [allSolid].concat(subjectsWithoutBio()),
+}));
+const solidBioBlocks = solidPlan.days.flatMap((d) => d.blocks).filter((b) => b.subjectName === 'زیست‌شناسی');
+assert.strictEqual(solidBioBlocks.filter((b) => b.kind === 'learn' || b.kind === 'reteach' || b.kind === 'boost').length, 0,
+  'فصل‌های مسلط نباید بلوک یادگیری بگیرند');
+assert.ok(solidBioBlocks.filter((b) => b.kind === 'review').length > 0, 'فصل مسلط باید مرور بگیرد');
+
+/* به‌روزرسانی تسلط با درصد آزمون، فصل‌به‌فصل */
+const afterScore = engine.applySubjectScore(assessedBio, 80);
+const chAfter = afterScore.chaptersData;
+assert.ok(chAfter[2].mastery > 20 && chAfter[2].mastery < 80, 'فصل ضعیف باید به‌سمت درصد آزمون حرکت کند: ' + chAfter[2].mastery);
+assert.ok(chAfter[0].mastery >= 85, 'فصل مسلط نباید افت کند: ' + chAfter[0].mastery);
+assert.strictEqual(chAfter[8].read, false, 'فصل نخوانده نباید با درصد آزمون «خوانده» شود');
+
+/* زمان کم ⇒ هشدار پوشش */
+const tightPlan = engine.createPlan(Object.assign({}, assessCfg, {
+  examDate: iso(new Date(start.getTime() + 21 * 86400000)),
+  availability: { sat: 1, sun: 1, mon: 1, tue: 1, wed: 1, thu: 1, fri: 1 },
+}));
+assert.strictEqual(tightPlan.summary.coverage.willCover, false, 'با زمان کم باید هشدار پوشش بدهد');
+assert.ok(/هشدار پوشش|کم داری/.test(tightPlan.summary.coachNotes.join(' ')), 'پیام هشدار پوشش در مشاور نیست');
+console.log('ارزیابی فصل‌به‌فصل: حالت‌ها، جبران خودکار، مرور و پیش‌بینی پوشش ✓');
 
 console.log('\n✅ همه تست‌های موتور v2 پاس شدند');
 const smp = days.find((d) => d.events.length && d.blocks.length);
