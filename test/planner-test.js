@@ -199,6 +199,39 @@ const salMinutes = only12.days.reduce((a, d) => a + d.blocks.filter((b) => b.sub
 assert.ok(salMinutes >= 60, 'سلامت و بهداشت بلوک کافی نگرفت: ' + salMinutes);
 console.log('فقط دوازدهم — سلامت و بهداشت:', salMinutes, 'دقیقه |', 'درس‌های عمومی حاضره:', ['سلامت و بهداشت', 'هویت اجتماعی'].join('، '));
 
+/* ۱۳) تقویم شمسی: تبدیل، سال کبیسه، رفت‌وبرگشت و خروجی‌ها */
+const J = require('../src/planner/jalali.js');
+assert.strictEqual(J.fmt('2026-10-29'), '۱۴۰۵/۰۸/۰۷');
+assert.strictEqual(J.fmt('2027-03-21'), '۱۴۰۶/۰۱/۰۱');
+assert.strictEqual(J.fmt('2026-03-20'), '۱۴۰۴/۱۲/۲۹');
+assert.strictEqual(J.fmt('2025-03-20'), '۱۴۰۳/۱۲/۳۰');
+assert.strictEqual(J.fmtLong('2026-10-29'), '۷ آبان ۱۴۰۵');
+assert.strictEqual(J.parse('۱۴۰۵/۰۸/۰۷'), '2026-10-29');
+assert.strictEqual(J.parse('1405-8-7'), '2026-10-29');
+assert.strictEqual(J.parse('۱۴۰۵/۱۳/۰۱'), null, 'ماه نامعتبر باید رد شود');
+assert.ok(J.isLeapJalaliYear(1403) && !J.isLeapJalaliYear(1404) && J.isLeapJalaliYear(1408));
+/* مرز سال: آخر اسفند + ۱ روز = ۱ فروردین */
+for (let jy = 1395; jy < 1415; jy += 1) {
+  const len = J.monthLength(jy, 12);
+  assert.strictEqual(J.addDays(J.toISO(jy, 12, len), 1), J.toISO(jy + 1, 1, 1), 'مرز سال ' + jy);
+  assert.strictEqual(J.monthLength(jy, 12) === 30, J.isLeapJalaliYear(jy), 'کبیسه ' + jy);
+}
+/* رفت‌وبرگشت ۷۰۰ روز */
+let pIso = '2026-01-01';
+for (let i = 0; i < 700; i += 1) {
+  assert.strictEqual(J.parse(J.fmt(pIso)), pIso, 'رفت‌وبرگشت: ' + pIso);
+  pIso = J.addDays(pIso, 1);
+}
+/* خروجی‌های موتور باید شمسی باشند و تاریخ میلادی لو ندهند */
+const md = engine.toMarkdown(plan);
+const csvOut = engine.toCSV(plan);
+assert.ok(/۱۴۰۵\//.test(md), 'Markdown تاریخ شمسی ندارد');
+assert.ok(!/۲۰۲\d-\d\d-\d\d/.test(md), 'Markdown تاریخ میلادی دارد');
+assert.ok(csvOut.indexOf('تاریخ (شمسی)') !== -1, 'سرستون CSV شمسی نیست');
+assert.ok(!/"(20\d\d)-\d\d-\d\d"/.test(csvOut), 'CSV تاریخ میلادی دارد');
+assert.ok(engine.toICS(plan).indexOf('X-REVAL-JALALI:۱۴۰۵/') !== -1, 'ICS یادداشت شمسی ندارد');
+console.log('تقویم شمسی: تبدیل‌ها، کبیسه‌ها، ۷۰۰ روز رفت‌وبرگشت و خروجی MD/CSV/ICS ✓');
+
 console.log('\n✅ همه تست‌های موتور v2 پاس شدند');
 const smp = days.find((d) => d.events.length && d.blocks.length);
 console.log('\nنمونه روز —', smp.weekday, smp.date);

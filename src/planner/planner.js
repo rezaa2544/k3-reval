@@ -4,6 +4,7 @@
 
   const engine = window.RevalPlanner;
   const presets = window.RevalPresets;
+  const J = window.RevalJalali;   // تقویم شمسی
   const api = window.revalPlanner || null;
 
   const WEEKDAY_FA = engine.WEEKDAY_FA;
@@ -51,6 +52,37 @@
   /* جداسازی جهت‌نویسی برای بازه‌های زمانی/تاریخ در متن راست‌به‌چپ */
   function bidi(txt) {
     return '<span dir="ltr" style="unicode-bidi:isolate">' + String(txt) + '</span>';
+  }
+
+  /* ---------------- تاریخ شمسی ---------------- */
+
+  /** رشتهٔ شمسیِ فیلد تاریخ را به ISO میلادی تبدیل می‌کند (برای ذخیرهٔ داخلی) */
+  function readJDate(id) {
+    const el = $(id);
+    if (!el) return null;
+    if (el.dataset.iso) return el.dataset.iso;
+    const parsed = J ? J.parse(el.value) : null;
+    return parsed;
+  }
+
+  function writeJDate(id, iso) {
+    const el = $(id);
+    if (!el) return;
+    el.dataset.iso = iso || '';
+    el.value = iso && J ? J.fmt(iso) : '';
+    if (J) J.attachPicker(el);
+  }
+
+  /** «۷ آبان» برای قرص‌های روز هفته */
+  function jDayMonth(iso) {
+    if (!J) return '';
+    const j = J.fromISO(iso);
+    return j ? faNum(j.jd) + ' ' + J.MONTHS[j.jm - 1] : '';
+  }
+
+  /** نمایش شمسی یک تاریخ ISO (بدون نام روز — روز هفته در بالای همان کارت) */
+  function jDateFull(iso) {
+    return J ? J.fmt(iso) : faNum(iso);
   }
 
   function weekOf(plan, dayIndex) {
@@ -241,7 +273,7 @@
       div.className = 'dyn-row exam';
       div.innerHTML =
         '<div><label>عنوان آزمون</label><input data-ef="title" value="' + esc(e.title || '') + '" placeholder="آزمون آزمایشی" /></div>' +
-        '<div><label>تاریخ</label><input type="date" data-ef="date" value="' + (e.date || '') + '" /></div>' +
+        '<div><label>تاریخ (شمسی)</label><input data-ef="date" data-jdate data-iso="' + esc(e.date || '') + '" placeholder="۱۴۰۵/۰۹/۱۲" /></div>' +
         '<div><label>از</label><input type="time" data-ef="start" value="' + (e.start || '08:00') + '" /></div>' +
         '<div><label>تا</label><input type="time" data-ef="end" value="' + (e.end || '11:30') + '" /></div>' +
         '<div><label>درس‌های آزمون</label><select multiple data-ef="subjectIds">' +
@@ -253,6 +285,7 @@
       box.appendChild(div);
     });
     if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">آزمونی اضافه نشده.</div>';
+    else if (J) J.attachAll(box);
   }
 
   function readClasses() {
@@ -274,7 +307,8 @@
     const out = [];
     $('examRows').querySelectorAll('.dyn-row').forEach((row) => {
       const get = (f) => row.querySelector('[data-ef="' + f + '"]');
-      const date = get('date').value;
+      const dateInput = get('date');
+      const date = dateInput.dataset.iso || (J ? J.parse(dateInput.value) : null);
       if (!date) return;
       const sel = get('subjectIds');
       out.push({
@@ -297,7 +331,7 @@
   $('addExam').addEventListener('click', () => {
     const rows = readExams();
     const d = new Date(); d.setDate(d.getDate() + 14);
-    rows.push({ title: 'آزمون آزمایشی', date: iso(d), start: '08:00', end: '11:30', subjectIds: [] });
+    rows.push({ title: 'آزمون آزمایشی', date: J ? J.dateToISO(d) : iso(d), start: '08:00', end: '11:30', subjectIds: [] });
     renderExamRows(rows);
   });
 
@@ -336,8 +370,8 @@
         field: $('field').value,
         chronotype: $('chronotype').value,
       },
-      startDate: $('startDate').value || iso(new Date()),
-      examDate: $('examDate').value || presets.defaultExamDate(),
+      startDate: readJDate('startDate') || iso(new Date()),
+      examDate: readJDate('examDate') || presets.defaultExamDate(),
       sleep: { bedtime: $('bedtime').value || '23:30', wake: $('wake').value || '07:00' },
       availability,
       startTimes: schoolDays,
@@ -358,8 +392,8 @@
     $('grade').value = (cfg.student && cfg.student.grade) || 'دوازدهم';
     $('field').value = (cfg.student && cfg.student.field) || 'tajrobi';
     $('chronotype').value = (cfg.student && cfg.student.chronotype) || 'neutral';
-    $('startDate').value = cfg.startDate || iso(new Date());
-    $('examDate').value = cfg.examDate || presets.defaultExamDate();
+    writeJDate('startDate', cfg.startDate || iso(new Date()));
+    writeJDate('examDate', cfg.examDate || presets.defaultExamDate());
     $('bedtime').value = (cfg.sleep && cfg.sleep.bedtime) || '23:30';
     $('wake').value = (cfg.sleep && cfg.sleep.wake) || '07:00';
     $('restDay').value = String(cfg.restDay == null ? 5 : cfg.restDay);
@@ -524,7 +558,8 @@
     for (let i = startIdx; i < Math.min(startIdx + 7, plan.days.length); i++) {
       const d = plan.days[i];
       pills.push('<button class="day-pill' + (String(i) === String(state.selectedDay) ? ' active' : '') + '" data-day="' + i + '">' +
-        esc(d.weekday) + '<small>' + faNum(Math.round(d.plannedMinutes / 60 * 10) / 10) + ' ساعت</small></button>');
+        esc(d.weekday) + '<small class="xp-day">' + jDayMonth(d.date) + '</small>' +
+        '<small>' + faNum(Math.round(d.plannedMinutes / 60 * 10) / 10) + ' ساعت</small></button>');
     }
     $('dayPills').innerHTML = pills.join('');
     $('dayPills').querySelectorAll('[data-day]').forEach((b) => {
@@ -546,7 +581,7 @@
 
     const head = '<div class="card" style="margin-bottom:10px;background:var(--panel2)">' +
       '<div class="row" style="justify-content:space-between">' +
-      '<div><b style="font-size:13.5px">' + esc(d.weekday) + ' — ' + bidi(faNum(d.date)) + '</b>' +
+      '<div><b style="font-size:13.5px">' + esc(jDateFull(d.date)) + '</b>' +
       '<div class="muted" style="font-size:11.5px;margin-top:3px">' + faNum(d.plannedMinutes) + ' دقیقه' +
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
       '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') + '</div>';
@@ -703,5 +738,6 @@
 
   /* ---------------- شروع ---------------- */
 
+  if (J) J.attachAll(document);
   restore();
 })();

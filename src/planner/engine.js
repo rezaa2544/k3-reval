@@ -14,10 +14,14 @@
  */
 
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.RevalPlanner = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./jalali.js'));
+  else root.RevalPlanner = factory(root.RevalJalali);
+})(typeof self !== 'undefined' ? self : this, function (J) {
   'use strict';
+
+  /* نمایش تاریخ: همیشه شمسی؛ اگر ماژول تقویم نبود، همان ISO */
+  const jDate = (iso) => (J && J.fmt ? J.fmt(iso) : iso);
+  const jDateLong = (iso) => (J && J.fmtLong ? J.fmtLong(iso) : iso);
 
   const DEFAULTS = {
     blockMinutes: 45,
@@ -1007,7 +1011,7 @@
     const L = [];
     L.push('# برنامهٔ مطالعه — ' + plan.meta.studentName);
     L.push('');
-    L.push('**بازه:** ' + plan.meta.startDate + ' تا ' + plan.meta.examDate +
+    L.push('**بازه:** ' + jDate(plan.meta.startDate) + ' تا ' + jDate(plan.meta.examDate) +
       ' · **مجموع مطالعه:** ' + plan.summary.totalHours + ' ساعت · **میانگین روزانه:** ' + plan.summary.avgHoursPerDay + ' ساعت');
     L.push('');
     L.push('## چرا این برنامه؟');
@@ -1022,7 +1026,7 @@
     L.push('');
     plan.days.forEach((d) => {
       if (!d.blocks.length && !d.events.length) return;
-      L.push('### ' + d.date + ' — ' + d.weekday + (d.studyMinutes ? ' · ' + Math.round(d.studyMinutes / 60 * 10) / 10 + ' ساعت مطالعه' : ''));
+      L.push('### ' + jDate(d.date) + ' — ' + d.weekday + (d.studyMinutes ? ' · ' + Math.round(d.studyMinutes / 60 * 10) / 10 + ' ساعت مطالعه' : ''));
       if (d.note) L.push('> ' + d.note);
       d.events.forEach((e) => L.push('- 📌 **' + e.start + '–' + e.end + '** · ' + (e.type === 'exam' ? 'آزمون' : 'کلاس') + ': ' + e.title + (e.subjectName ? ' (' + e.subjectName + ')' : '')));
       d.blocks.filter((b) => b.kind !== 'exam').forEach((b) => {
@@ -1036,19 +1040,20 @@
   }
 
   function toCSV(plan) {
-    const rows = [['تاریخ', 'روز', 'شروع', 'پایان', 'دقیقه', 'نوع', 'درس', 'مبحث', 'محتوا', 'تکنیک', 'اگر-آنگاه']];
+    const rows = [['تاریخ (شمسی)', 'روز', 'شروع', 'پایان', 'دقیقه', 'نوع', 'درس', 'مبحث', 'محتوا', 'تکنیک', 'اگر-آنگاه']];
     plan.days.forEach((d) => {
       d.events.forEach((e) => {
-        rows.push([d.date, d.weekday, e.start, e.end, '', (e.type === 'exam' ? 'آزمون آزمایشی' : 'کلاس'), e.subjectName || e.title, e.title, 'رویداد ثابت', '', '']);
+        rows.push([jDate(d.date), d.weekday, e.start, e.end, '', (e.type === 'exam' ? 'آزمون آزمایشی' : 'کلاس'), e.subjectName || e.title, e.title, 'رویداد ثابت', '', '']);
       });
       d.blocks.forEach((b) => {
-        rows.push([d.date, d.weekday, b.start, b.end, b.minutes, b.kindLabel, b.subjectName, b.topic, b.content, b.technique, b.ifThen]);
+        rows.push([jDate(d.date), d.weekday, b.start, b.end, b.minutes, b.kindLabel, b.subjectName, b.topic, b.content, b.technique, b.ifThen]);
       });
     });
     return rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
   }
 
   function toTaskList(plan, dateIso) {
+    /* خروجی برای چسباندن در روال؛ تاریخ‌ها شمسی نمایش داده می‌شوند */
     const out = [];
     plan.days
       .filter((d) => !dateIso || d.date === dateIso)
@@ -1077,7 +1082,10 @@
         lines.push('DTSTART:' + stamp(d.date, b.start));
         lines.push('DTEND:' + stamp(d.date, b.end));
         lines.push('SUMMARY:' + esc(b.kindLabel + ' — ' + b.subjectName + ' / ' + b.topic));
-        if (b.ifThen) lines.push('DESCRIPTION:' + esc(b.ifThen + '\n' + b.content));
+        /* تاریخ شمسی همراه رویداد (DTSTART بر اساس استاندارد ICS میلادی می‌ماند) */
+        lines.push('X-REVAL-JALALI:' + esc(jDate(d.date) + ' ' + b.start));
+        lines.push('DESCRIPTION:' + esc('تاریخ شمسی: ' + jDate(d.date) + ' (' + d.weekday + ')' +
+          (b.ifThen ? '\n' + b.ifThen : '') + '\n' + b.content));
         lines.push('END:VEVENT');
       });
     });

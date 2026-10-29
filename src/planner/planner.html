@@ -86,10 +86,11 @@
   .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
   .day-pill{
     flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:11px;
-    padding:8px 11px;font:inherit;font-size:11.5px;cursor:pointer;text-align:center;min-width:74px
+    padding:8px 10px;font:inherit;font-size:11.5px;cursor:pointer;text-align:center;min-width:88px
   }
   .day-pill.active{border-color:rgba(79,70,229,.55);background:#eef0ff;color:#3730a3;font-weight:600}
   .day-pill small{display:block;font-size:10px;color:var(--muted);margin-top:2px}
+  .day-pill .xp-day{font-size:10.5px;color:#4338ca;font-weight:600;margin-top:3px}
   .block{
     display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:start;
     background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px
@@ -162,13 +163,14 @@
             <option value="evening">شب‌زی — شب‌ها بهترم</option>
           </select>
         </div>
-        <div><label>تاریخ شروع</label><input id="startDate" type="date" /></div>
-        <div><label>تاریخ آزمون هدف</label><input id="examDate" type="date" /></div>
+        <div><label>تاریخ شروع (شمسی)</label><input id="startDate" data-jdate placeholder="۱۴۰۵/۰۸/۰۷" /></div>
+        <div><label>تاریخ آزمون هدف (شمسی)</label><input id="examDate" data-jdate placeholder="۱۴۰۶/۰۱/۱۶" /></div>
       </div>
     </div>
 
     <div class="card">
       <h2>۲) زمان‌های تو</h2>
+      <p class="muted" style="margin:0 0 10px;font-size:11.5px">همهٔ تاریخ‌ها در این برنامه <b>شمسی</b> هستند؛ روی فیلد تاریخ کلیک کن تا تقویم باز شود.</p>
       <div class="grid g4" id="availability"></div>
       <div class="grid g3" style="margin-top:10px">
         <div><label>ساعت خواب</label><input id="bedtime" type="time" value="23:30" /></div>
@@ -344,6 +346,7 @@
   .evt .t{margin-inline-start:auto;color:var(--muted);font-size:11px}
 </style>
 <div class="toast" id="toast"></div>
+<script src="jalali.js"></script>
 <script src="engine.js"></script>
 <script src="presets.js"></script>
 <script src="planner.js"></script>
