@@ -41,6 +41,7 @@
       { label: 'ورود خودکار', hint: 'Ctrl+L', act: function () { var a = api(); a && a.applyAutoLogin(); } },
       { label: 'تنظیمات حساب', hint: 'Ctrl+,', act: function () { var a = api(); a && a.openAccount(); } },
       { label: 'داشبورد روال', hint: 'Ctrl+H', act: function () { var a = api(); a && a.goHome(); } },
+      { label: 'بررسی به‌روزرسانی', hint: 'نسخهٔ جدید', act: function () { var a = api(); a && a.updates && a.updates.check(); } },
     ];
 
     items.forEach(function (it) {
@@ -95,7 +96,59 @@
       setTimeout(function () { panel.style.display = 'none'; }, 6000);
     }, 2500);
 
+    /* ---- نشان به‌روزرسانی (فقط وقتی نسخهٔ جدید باشد) ---- */
+    var pill = document.createElement('button');
+    pill.id = 'reval-update-pill';
+    pill.style.cssText = [
+      'display:none', 'border:0', 'cursor:pointer', 'border-radius:999px', 'padding:9px 14px',
+      'font:600 12.5px "Segoe UI",Tahoma,sans-serif', 'color:#fff',
+      'background:linear-gradient(135deg,#f59e0b,#ef4444)',
+      'box-shadow:0 10px 26px rgba(239,68,68,.35)', 'max-width:260px', 'line-height:1.6',
+    ].join(';');
+    pill.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var a = api();
+      if (!a || !a.updates) return;
+      pill.disabled = true;
+      pill.textContent = 'در حال دانلود…';
+      a.updates.now();
+    });
+
+    function faVer(v) { return String(v || '').replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
+
+    function applyUpdate(ev) {
+      if (!ev || !ev.state) return;
+      var st = ev.state;
+      if (st.status === 'downloading') {
+        pill.style.display = 'block';
+        pill.textContent = 'دانلود نسخهٔ ' + faVer(st.latest) + ' — ' + faVer(Math.round(st.percent || 0)) + '٪';
+        return;
+      }
+      if (st.status === 'ready' || st.status === 'installing') {
+        pill.style.display = 'block';
+        pill.textContent = 'نصب نسخهٔ ' + faVer(st.latest) + '…';
+        return;
+      }
+      if (st.hasUpdate && st.latest) {
+        pill.style.display = 'block';
+        pill.textContent = 'نسخهٔ ' + faVer(st.latest) + ' آماده است — به‌روزرسانی';
+        return;
+      }
+      pill.style.display = 'none';
+    }
+
+    (function wireUpdates() {
+      var a = api();
+      if (!a || !a.updates) return;
+      if (a.updates.onEvent) a.updates.onEvent(applyUpdate);
+      if (a.updates.state) {
+        a.updates.state().then(function (snap) { if (snap) applyUpdate({ state: snap }); }).catch(function () {});
+      }
+    })();
+
     root.appendChild(panel);
+    root.appendChild(pill);
     root.appendChild(fab);
     (document.body || document.documentElement).appendChild(root);
   }

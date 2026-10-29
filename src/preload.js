@@ -21,4 +21,18 @@ contextBridge.exposeInMainWorld('revalDesktop', {
   applyAutoLogin: () => ipcRenderer.invoke('reval:apply-autologin'),
   goHome: () => ipcRenderer.invoke('reval:go-home'),
   version: () => ipcRenderer.invoke('reval:version'),
+
+  /* ---- به‌روزرسانی خودکار ---- */
+  updates: {
+    state: () => ipcRenderer.invoke('update:state'),
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
+    now: () => ipcRenderer.invoke('update:now'),
+    onEvent: (cb) => {
+      const handler = (_e, payload) => { try { cb(payload); } catch (_) { /* بی‌صدا */ } };
+      ipcRenderer.on('update:event', handler);
+      return () => ipcRenderer.removeListener('update:event', handler);
+    },
+  },
 });

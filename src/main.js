@@ -16,6 +16,10 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const https = require('https');
+const { spawn } = require('child_process');
+const updaterCore = require('./updater.js');
 
 const APP_NAME = 'روال | Reval';
 const HOME_URL = 'https://revaledu.ir/?view=dashboard';
@@ -479,6 +483,9 @@ function buildMenu() {
       submenu: [
         { label: 'اینستاگرام روال', click: () => openExternal('https://instagram.com/reval_academy_') },
         { type: 'separator' },
+        { label: 'بررسی به‌روزرسانی…', click: () => { checkUpdatesInteractive(); } },
+        { label: 'بازکردن صفحهٔ نسخه‌ها در گیت‌هاب', click: () => openExternal('https://github.com/rezaa2544/k3-reval/releases') },
+        { type: 'separator' },
         { label: 'درباره برنامه', click: () => dialog.showMessageBox(mainWindow, {
           type: 'info', title: 'درباره روال', message: 'روال — نسخه دسکتاپ',
           detail: `نسخه ${app.getVersion()}\nElectron ${process.versions.electron} · Chromium ${process.versions.chrome}\n\n` +
@@ -537,6 +544,147 @@ function configureSession() {
 }
 
 /* ------------------------------------------------------------------ */
+/* به‌روزرسانی خودکار (GitHub Releases)                                */
+/* ------------------------------------------------------------------ */
+
+/** درخواست JSON با پیگیری ریدایرکت */
+function httpJson(url, headers) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: Object.assign({ 'User-Agent': 'Reval-Desktop' }, headers || {}) }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        let body = null;
+        try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { body = null; }
+        resolve({ status: res.statusCode || 0, body });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(20000, () => { req.destroy(new Error('پایان زمان انتظار شبکه')); });
+  });
+}
+
+/** دانلود فایل با درصد پیشرفت و پیگیری ریدایرکت */
+function downloadFile(url, dest, onProgress, redirects) {
+  const hop = redirects || 0;
+  return new Promise((resolve, reject) => {
+    if (hop > 6) { reject(new Error('ریدایرکت بیش از حد')); return; }
+    const req = https.get(url, { headers: { 'User-Agent': 'Reval-Desktop', Accept: 'application/octet-stream' } }, (res) => {
+      const code = res.statusCode || 0;
+      if (code >= 300 && code < 400 && res.headers.location) {
+        res.resume();
+        resolve(downloadFile(res.headers.location, dest, onProgress, hop + 1));
+        return;
+      }
+      if (code !== 200) { res.resume(); reject(new Error('کد پاسخ ' + code)); return; }
+      const total = Number(res.headers['content-length'] || 0);
+      let received = 0;
+      const out = fs.createWriteStream(dest);
+      let done = false;
+      const fail = (err) => {
+        if (done) return;
+        done = true;
+        try { out.destroy(); } catch (_) { /* بی‌صدا */ }
+        try { fs.unlinkSync(dest); } catch (_) { /* بی‌صدا */ }
+        reject(err);
+      };
+      res.on('data', (c) => {
+        received += c.length;
+        try { onProgress({ received, total, percent: total ? (received / total) * 100 : 0 }); } catch (_) { /* بی‌صدا */ }
+      });
+      res.on('error', fail);
+      out.on('error', fail);
+      out.on('finish', () => {
+        if (done) return;
+        done = true;
+        if (total && received !== total) { reject(new Error('دانلود ناقص (' + received + ' از ' + total + ')')); return; }
+        resolve(dest);
+      });
+      res.pipe(out);
+    });
+    req.on('error', reject);
+    req.setTimeout(120000, () => req.destroy(new Error('پایان زمان انتظار دانلود')));
+  });
+}
+
+const INSTALL_DIR = () => {
+  try { return path.dirname(app.getPath('exe')); } catch { return ''; }
+};
+
+/** اجرای نصب‌کننده به‌صورت سایلنت و هم‌مسیر نسخهٔ فعلی */
+function runInstaller(file, opts) {
+  return new Promise((resolve, reject) => {
+    const dir = (opts && opts.installDir) || INSTALL_DIR();
+    const args = ['/S'];
+    /* /D باید آخرین پارامتر و بدون کوتیشن باشد؛ اگر مسیر فاصله دارد
+       از آن صرف‌نظر می‌کنیم و نصب‌کننده در مسیر پیش‌فرض خودش نصب می‌کند. */
+    if (dir && dir.indexOf(' ') === -1) args.push('/D=' + dir);
+    try {
+      const child = spawn(file, args, { detached: true, stdio: 'ignore', windowsHide: true });
+      child.on('error', reject);
+      child.unref();
+      setTimeout(resolve, 900); // مهلت کوتاه تا فایل قفل‌نشده باقی نماند
+    } catch (err) { reject(err); }
+  });
+}
+
+const updater = updaterCore.createUpdater({
+  getCurrentVersion: () => app.getVersion(),
+  httpJson,
+  downloadFile,
+  runInstaller,
+  installDir: INSTALL_DIR,
+  exists: (p) => { try { return fs.existsSync(p); } catch { return false; } },
+  fileSize: (p) => { try { return fs.statSync(p).size; } catch { return -1; } },
+  tempPath: (name) => path.join(os.tmpdir(), name || 'Reval-Setup.exe'),
+  onEvent: (ev) => broadcastUpdate(ev),
+  quit: () => { app.isQuitting = true; app.quit(); },
+});
+
+function broadcastUpdate(ev) {
+  [plannerWindow, mainWindow, accountWindow].forEach((w) => {
+    if (w && !w.isDestroyed()) { try { w.webContents.send('update:event', ev); } catch (_) { /* بی‌صدا */ } }
+  });
+}
+
+/** بررسی به‌روزرسانی از منوی برنامه (با پنجرهٔ نتیجه) */
+async function checkUpdatesInteractive() {
+  const owner = plannerWindow || mainWindow;
+  try { openPlannerWindow(); } catch (_) { /* بی‌صدا */ }
+  broadcastUpdate({ type: 'checking', state: updater.snapshot() });
+  const snap = await updater.check({ silent: false });
+  if (snap.status === 'available') {
+    dialog.showMessageBox(owner || null, {
+      type: 'info', title: 'نسخهٔ جدید موجود است',
+      message: `نسخهٔ ${snap.latest} آماده است (نسخهٔ فعلی ${snap.current}).`,
+      detail: 'در پنجرهٔ «مشاور هوشمند» روی دکمهٔ «به‌روزرسانی» بزن؛ خودش دانلود و نصب می‌کند و برنامه دوباره باز می‌شود.',
+      buttons: ['باشه'], noLink: true,
+    });
+  } else if (snap.status === 'latest') {
+    dialog.showMessageBox(owner || null, {
+      type: 'info', title: 'به‌روز است', message: `شما آخرین نسخه را دارید (${snap.current}).`,
+      buttons: ['باشه'], noLink: true,
+    });
+  } else if (snap.status === 'error') {
+    dialog.showMessageBox(owner || null, {
+      type: 'warning', title: 'بررسی به‌روزرسانی', message: 'بررسی انجام نشد.',
+      detail: snap.error || 'اتصال اینترنت یا دسترسی به گیت‌هاب را بررسی کن.',
+      buttons: ['باشه'], noLink: true,
+    });
+  }
+  return snap;
+}
+
+let updateTimer = null;
+function scheduleUpdateChecks() {
+  if (updateTimer) clearInterval(updateTimer);
+  const first = setTimeout(() => { updater.check({ silent: true }); }, 12000);
+  if (first.unref) first.unref();
+  updateTimer = setInterval(() => updater.check({ silent: true }), 4 * 60 * 60 * 1000);
+  if (updateTimer.unref) updateTimer.unref();
+}
+
+/* ------------------------------------------------------------------ */
 /* Lifecycle + IPC                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -567,6 +715,9 @@ if (!gotLock) {
     // اپ مستقیم روی میزکار باز می‌شود و اگر سایت ورود خواست، فقط یک نوار کوچک
     // (داخل صفحه) امکان ثبت یک‌باره‌ی مشخصات را پیشنهاد می‌دهد.
     if (!state.onboarded) writeState({ onboarded: true });
+
+    /* بررسی خودکار به‌روزرسانی: ۱۲ ثانیه بعد از باز شدن و هر ۴ ساعت */
+    scheduleUpdateChecks();
   });
 
   app.on('before-quit', () => { app.isQuitting = true; });
@@ -665,6 +816,21 @@ if (!gotLock) {
 
   ipcMain.handle('planner:close', () => {
     if (plannerWindow && !plannerWindow.isDestroyed()) plannerWindow.close();
+    return { ok: true };
+  });
+
+  /* ---- IPC: به‌روزرسانی ---- */
+  ipcMain.handle('update:state', () => updater.snapshot());
+  ipcMain.handle('update:check', async (_e, opts) => {
+    await updater.check({ silent: false });
+    return updater.snapshot();
+  });
+  ipcMain.handle('update:download', async () => { await updater.download(); return updater.snapshot(); });
+  ipcMain.handle('update:install', async () => { await updater.install(); return updater.snapshot(); });
+  ipcMain.handle('update:now', async () => { await updater.updateNow(); return updater.snapshot(); });
+  ipcMain.handle('update:open-release', async () => {
+    const snap = updater.snapshot();
+    if (snap.pageUrl) openExternal(snap.pageUrl);
     return { ok: true };
   });
 

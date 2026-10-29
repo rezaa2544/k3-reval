@@ -181,7 +181,21 @@
     <button class="tab" data-view="report">گزارش و آنالیز</button>
     <button class="tab" data-view="science">علمِ پشت برنامه</button>
   </div>
+  <button class="ver-chip" id="verChip" title="بررسی به‌روزرسانی"><span class="dot"></span> نسخهٔ <b id="verText">—</b></button>
 </header>
+
+<!-- نوار به‌روزرسانی خودکار (از GitHub Releases) -->
+<div class="ubar" id="updateBar" hidden>
+  <div class="txt">
+    <b id="ubarTitle">نسخهٔ جدید موجود است</b>
+    <span id="ubarSub"></span>
+    <div class="prog" id="ubarProg" hidden><i id="ubarFill"></i></div>
+  </div>
+  <div class="acts">
+    <button class="btn primary" id="ubarAction">به‌روزرسانی</button>
+    <button class="btn" id="ubarLater">بعداً</button>
+  </div>
+</div>
 
 <main>
   <!-- ═══════════ تنظیمات ═══════════ -->
@@ -571,6 +585,26 @@
   .dyn-row.class{grid-template-columns:1.4fr 1fr .8fr .8fr auto}
   .dyn-row.exam{grid-template-columns:1.3fr 1fr .8fr .8fr 1.3fr auto}
   .dyn-row.mock{grid-template-columns:1.25fr .85fr .85fr .9fr .8fr 1.1fr auto}
+  /* ---- نوار به‌روزرسانی ---- */
+  .ver-chip{display:inline-flex;align-items:center;gap:6px;margin-inline-start:auto;background:var(--panel2);border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px;font-size:12px;color:#334155;cursor:pointer;white-space:nowrap}
+  .ver-chip:hover{border-color:#93c5fd;color:#1d4ed8}
+  .ver-chip b{font-weight:700}
+  .ver-chip .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block}
+  .ver-chip.has .dot{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.18)}
+  .ubar{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;
+    margin:0 0 2px;padding:11px 16px;border-radius:0 0 14px 14px;background:linear-gradient(90deg,#eff6ff,#f5f3ff);
+    border:1px solid #c7d2fe;border-top:0;color:#1e293b}
+  .ubar[hidden]{display:none}
+  .ubar .txt{display:flex;flex-direction:column;gap:3px;min-width:240px;flex:1}
+  .ubar .txt b{font-size:14px}
+  .ubar .txt span{font-size:12px;color:#475569;line-height:1.7}
+  .ubar .acts{display:flex;gap:8px;align-items:center}
+  .ubar .prog{width:100%;height:7px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:4px}
+  .ubar .prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#6366f1);transition:width .25s}
+  .ubar .prog[hidden]{display:none}
+  .ubar.err{background:linear-gradient(90deg,#fef2f2,#fff7ed);border-color:#fecaca}
+  .ubar.done{background:linear-gradient(90deg,#ecfdf5,#f0fdf4);border-color:#bbf7d0}
   .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center}
   .kpi b{display:block;font-size:18px;font-weight:700;color:#1e293b;margin-bottom:2px}
   .kpi span{display:block;font-size:11px;color:var(--muted);line-height:1.5}

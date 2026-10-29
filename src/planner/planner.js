@@ -1931,8 +1931,192 @@
     applyConfigToForm(defaultConfig());
   }
 
+  /* ---------------- به‌روزرسانی خودکار ---------------- */
+
+  const upd = (api && api.updates) ? api.updates : null;
+  let updateSnap = null;
+  let userDismissed = false;
+
+  /* شمارهٔ نسخه با رقم فارسی ولی نقطه‌های استاندارد نسخه (۲.۲.۰ نه ۲٫۲٫۰) */
+  function upVer(v) { return String(v == null ? '—' : v).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]); }
+  function upFa(n) { return faNum(String(n)); }
+
+  function renderUpdate(snap, opts) {
+    if (!snap) return;
+    updateSnap = snap;
+    const bar = $('updateBar');
+    const chip = $('verChip');
+    const txt = $('verText');
+    if (txt) txt.textContent = upVer(snap.current || '—');
+    if (chip) chip.classList.toggle('has', Boolean(snap.hasUpdate));
+    if (!bar) return;
+
+    const title = $('ubarTitle');
+    const sub = $('ubarSub');
+    const act = $('ubarAction');
+    const later = $('ubarLater');
+    const prog = $('ubarProg');
+    const fill = $('ubarFill');
+    bar.classList.remove('err', 'done');
+    const show = (kind) => { if (!(userDismissed && kind !== 'ready' && kind !== 'downloading')) bar.hidden = false; };
+
+    const sizeMb = snap.sizeMb ? upFa(snap.sizeMb) + ' مگابایت' : '';
+
+    if (snap.status === 'downloading') {
+      show('downloading');
+      bar.classList.add('done');
+      prog.hidden = false;
+      fill.style.width = Math.max(2, snap.percent || 0) + '%';
+      title.textContent = 'در حال دانلود نسخهٔ ' + upVer(snap.latest) + '…';
+      sub.textContent = upFa(Math.round(snap.percent || 0)) + '٪ — ' +
+        upFa(snap.receivedMb) + ' از ' + upFa(snap.totalMb || snap.sizeMb || 0) + ' مگابایت. دانلود متوقف نشود.';
+      act.textContent = 'در حال دانلود…';
+      act.disabled = true;
+      later.hidden = true;
+      return;
+    }
+
+    if (snap.status === 'ready') {
+      show('ready');
+      bar.classList.add('done');
+      prog.hidden = false;
+      fill.style.width = '100%';
+      title.textContent = 'نسخهٔ ' + upVer(snap.latest) + ' دانلود شد ✅';
+      sub.textContent = 'برای نصب، برنامه بسته و خودکار دوباره باز می‌شود. برنامه‌ها، تیک‌ها و درصدهای تو حفظ می‌شوند.';
+      act.textContent = 'نصب و راه‌اندازی مجدد';
+      act.disabled = false;
+      later.hidden = false;
+      later.textContent = 'بستن';
+      return;
+    }
+
+    later.hidden = false;
+    later.textContent = 'بعداً';
+    prog.hidden = true;
+    act.disabled = false;
+
+    if (snap.status === 'installing') {
+      show('installing');
+      title.textContent = 'در حال نصب نسخهٔ ' + upVer(snap.latest) + '…';
+      sub.textContent = 'برنامه بسته می‌شود و نسخهٔ تازه باز می‌شود.';
+      act.textContent = 'در حال نصب…';
+      act.disabled = true;
+      later.hidden = true;
+      return;
+    }
+
+    if (snap.hasUpdate && snap.latest) {
+      show('available');
+      title.textContent = 'نسخهٔ جدید موجود است: ' + upVer(snap.latest);
+      sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) + (sizeMb ? ' · ' + sizeMb : '') +
+        ' — با یک کلیک دانلود و نصب می‌شود.';
+      act.textContent = 'به‌روزرسانی';
+      return;
+    }
+
+    if (snap.status === 'latest') {
+      if (opts && opts.manual) {
+        show('latest');
+        bar.classList.add('done');
+        title.textContent = 'شما آخرین نسخه را دارید ✅';
+        sub.textContent = 'نسخهٔ ' + upVer(snap.current) + ' · بررسی شد در ' + upFa(clockNow());
+        act.hidden = true;
+        later.textContent = 'باشه';
+        setTimeout(() => { if (!userDismissed) bar.hidden = true; }, 7000);
+      } else {
+        bar.hidden = true;
+      }
+      return;
+    }
+
+    if (snap.status === 'error') {
+      if (opts && opts.manual) {
+        show('error');
+        bar.classList.add('err');
+        title.textContent = 'بررسی به‌روزرسانی انجام نشد';
+        sub.textContent = snap.error || 'اتصال اینترنت را بررسی کن.';
+        act.textContent = 'تلاش دوباره';
+        act.hidden = false;
+      } else {
+        bar.hidden = true; /* بررسی خودکارِ ناموفق، کاربر را آزار نمی‌دهد */
+      }
+      return;
+    }
+
+    if (snap.status === 'checking') {
+      show('checking');
+      title.textContent = 'در حال بررسی نسخهٔ جدید…';
+      sub.textContent = 'اتصال به گیت‌هاب';
+      prog.hidden = true;
+      act.textContent = 'بررسی…';
+      act.disabled = true;
+      return;
+    }
+
+    act.hidden = false;
+    if (snap.hasUpdate) show('available');
+    else bar.hidden = true;
+  }
+
+  function clockNow() {
+    const d = new Date();
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function initUpdates() {
+    if (!upd) return;
+    if (upd.onEvent) {
+      upd.onEvent((ev) => {
+        if (!ev || !ev.state) return;
+        renderUpdate(ev.state, { manual: ev.type !== 'state' || ev.state.status !== 'checking' });
+      });
+    }
+    if (upd.state) {
+      upd.state().then((snap) => renderUpdate(snap, { manual: false })).catch(() => {});
+    }
+    const chip = $('verChip');
+    if (chip) chip.addEventListener('click', () => {
+      userDismissed = false;
+      const bar = $('updateBar');
+      if (bar) bar.hidden = false;
+      renderUpdate({ ...(updateSnap || {}), status: 'checking' }, { manual: true });
+      if (upd.check) upd.check().then((snap) => renderUpdate(snap, { manual: true })).catch(() => {});
+    });
+    const act = $('ubarAction');
+    if (act) act.addEventListener('click', async () => {
+      const s = updateSnap || {};
+      try {
+        if (s.status === 'ready') { act.disabled = true; await upd.install(); return; }
+        if (s.status === 'error' || !s.hasUpdate) {
+          renderUpdate({ ...s, status: 'checking' }, { manual: true });
+          const snap = await upd.check();
+          renderUpdate(snap, { manual: true });
+          if (snap && snap.hasUpdate) {
+            const after = await upd.now(); /* دانلود + نصب در یک کلیک */
+            renderUpdate(after, { manual: true });
+          }
+          return;
+        }
+        act.disabled = true;
+        act.textContent = 'شروع دانلود…';
+        const snap = await upd.now(); /* دانلود و سپس نصب خودکار */
+        renderUpdate(snap, { manual: true });
+        if (snap && snap.status === 'ready') { /* نصب در updateNow انجام شده */ }
+      } catch (e) {
+        renderUpdate({ ...(updateSnap || {}), status: 'error', error: 'خطای غیرمنتظره در به‌روزرسانی' }, { manual: true });
+      }
+    });
+    const later = $('ubarLater');
+    if (later) later.addEventListener('click', () => {
+      userDismissed = true;
+      const bar = $('updateBar');
+      if (bar) bar.hidden = true;
+    });
+  }
+
   /* ---------------- شروع ---------------- */
 
   if (J) J.attachAll(document);
+  initUpdates();
   restore();
 })();
