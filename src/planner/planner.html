@@ -77,7 +77,7 @@
   .ubar .txt{display:flex; flex-direction:column; gap:2px; min-width:240px; flex:1}
   .ubar .txt b{font-size:13px}
   .ubar .txt span{font-size:11.5px; color:var(--fg2)}
-  .ubar .acts{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end}
+  .ubar .acts{flex-wrap:wrap; justify-content:flex-end;display:flex; gap:8px; align-items:center}
   .ubar .prog{width:100%; height:6px; border-radius:999px; background:#e2e8f0; overflow:hidden; margin-top:5px}
   .ubar .prog i{display:block; height:100%; width:0; background:linear-gradient(90deg,#3b82f6,#6366f1); transition:width .25s}
   .ubar .prog[hidden]{display:none}
@@ -351,6 +351,76 @@
     aside.open{transform:none}
     main{padding:14px}
   }
+
+  /* ورودی ساعت (متنی، ۲۴ ساعته، رقم فارسی) */
+  .tin{direction:ltr; text-align:center; letter-spacing:.5px; font-variant-numeric:tabular-nums}
+  .tin.bad{border-color:var(--danger); background:var(--danger-soft)}
+
+  /* ---------- کارت‌های خطا و راهنما (۲.۴) ---------- */
+  .issue{border-radius:var(--r); border:1px solid #f3d08a; background:var(--warn-soft);
+    padding:12px 14px; margin-bottom:9px; display:flex; gap:11px; align-items:flex-start;
+    cursor:pointer; transition:.18s}
+  .issue:hover{border-color:#e9b95c; box-shadow:var(--sh-2); transform:translateY(-1px)}
+  .issue.err{border-color:#f5b5b5; background:var(--danger-soft)}
+  .issue.info{border-color:var(--brand-line); background:var(--brand-soft)}
+  .issue .mark{width:24px; height:24px; border-radius:999px; flex:0 0 24px; display:grid; place-items:center;
+    font-weight:800; font-size:12.5px; background:#f59e0b; color:#fff}
+  .issue.err .mark{background:var(--danger)}
+  .issue.info .mark{background:var(--brand)}
+  .issue .body{flex:1; min-width:0}
+  .issue .ttl{font-size:12.5px; font-weight:800; color:#7c3b06; line-height:1.7}
+  .issue.err .ttl{color:#991b1b}
+  .issue .det{font-size:11.5px; color:#7a5b2a; line-height:1.95; margin-top:3px}
+  .issue.err .det{color:#7f1d1d}
+  .issue .fixline{font-size:11.5px; color:var(--fg2); line-height:1.95; margin-top:6px;
+    background:rgba(255,255,255,.66); border:1px solid var(--line); border-radius:var(--r-sm); padding:7px 10px}
+  .issue .fixline b{color:var(--ok)}
+  .issue .go{font-size:11px; font-weight:800; color:var(--brand); white-space:nowrap; align-self:center}
+  .issue.flash{animation:flashring 1.4s ease-out 2}
+  @keyframes flashring{0%{box-shadow:0 0 0 0 rgba(79,70,229,.42)}100%{box-shadow:0 0 0 14px rgba(79,70,229,0)}}
+  .fld-flash{animation:fldflash 1.5s ease-out 2; border-radius:var(--r-sm)}
+  @keyframes fldflash{0%{box-shadow:0 0 0 0 rgba(79,70,229,.5)}100%{box-shadow:0 0 0 12px rgba(79,70,229,0)}}
+  .issue-empty{font-size:12px; color:var(--ok); background:var(--ok-soft); border:1px solid #a7e8c8;
+    border-radius:var(--r-sm); padding:10px 13px; line-height:1.9}
+
+  /* راهنمای شناور (ⓘ) */
+  .qmark{display:inline-grid; place-items:center; width:15px; height:15px; border-radius:999px;
+    border:1px solid var(--line3); background:#fff; color:var(--muted); font-size:9.5px; font-weight:800;
+    cursor:help; margin-inline-start:5px; vertical-align:middle; line-height:1; user-select:none; flex:0 0 auto}
+  .qmark:hover, .qmark.on{border-color:var(--brand); color:var(--brand); background:var(--brand-soft)}
+  #helpTip{position:fixed; z-index:200; max-width:330px; background:#0f172a; color:#f8fafc;
+    font-size:11.5px; line-height:1.95; padding:10px 13px; border-radius:12px;
+    box-shadow:0 18px 40px rgba(15,23,42,.32); opacity:0; visibility:hidden; transform:translateY(4px);
+    transition:.16s; pointer-events:none; direction:rtl}
+  #helpTip.show{opacity:1; visibility:visible; transform:none}
+  #helpTip b{color:#93c5fd; display:block; margin-bottom:3px; font-size:11.5px}
+
+  /* انتخاب حالت زمان‌بندی */
+  .modes{display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-bottom:4px}
+  .modecard{text-align:start; border:1.5px solid var(--line3); background:#fff; border-radius:var(--r);
+    padding:13px 15px; cursor:pointer; transition:.16s; font:inherit; color:var(--fg2)}
+  .modecard:hover{border-color:var(--brand-line); background:var(--panel2)}
+  .modecard.on{border-color:var(--brand); background:var(--brand-soft); box-shadow:0 0 0 3px rgba(79,70,229,.09)}
+  .modecard b{display:block; font-size:13px; color:var(--fg); margin-bottom:4px}
+  .modecard small{font-size:11px; color:var(--muted); line-height:1.85; display:block}
+  .modecard .badge{font-size:9.5px; font-weight:800; background:var(--ok-soft); color:var(--ok);
+    border:1px solid #a7e8c8; border-radius:999px; padding:1px 7px; margin-inline-start:6px}
+
+  /* نمای روزهای آینده در خانه */
+  .ahead{display:flex; gap:9px; overflow-x:auto; padding:4px 2px 8px}
+  .aday{flex:0 0 132px; border:1px solid var(--line); background:#fff; border-radius:var(--r);
+    padding:10px 12px; cursor:pointer; transition:.16s; text-align:start; font:inherit}
+  .aday:hover{border-color:var(--brand-line); box-shadow:var(--sh-2); transform:translateY(-1px)}
+  .aday.today{border-color:var(--brand); background:var(--brand-soft)}
+  .aday .wd{font-size:11px; font-weight:800; color:var(--fg)}
+  .aday .dt{font-size:10px; color:var(--muted); margin-top:1px}
+  .aday .hrs{font-size:15px; font-weight:800; color:var(--brand); margin-top:7px}
+  .aday .sub{font-size:10px; color:var(--muted); margin-top:2px; line-height:1.6}
+  .todaybox{display:block}
+  .aheadhead{display:flex; align-items:baseline; gap:8px; margin:16px 0 6px}
+  .aheadhead b{font-size:12px}
+  .aheadhead span{font-size:10.5px; color:var(--muted)}
+  @media(max-width:900px){ .modes{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -417,6 +487,24 @@
           </div>
         </div>
         <div class="hero-kpis" id="homeKpis"></div>
+      </div>
+
+      <div id="homeIssues" style="margin-bottom:14px"></div>
+
+      <div class="card" id="homeTodayCard" style="display:none">
+        <div class="row" style="margin-bottom:10px">
+          <h2 style="margin:0">برنامهٔ امروز <span class="tag" id="homeTodayDate"></span></h2>
+          <div class="row" style="margin-inline-start:auto">
+            <button class="btn ghost small" data-goto="plan">برنامهٔ کامل</button>
+          </div>
+        </div>
+        <div class="grid" id="homeTodayStats" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px"></div>
+        <div id="homeTodayList" style="margin-top:12px"></div>
+        <div class="aheadhead">
+          <b>روزهای آینده</b>
+          <span class="muted">روی هر روز بزن تا برنامه‌اش باز شود</span>
+        </div>
+        <div class="ahead" id="homeAhead"></div>
       </div>
 
       <div class="grid g2">
@@ -526,6 +614,35 @@
       </div>
 
       <div class="card">
+        <h2>چطور ساعت‌های مطالعه را تعیین کنیم؟</h2>
+        <p class="lead">یکی را انتخاب کن. هر دو حالت به کلاس‌ها، خواب و پنجرهٔ آزاد روز احترام می‌گذارند.</p>
+        <div class="modes">
+          <button type="button" class="modecard on" id="modeFixed" data-mode="fixed">
+            <b>خودم ساعت هر روز را می‌گویم</b>
+            <small>ساعت‌های واقعیِ هر روز هفته را وارد می‌کنی و برنامه دقیقاً روی همان‌ها چیده می‌شود.</small>
+          </button>
+          <button type="button" class="modecard" id="modeAuto" data-mode="auto">
+            <b>خودکار — فقط سقف را می‌دهم <span class="badge">پیشنهادی</span></b>
+            <small>فقط بیشترین ساعتی که در روز می‌توانی بخوانی را بنویس؛ برنامه خودش بر اساس نیاز فصل‌ها، ضریب درس‌ها، مهلت‌ها و مراحل آماده‌سازی، ساعت لازم هر روز را می‌چیند.</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="card" id="autoBox" style="display:none">
+        <h2>سقف زمانی که در اختیار برنامه می‌گذاری</h2>
+        <p class="lead">برنامه بیشتر از این نمی‌چیند، ولی اگر کمتر کافی بود کمتر هم می‌گذارد — و دلیلش را می‌گوید.</p>
+        <div class="grid g4">
+          <div><label>سقف ساعت در روز</label><input id="dailyCap" class="tin num" type="text" inputmode="decimal" value="۸" /></div>
+          <div><label>کف ساعت در روز (اختیاری)</label><input id="dailyFloor" class="tin num" type="text" inputmode="decimal" value="۱" /></div>
+          <div style="grid-column:span 2; display:flex; align-items:flex-end">
+            <div class="soft" style="width:100%; font-size:11.5px; line-height:1.85">
+              برنامه اول نیاز واقعی را حساب می‌کند، بعد کم‌ترین ساعتی را انتخاب می‌کند که پوشش کامل بدهد؛ اگر با سقف تو پوشش کامل نشد، صریح می‌گوید چقدر کم است.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="manualBox">
         <h2>ساعت مطالعهٔ هر روز</h2>
         <p class="lead">ساعت واقعی، نه آرزو. برنامه دقیقاً روی همین اعداد چیده می‌شود — تا ۱۲ ساعت در روز هم پشتیبانی می‌شود.</p>
         <div class="grid" id="availability" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px"></div>
@@ -540,8 +657,8 @@
       <div class="card">
         <h2>خواب و ساختار بلوک‌ها</h2>
         <div class="grid g4">
-          <div><label>ساعت خواب</label><input id="bedtime" type="time" value="23:30" /></div>
-          <div><label>ساعت بیداری</label><input id="wake" type="time" value="07:00" /></div>
+          <div><label>ساعت خواب</label><input id="bedtime" class="tin" value="۲۳:۳۰" placeholder="۲۳:۳۰" inputmode="numeric" autocomplete="off" /></div>
+          <div><label>ساعت بیداری</label><input id="wake" class="tin" value="۰۷:۰۰" placeholder="۰۷:۰۰" inputmode="numeric" autocomplete="off" /></div>
           <div><label>روز استراحت هفتگی</label>
             <select id="restDay">
               <option value="5" selected>پنجشنبه</option>
@@ -796,6 +913,7 @@
       برو به تب «تنظیمات»، اطلاعاتت را وارد کن و «ساخت برنامهٔ من» را بزن.
     </div>
     <div id="planBody" style="display:none">
+      <div id="issueBox"></div>
       <div class="grid g3" id="stats"></div>
 
       <div class="card" style="margin-top:14px">
@@ -1028,7 +1146,7 @@
   .ubar .txt{display:flex;flex-direction:column;gap:3px;min-width:240px;flex:1}
   .ubar .txt b{font-size:14px}
   .ubar .txt span{font-size:12px;color:#475569;line-height:1.7}
-  .ubar .acts{display:flex;gap:8px;align-items:center}
+  .ubar .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
   .ubar .prog{width:100%;height:7px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:4px}
   .ubar .prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#6366f1);transition:width .25s}
   .ubar .prog[hidden]{display:none}
@@ -1061,6 +1179,7 @@
   .evt .t{margin-inline-start:auto;color:var(--muted);font-size:11px}
 </style>
 
+<div id="helpTip"></div>
 <div class="toast" id="toast"></div>
 <script src="jalali.js"></script>
 <script src="engine.js"></script>

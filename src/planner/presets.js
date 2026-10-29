@@ -229,10 +229,18 @@
   }
 
   /** تاریخ پیش‌فرض آزمون: تقریبی اوایل تیر ماه سال آینده */
+  /**
+   * تاریخ پیش‌فرض کنکور: حدود ۱۰ تیر (اوایل جولای).
+   * نسخهٔ قبلی «۵ آوریل» می‌داد که در تقویم شمسی حدود ۱۶ فروردین است —
+   * یعنی سه ماه زودتر از کنکور واقعی؛ در نتیجه فاز جمع‌بندی و برآورد ظرفیت
+   * اشتباه می‌شد. تاریخ همچنان در قدم ۱ قابل تغییر است.
+   */
   function defaultExamDate(now) {
     const d = now ? new Date(now) : new Date();
-    const year = d.getMonth() > 6 ? d.getFullYear() + 1 : d.getFullYear(); // بعد از مهر → سال بعد
-    return year + '-04-05';
+    let target = new Date(d.getFullYear(), 6, 2); // ۲ جولای ≈ ۱۰ تیر
+    if (target.getTime() <= d.getTime()) target = new Date(d.getFullYear() + 1, 6, 2);
+    const p = (n) => String(n).padStart(2, '0');
+    return target.getFullYear() + '-' + p(target.getMonth() + 1) + '-' + p(target.getDate());
   }
 
   /** فهرست درس‌های یک کتاب عمومی (برای ارزیابی درس‌به‌درس عمومی‌ها) */

@@ -48,6 +48,7 @@
     offDates: [],            // روزهای خارج از برنامه
     visited: {},             // قدم‌هایی که کاربر باز کرده (تیک مسیر آماده‌سازی)
     startTimes: null,        // ساعت شروع هر روز
+    timeMode: 'fixed',       // دستی یا خودکار (فقط سقف)
     lastCarry: [],           // کارهای جامانده‌ای که بازچینش شدند
   };
 
@@ -70,6 +71,51 @@
   }
   function faDigits(v) {
     return String(v == null ? '' : v).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]).replace(/\./g, '٫');
+  }
+
+  /* ---------- ساعت: همیشه ۲۴ ساعته، با رقم فارسی ----------
+     ورودی <input type="time"> به زبان ویندوز وابسته است و در فارسی
+     «04:00 PM» نشان می‌دهد؛ پس ورودی متنیِ خودمان را داریم. */
+  function normTime(raw) {
+    let v = String(raw == null ? '' : raw).trim()
+      .replace(/[۰-۹٠-٩]/g, (c) => EN_DIGITS[c] || c)
+      .replace(/\s+/g, '')
+      .replace(/[٫،.]/g, ':')
+      .replace(/[^\d:]/g, '');
+    if (!v) return '';
+    if (v.indexOf(':') === -1) {
+      if (v.length === 1 || v.length === 2) v += ':00';
+      else if (v.length === 3) v = '0' + v[0] + ':' + v.slice(1);
+      else if (v.length === 4) v = v.slice(0, 2) + ':' + v.slice(2);
+      else return '';
+    }
+    const m = v.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (!m) return '';
+    let h = Number(m[1]);
+    let mi = Number(m[2]);
+    if (h === 24 && mi === 0) return '24:00';
+    if (!(h >= 0 && h <= 23) || !(mi >= 0 && mi <= 59)) return '';
+    return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+  }
+  function timeFa(v) {
+    const t = normTime(v);
+    return t ? faDigits(t) : (v ? faDigits(String(v)) : '');
+  }
+  function readTime(el, fallback) {
+    if (!el) return fallback;
+    const t = normTime(el.value);
+    if (!t) {
+      el.classList.add('bad');
+      el.title = 'ساعت را به شکل ۲۴ ساعته بنویس، مثلاً ۱۶:۳۰ یا ۰۰:۳۰';
+      return fallback;
+    }
+    el.classList.remove('bad');
+    return t;
+  }
+  /** رشتهٔ HTML یک ورودی ساعت (متنی، ۲۴ ساعته) */
+  function timeInput(attr, value, def) {
+    return '<input class="tin" ' + attr + ' value="' + timeFa(value || def || '') + '" ' +
+      'placeholder="' + timeFa(def || '00:00') + '" inputmode="numeric" autocomplete="off" />';
   }
 
   function faNum(n) {
@@ -132,12 +178,12 @@
     if (!box) return;
     const v = Object.assign({}, DEFAULT_START_TIMES, values || {});
     box.innerHTML = WEEKDAY_FA.map((w, i) =>
-      '<div><label>' + w + '</label><input type="time" data-start="' + WEEKDAY_KEY[i] + '" value="' + v[WEEKDAY_KEY[i]] + '" /></div>').join('');
+      '<div><label>' + w + '</label>' + timeInput('data-start="' + WEEKDAY_KEY[i] + '"', v[WEEKDAY_KEY[i]], '16:00') + '</div>').join('');
   }
 
   function readStartTimes() {
     const out = {};
-    document.querySelectorAll('[data-start]').forEach((inp) => { out[inp.dataset.start] = inp.value || '16:00'; });
+    document.querySelectorAll('[data-start]').forEach((inp) => { out[inp.dataset.start] = readTime(inp, '16:00'); });
     return Object.keys(out).length ? out : Object.assign({}, DEFAULT_START_TIMES);
   }
 
@@ -272,7 +318,7 @@
           [[1, 'هر هفته'], [2, 'هر ۲ هفته'], [3, 'هر ۳ هفته'], [4, 'هر ۴ هفته']]
             .map(([v, t]) => '<option value="' + v + '"' + (Number(m.everyNWeeks || 1) === v ? ' selected' : '') + '>' + t + '</option>').join('') +
         '</select></div>' +
-        '<div><label>ساعت شروع (اختیاری)</label><input data-mk="start" type="time" value="' + esc(m.start || '') + '" /></div>' +
+        '<div><label>ساعت شروع (اختیاری)</label>' + timeInput('data-mk="start"', m.start || '', '۰۹:۰۰') + '</div>' +
         '<div><label>مدت (دقیقه)</label><select data-mk="minutes">' +
           [60, 90, 100, 120, 150, 180, 210]
             .map((v) => '<option value="' + v + '"' + (Number(m.minutes || 100) === v ? ' selected' : '') + '>' + faNum(v) + '</option>').join('') +
@@ -295,7 +341,7 @@
       const title = (row.querySelector('[data-mk="title"]').value || '').trim();
       const day = Number(row.querySelector('[data-mk="day"]').value);
       const every = Number(row.querySelector('[data-mk="everyNWeeks"]').value) || 1;
-      const start = row.querySelector('[data-mk="start"]').value || null;
+      const start = normTime(row.querySelector('[data-mk="start"]').value) || null;
       const minutes = Number(row.querySelector('[data-mk="minutes"]').value) || 100;
       const subjectIds = Array.from(row.querySelector('[data-mk="subjectIds"]').selectedOptions).map((o) => o.value);
       if (!title && !subjectIds.length) return;
@@ -648,6 +694,138 @@
         stats.innerHTML = '';
       }
     }
+
+    /* کارت‌های خطا در خانه + برنامهٔ امروز و روزهای آینده */
+    try { renderIssues(issuesOf(state.plan), $('homeIssues')); } catch (e) { /* بی‌صدا */ }
+    try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     خانه: برنامهٔ امروز + روزهای آینده (با تاریخ شمسی و ساعت مطالعه)
+     ══════════════════════════════════════════════════════════════════ */
+  function dayMinutes(d) {
+    if (!d) return 0;
+    if (d.plannedMinutes) return d.plannedMinutes;
+    return (d.blocks || []).reduce((a, b) => a + Math.max(0, (b.end || 0) - (b.start || 0)), 0);
+  }
+  function dayTests(d) {
+    return (d.blocks || []).reduce((a, b) => a + (b.practiceCount || 0), 0);
+  }
+  function hoursFa(mins) {
+    const h = Math.round((mins / 60) * 10) / 10;
+    return faNum(h);
+  }
+
+  /** رفتن به یک روز مشخص در تب «برنامهٔ من» */
+  function openDay(dateIso) {
+    if (!state.plan) return;
+    const idx = state.plan.days.findIndex((d) => d.date === dateIso);
+    if (idx < 0) return;
+    state.week = Math.floor(idx / 7);
+    state.selectedDay = idx;
+    gotoView('plan');
+    const body = $('planBody');
+    if (body) body.style.display = 'block';
+    renderWeek();
+    const dv = $('dayView');
+    if (dv) { try { dv.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { /* بی‌صدا */ } }
+  }
+
+  function renderHomeToday() {
+    const card = $('homeTodayCard');
+    if (!card) return;
+    const plan = state.plan;
+    if (!plan || !plan.days || !plan.days.length) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+
+    const todayIso = iso(new Date());
+    let idx = plan.days.findIndex((d) => d.date === todayIso);
+    const isToday = idx >= 0;
+    if (!isToday) {
+      /* امروز خارج از بازهٔ برنامه است: نزدیک‌ترین روز آینده، وگرنه اولین روز */
+      idx = plan.days.findIndex((d) => d.date > todayIso);
+      if (idx < 0) idx = 0;
+    }
+    const d = plan.days[idx];
+    const mins = dayMinutes(d);
+    const blocks = (d.blocks || []).filter((b) => b.kind !== 'exam');
+    const tests = dayTests(d);
+
+    const restDay = blocks.length === 0 && (d.isRestDay || d.isOff || !(d.blocks || []).length);
+    const list = $('homeTodayList');
+    if ($('homeTodayDate')) {
+      $('homeTodayDate').textContent = (isToday ? 'امروز · ' : '') + jDateFull(d.date) + ' · ' + d.weekday +
+        (restDay ? ' · روز استراحت' : '');
+    }
+    if ($('homeTodayStats')) {
+      /* روز استراحت: به‌جای «۰ ساعت» که نگران‌کننده است، پیام روشن بده */
+      if (restDay) {
+        const nxt = plan.days.slice(idx + 1).find((x) => (x.blocks || []).length);
+        $('homeTodayStats').innerHTML = [
+          { v: 'استراحت', l: isToday ? 'امروز' : 'این روز' },
+          { v: nxt ? hoursFa(dayMinutes(nxt)) + ' ساعت' : '—', l: nxt ? 'روز بعدی (' + nxt.weekday + ')' : 'روز بعدی' },
+          { v: nxt ? jDateFull(nxt.date) : '—', l: 'تاریخ روز بعدی' },
+          { v: faNum(plan.summary.coverage.coverageRatio) + '٪', l: 'پوشش کل برنامه' },
+        ].map((i) => '<div class="stat"><b>' + i.v + '</b><span>' + i.l + '</span></div>').join('');
+        if (list) {
+          list.innerHTML = '<div class="issue info" style="cursor:default"><span class="mark">i</span><div class="body">' +
+            '<div class="ttl">' + (isToday ? 'امروز' : 'این روز') + ' روز استراحت هفتگی است</div>' +
+            '<div class="det">روز استراحت را خودت در «زمان‌های تو» انتخاب کرده‌ای. اگر می‌خواهی امروز هم بخوانی، ' +
+            'روز استراحت را عوض کن یا روی «برنامهٔ کامل» برو و به روز بعد سر بزن.</div></div></div>';
+        }
+        renderAhead(plan, idx);
+        return;
+      }
+
+      const lastEnd = blocks.reduce((a, b) => Math.max(a, b.end || 0), 0);
+      const firstStart = blocks.reduce((a, b) => Math.min(a, b.start || 1440), 1440);
+      $('homeTodayStats').innerHTML = [
+        { v: hoursFa(mins) + ' ساعت', l: 'مدت مطالعهٔ این روز' },
+        { v: faNum(blocks.length), l: 'بلوک کاری' },
+        { v: faNum(tests), l: 'تست هدف' },
+        { v: blocks.length ? bidi(faNum(String(Math.floor(firstStart / 60)).padStart(2, '0') + ':' + String(firstStart % 60).padStart(2, '0')) + '–' + faNum(String(Math.floor(lastEnd / 60)).padStart(2, '0') + ':' + String(lastEnd % 60).padStart(2, '0'))) : '—', l: 'بازهٔ مطالعه' },
+      ].map((i) => '<div class="stat"><b>' + i.v + '</b><span>' + i.l + '</span></div>').join('');
+    }
+
+    /* فهرست فشردهٔ بلوک‌های امروز */
+    if (list) {
+      const evts = (d.events || []).map((e) =>
+        '<div class="evt' + (e.type === 'exam' ? ' exam' : '') + '"><span>' + (e.type === 'exam' ? '📝' : '📌') + '</span>' +
+        '<b>' + esc(e.title) + '</b><span class="t">' + bidi(faNum(e.start) + '–' + faNum(e.end)) + '</span></div>').join('');
+      const items = blocks.slice(0, 5).map((b) =>
+        '<div class="block" style="grid-template-columns:86px 1fr"><div class="time">' +
+        bidi(faNum(b.start) + '–' + faNum(b.end)) + '<small>' + faNum(b.minutes || (b.end - b.start)) + ' دقیقه</small></div>' +
+        '<div><div class="t">' + esc(b.subjectName) + ' <span class="muted" style="font-size:11px">· ' + esc(b.topic) + '</span></div>' +
+        '<div class="tech">' + esc(faNum(b.kindLabel || '')) + '</div></div></div>').join('');
+      const more = blocks.length > 5
+        ? '<div class="muted" style="font-size:11px;margin-top:6px">و ' + faNum(blocks.length - 5) + ' بلوک دیگر — در «برنامهٔ من» ببین.</div>'
+        : '';
+      list.innerHTML = evts + items + more || '<div class="muted" style="font-size:12px">این روز بلوکی ندارد (استراحت یا تعطیل).</div>';
+    }
+
+    renderAhead(plan, idx);
+  }
+
+  /* نوار روزهای آینده */
+  function renderAhead(plan, idx) {
+    const ahead = $('homeAhead');
+    if (ahead) {
+      const start = idx + 1;
+      const days = plan.days.slice(start, start + 8);
+      ahead.innerHTML = days.map((x) => {
+        const h = hoursFa(dayMinutes(x));
+        const n = (x.blocks || []).length;
+        return '<button class="aday" data-open-day="' + x.date + '">' +
+          '<div class="wd">' + esc(x.weekday) + '</div>' +
+          '<div class="dt">' + esc(jDateFull(x.date)) + '</div>' +
+          '<div class="hrs">' + h + ' ساعت</div>' +
+          '<div class="sub">' + (n ? faNum(n) + ' بلوک' + (dayTests(x) ? ' · ' + faNum(dayTests(x)) + ' تست' : '') : 'استراحت') + '</div>' +
+          '</button>';
+      }).join('') || '<div class="muted" style="font-size:12px">روز دیگری در برنامه نیست.</div>';
+      ahead.querySelectorAll('[data-open-day]').forEach((b) => {
+        b.addEventListener('click', () => openDay(b.dataset.openDay));
+      });
+    }
   }
 
   /* چیپ‌های پرش داخل گزارش */
@@ -679,6 +857,189 @@
     if (el) el.addEventListener('click', () => { if ($('build')) $('build').click(); });
   });
   if ($('homeStart')) $('homeStart').addEventListener('click', () => gotoView('step-1'));
+
+  /* ══════════════════════════════════════════════════════════════════
+     راهنمای هر فیلد (ⓘ) — برای کسی که مفهوم بخش‌ها را نمی‌داند
+     ══════════════════════════════════════════════════════════════════ */
+  const HELP = {
+    /* — قدم ۱ — */
+    name: { t: 'نام', d: 'فقط برای اینکه برنامه به اسم خودت ساخته شود. هر چیزی بنویسی اشکالی ندارد.' },
+    grade: { t: 'پایهٔ تحصیلی', d: 'پایه‌ای که امسال در آن درس می‌خوانی. اگر امسال دوازدهمی، «دوازدهم» را انتخاب کن؛ کنکور ۱۴۰۶ برای دوازدهمی‌های امسال است.' },
+    field: { t: 'رشته', d: 'رشتهٔ کنکورت. تجربی، ریاضی یا انسانی. ضرایب درس‌ها و حجم فصل‌ها بر اساس همین رشته چیده می‌شود.' },
+    chronotype: { t: 'الگوی خواب و بیداری', d: '«سحرخیز» یعنی صبح‌ها بازده بیشتری داری؛ برنامه سنگین‌ترین بلوک‌ها را در بازهٔ اوج تو می‌گذارد. اگر مطمئن نیستی «متعادل» را بگذار.' },
+    startDate: { t: 'تاریخ شروع برنامه', d: 'از چه روزی برنامه شروع شود. معمولاً همان امروز. تاریخ‌ها شمسی است.' },
+    examDate: { t: 'تاریخ کنکور', d: 'برنامه تا این تاریخ چیده می‌شود و ۳۰ روز آخر خودکار «فاز جمع‌بندی» می‌شود. تاریخ رسمی هنوز اعلام نشده؛ می‌توانی بعداً عوضش کنی.' },
+    /* — قدم ۲ — */
+    timeMode: { t: 'چطور ساعت‌ها تعیین شود؟', d: '«خودم می‌گویم» = ساعت هر روز را خودت وارد می‌کنی. «خودکار» = فقط سقف را می‌دهی و برنامه بر اساس نیاز واقعی فصل‌ها، ضریب درس‌ها و مهلت‌ها ساعت لازم را خودش تعیین می‌کند.' },
+    dailyCap: { t: 'سقف ساعت در روز', d: 'بیشترین ساعتی که حاضر هستی در یک روز بخوانی. برنامه هیچ‌وقت از این بیشتر نمی‌چیند؛ اگر نیاز کمتر بود، کمتر هم می‌گذارد و دلیلش را می‌گوید.' },
+    dailyFloor: { t: 'کف ساعت در روز', d: 'کمترین ساعتی که برنامه نباید زیر آن برود (اختیاری). مثلاً اگر می‌خواهی حتی در روزهای سبک هم حداقل ۲ ساعت بخوانی، ۲ بگذار.' },
+    availability: { t: 'ساعت مطالعهٔ هر روز', d: 'واقع‌بینانه بنویس، نه آرزومندانه: ساعتی که واقعاً می‌توانی مطالعه کنی (بعد از مدرسه و کلاس). برنامه دقیقاً روی همین عدد چیده می‌شود.' },
+    startTimes: { t: 'ساعت شروع مطالعهٔ هر روز', d: 'اولین ساعتی که در آن روز می‌توانی شروع کنی (معمولاً بعد از مدرسه). برنامه از این ساعت به بعد بلوک می‌گذارد.' },
+    bedtime: { t: 'ساعت خواب', d: 'برنامه ۴۵ دقیقه قبل از خواب را بافر می‌گذارد. اگر بعد از نیمه‌شب می‌خوابی، مثلاً ۰۰:۳۰ بنویس؛ برنامه این را «بعد از نیمه‌شب» می‌فهمد.' },
+    wake: { t: 'ساعت بیداری', d: 'برای تشخیص این‌که ساعت خوابت بعد از نیمه‌شب است و برای تعیین مرز روز استفاده می‌شود.' },
+    restDay: { t: 'روز استراحت هفتگی', d: 'یک روز که هیچ بلوکی چیده نشود. استراحت برنامه‌ریزی‌شده، از فرسودگی جلوگیری می‌کند؛ با این حال می‌توانی «بدون روز استراحت» را انتخاب کنی.' },
+    blockMinutes: { t: 'طول هر بلوک مطالعه', d: 'مدت یک بلوک تمرکز. ۴۵ دقیقه برای بیشتر دانش‌آموزها بهترین تعادل بین تمرکز و خستگی است.' },
+    breakMinutes: { t: 'استراحت بین بلوک‌ها', d: 'فاصلهٔ کوتاه بین دو بلوک. ۱۰ دقیقه استراحت واقعی (بدون گوشی) بازده بلوک بعدی را حفظ می‌کند.' },
+    /* — قدم ۳ — */
+    classRows: { t: 'کلاس‌های هفتگی', d: 'کلاس‌هایی که ساعتشان ثابت است (مدرسه، آموزشگاه، کلاس آنلاین). برنامه این ساعت‌ها را قفل می‌کند و ۲۰ دقیقه «تثبیت کلاس» بعد از آن می‌گذارد.' },
+    examRows: { t: 'آزمون‌های ثابت', d: 'آزمون‌هایی که تاریخشان مشخص است (قلم‌چی، گزینهٔ دو...). سه روز آخر قبل از هر آزمون فقط مرور است و روز بعدش بلوک تحلیل خطا دارد.' },
+    offRows: { t: 'روزهای خارج از برنامه', d: 'روزهایی که مسافری یا مهمانی و نمی‌توانی بخوانی. «تعطیل کامل» یعنی هیچ بلوکی چیده نشود؛ «سبک» یعنی بار نصف شود.' },
+    /* — قدم ۴ — */
+    assessment: { t: 'ارزیابی فصل‌به‌فصل', d: 'برای هر فصل بگو خوانده‌ای یا نه و چقدر مسلطی. برنامه از همین‌جا می‌فهمد کدام فصل «یادگیری از صفر»، کدام «جبران» و کدام فقط «مرور» لازم دارد.' },
+    general: { t: 'دروس عمومی', d: 'دروس عمومی (سلامت، هویت اجتماعی، ادبیات، دین و زندگی، عربی، زبان) از مسیر سوابق تحصیلی مدیریت می‌شوند. پایه‌اش را انتخاب کن تا فصل‌هایش اضافه شود.' },
+    /* — قدم ۵ — */
+    finalsEnabled: { t: 'سوابق تحصیلی', d: 'امتحانات نهایی خرداد، ۶۰٪ نتیجهٔ کنکور ۱۴۰۶ را می‌سازند. این بخش، درس‌های نهایی و بازهٔ خرداد را به برنامه اضافه می‌کند.' },
+    finalsTable: { t: 'درس‌های سوابق', d: 'نمرهٔ فعلی و نمرهٔ هدف هر درس + میزان تأثیرش. برنامه به درسی که فاصلهٔ بیشتری تا هدف دارد وقت بیشتری می‌دهد.' },
+    /* — قدم ۶ — */
+    bookDeadlineRows: { t: 'مهلت کتابی', d: 'مثلاً «پایان زیست تا ۲۹ اسفند». برنامه عقب‌افتادگی را حساب می‌کند و می‌گوید روزی چند دقیقه لازم است.' },
+    shortDeadlineRows: { t: 'مهلت کوتاه / آزمون تک‌درس', d: 'مهلت برای یک درس یا یک بازهٔ فصل‌ها. برای آزمون‌های آموزشگاه‌ها هم از همین استفاده کن.' },
+    mocksCard: { t: 'آزمون‌های دوره‌ای هفتگی', d: 'هر روز هفته، هر چند هفته یک‌بار، چند آزمون هم‌زمان. برنامه قبلش مرور و بعدش تحلیل خطا می‌گذارد.' },
+  };
+
+  let helpTipEl = null;
+  function showHelp(anchor, key) {
+    const item = HELP[key];
+    if (!item || !helpTipEl) return;
+    helpTipEl.innerHTML = '<b>' + esc(item.t) + '</b>' + esc(item.d);
+    helpTipEl.classList.add('show');
+    const r = anchor.getBoundingClientRect();
+    const w = Math.min(330, window.innerWidth - 24);
+    helpTipEl.style.maxWidth = w + 'px';
+    /* در RTL جعبه سمت چپِ آیکن باز می‌شود و اگر جا نبود، سمت راست */
+    let left = r.left - w - 10;
+    if (left < 12) left = Math.min(window.innerWidth - w - 12, r.right + 10);
+    let top = r.bottom + 8;
+    const th = helpTipEl.offsetHeight || 90;
+    if (top + th > window.innerHeight - 12) top = Math.max(12, r.top - th - 8);
+    helpTipEl.style.left = left + 'px';
+    helpTipEl.style.top = top + 'px';
+  }
+  function hideHelp() { if (helpTipEl) helpTipEl.classList.remove('show'); }
+
+  /* ساخت آیکن ⓘ برای هر فیلد ثبت‌شده در HELP */
+  function installHelp() {
+    helpTipEl = $('helpTip');
+    Object.keys(HELP).forEach((key) => {
+      const el = $(key) || document.querySelector('[data-help="' + key + '"]');
+      if (!el) return;
+      if (el.querySelector('.qmark[data-k="' + key + '"]')) return;
+      const isForm = /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+      let host = null;
+      if (isForm) {
+        host = el.parentElement && el.parentElement.querySelector(':scope > label');
+        if (!host && el.previousElementSibling && el.previousElementSibling.tagName === 'LABEL') host = el.previousElementSibling;
+      }
+      if (!host) {
+        host = el.closest('.card') ? el.closest('.card').querySelector('h2') : null;
+      }
+      if (!host) host = el.parentElement;
+      if (!host) return;
+      const ic = document.createElement('span');
+      ic.className = 'qmark';
+      ic.dataset.k = key;
+      ic.textContent = '?';
+      ic.setAttribute('aria-label', HELP[key].t);
+      ic.addEventListener('mouseenter', () => showHelp(ic, key));
+      ic.addEventListener('mouseleave', hideHelp);
+      ic.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const on = ic.classList.contains('on');
+        document.querySelectorAll('.qmark.on').forEach((x) => x.classList.remove('on'));
+        if (on) { hideHelp(); return; }
+        ic.classList.add('on');
+        showHelp(ic, key);
+      });
+      host.appendChild(ic);
+    });
+    document.addEventListener('click', (ev) => {
+      if (!ev.target.closest || !ev.target.closest('.qmark')) {
+        document.querySelectorAll('.qmark.on').forEach((x) => x.classList.remove('on'));
+        hideHelp();
+      }
+    });
+    const scroller = $('mainScroll');
+    if (scroller) scroller.addEventListener('scroll', hideHelp, { passive: true });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     کارت‌های خطا: چرا + چطور رفعش کنم + پرش به همان فیلد
+     ══════════════════════════════════════════════════════════════════ */
+  function issuesOf(plan) {
+    if (!plan || !plan.summary) return [];
+    const list = (plan.summary.diagnostics || []).slice();
+    /* پیام‌های متنیِ قدیمی که ساخت‌یافته نشده‌اند هم نشان داده می‌شوند */
+    const known = {};
+    list.forEach((d) => { known[d.detail] = true; });
+    (plan.summary.warnings || []).forEach((w) => {
+      if (!known[w]) list.push({ id: 'legacy', level: 'warn', title: 'هشدار برنامه', detail: w, fix: '', step: 'step-2', field: '' });
+    });
+    const rank = { error: 0, warn: 1, info: 2 };
+    return list.sort((a, b) => (rank[a.level] || 1) - (rank[b.level] || 1));
+  }
+
+  function issueHtml(it) {
+    const lvl = it.level === 'error' ? ' err' : (it.level === 'info' ? ' info' : '');
+    const mark = it.level === 'error' ? '!' : (it.level === 'info' ? 'i' : '⚠');
+    return '<div class="issue' + lvl + '" data-istep="' + esc(it.step || '') + '" data-ifield="' + esc(it.field || '') + '">' +
+      '<span class="mark">' + mark + '</span>' +
+      '<div class="body">' +
+        '<div class="ttl">' + esc(it.title || '') + '</div>' +
+        (it.detail ? '<div class="det">' + esc(it.detail) + '</div>' : '') +
+        (it.fix ? '<div class="fixline"><b>راه‌حل: </b>' + esc(it.fix) + '</div>' : '') +
+      '</div>' +
+      (it.step ? '<span class="go">رفع این مورد ‹</span>' : '') +
+    '</div>';
+  }
+
+  function renderIssues(list, box) {
+    if (!box) return;
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = list.map(issueHtml).join('');
+    box.querySelectorAll('.issue').forEach((el) => {
+      el.addEventListener('click', () => jumpToIssue(el.dataset.istep, el.dataset.ifield));
+    });
+  }
+
+  /* پرش: همان قدم را باز می‌کند، به همان فیلد می‌رود و راهنما را نشان می‌دهد */
+  function jumpToIssue(step, field) {
+    if (!step) return;
+    gotoView(step);
+    if (!field) return;
+    setTimeout(() => {
+      let el = $(field);
+      if (!el && field === 'availability') el = document.querySelector('[data-avail]');
+      if (!el) el = document.querySelector('#view-' + step + ' .card');
+      if (!el) return;
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { /* بی‌صدا */ }
+      el.classList.add('fld-flash');
+      setTimeout(() => el.classList.remove('fld-flash'), 3200);
+      if (el.focus) { try { el.focus({ preventScroll: true }); } catch (e) { /* بی‌صدا */ } }
+      const key = HELP[field] ? field : null;
+      const kb = el.dataset ? el.dataset.k : null;
+      const hintEl = el.parentElement && el.parentElement.querySelector('.qmark');
+      if (hintEl && hintEl.dataset && hintEl.dataset.k) {
+        document.querySelectorAll('.qmark.on').forEach((x) => x.classList.remove('on'));
+        hintEl.classList.add('on');
+        showHelp(hintEl, hintEl.dataset.k);
+        setTimeout(() => { hintEl.classList.remove('on'); hideHelp(); }, 6000);
+      }
+      void key; void kb;
+    }, 90);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     حالت زمان‌بندی: دستی / خودکار (فقط سقف)
+     ══════════════════════════════════════════════════════════════════ */
+  function setTimeMode(mode) {
+    state.timeMode = mode === 'auto' ? 'auto' : 'fixed';
+    const fixed = $('modeFixed');
+    const auto = $('modeAuto');
+    if (fixed) fixed.classList.toggle('on', state.timeMode === 'fixed');
+    if (auto) auto.classList.toggle('on', state.timeMode === 'auto');
+    if ($('autoBox')) $('autoBox').style.display = state.timeMode === 'auto' ? 'block' : 'none';
+    if ($('manualBox')) $('manualBox').style.display = state.timeMode === 'auto' ? 'none' : 'block';
+  }
 
   /* ---------------- فرم تنظیمات ---------------- */
 
@@ -1123,8 +1484,8 @@
         '<div><label>روز</label><select data-cf="weekday">' +
           WEEKDAY_FA.map((w, k) => '<option value="' + k + '"' + ((c.weekdays || [])[0] === k ? ' selected' : '') + '>' + w + '</option>').join('') +
         '</select></div>' +
-        '<div><label>از</label><input type="time" data-cf="start" value="' + (c.start || '18:00') + '" /></div>' +
-        '<div><label>تا</label><input type="time" data-cf="end" value="' + (c.end || '20:00') + '" /></div>' +
+        '<div><label>از</label>' + timeInput('data-cf="start"', c.start, '18:00') + '</div>' +
+        '<div><label>تا</label>' + timeInput('data-cf="end"', c.end, '20:00') + '</div>' +
         '<button class="del" title="حذف">✕</button>';
       div.querySelector('.del').addEventListener('click', () => { div.remove(); toast('کلاس حذف شد — برای اعمال، برنامه را دوباره بساز.'); });
       box.appendChild(div);
@@ -1141,8 +1502,8 @@
       div.innerHTML =
         '<div><label>عنوان آزمون</label><input data-ef="title" value="' + esc(e.title || '') + '" placeholder="آزمون آزمایشی" /></div>' +
         '<div><label>تاریخ (شمسی)</label><input data-ef="date" data-jdate data-iso="' + esc(e.date || '') + '" placeholder="۱۴۰۵/۰۹/۱۲" /></div>' +
-        '<div><label>از</label><input type="time" data-ef="start" value="' + (e.start || '08:00') + '" /></div>' +
-        '<div><label>تا</label><input type="time" data-ef="end" value="' + (e.end || '11:30') + '" /></div>' +
+        '<div><label>از</label>' + timeInput('data-ef="start"', e.start, '08:00') + '</div>' +
+        '<div><label>تا</label>' + timeInput('data-ef="end"', e.end, '11:30') + '</div>' +
         '<div><label>درس‌های آزمون</label><select multiple data-ef="subjectIds">' +
           (state.config ? state.config.subjects : []).concat(state.general || []).map((x) =>
             '<option value="' + esc(x.id) + '"' + ((e.subjectIds || []).indexOf(x.id) !== -1 ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
@@ -1163,8 +1524,8 @@
         title: get('title').value.trim() || 'کلاس آنلاین',
         subjectId: get('subjectId').value || null,
         weekdays: [Number(get('weekday').value)],
-        start: get('start').value || '18:00',
-        end: get('end').value || '20:00',
+        start: readTime(get('start'), '18:00'),
+        end: readTime(get('end'), '20:00'),
       });
     });
     return out;
@@ -1181,8 +1542,8 @@
       out.push({
         title: get('title').value.trim() || 'آزمون آزمایشی',
         date,
-        start: get('start').value || '08:00',
-        end: get('end').value || '11:30',
+        start: readTime(get('start'), '08:00'),
+        end: readTime(get('end'), '11:30'),
         subjectIds: Array.prototype.map.call(sel.selectedOptions, (o) => o.value),
       });
     });
@@ -1246,8 +1607,11 @@
       },
       startDate: readJDate('startDate') || iso(new Date()),
       examDate: readJDate('examDate') || presets.defaultExamDate(),
-      sleep: { bedtime: $('bedtime').value || '23:30', wake: $('wake').value || '07:00' },
+      sleep: { bedtime: readTime($('bedtime'), '23:30'), wake: readTime($('wake'), '07:00') },
       availability,
+      timeMode: state.timeMode === 'auto' ? 'auto' : 'fixed',
+      dailyCapHours: numVal($('dailyCap')) || 8,
+      dailyFloorHours: numVal($('dailyFloor')) || 1,
       startTimes: schoolDays,
       blockMinutes: Number($('blockMinutes').value) || 45,
       breakMinutes: Number($('breakMinutes').value) || 10,
@@ -1282,8 +1646,11 @@
     $('chronotype').value = (cfg.student && cfg.student.chronotype) || 'neutral';
     writeJDate('startDate', cfg.startDate || iso(new Date()));
     writeJDate('examDate', cfg.examDate || presets.defaultExamDate());
-    $('bedtime').value = (cfg.sleep && cfg.sleep.bedtime) || '23:30';
-    $('wake').value = (cfg.sleep && cfg.sleep.wake) || '07:00';
+    if ($('dailyCap')) $('dailyCap').value = faDigits(cfg.dailyCapHours != null ? cfg.dailyCapHours : 8);
+    if ($('dailyFloor')) $('dailyFloor').value = faDigits(cfg.dailyFloorHours != null ? cfg.dailyFloorHours : 1);
+    setTimeMode(cfg.timeMode === 'auto' ? 'auto' : 'fixed');
+    $('bedtime').value = timeFa((cfg.sleep && cfg.sleep.bedtime) || '23:30');
+    $('wake').value = timeFa((cfg.sleep && cfg.sleep.wake) || '07:00');
     $('restDay').value = String(cfg.restDay == null ? 5 : cfg.restDay);
     $('blockMinutes').value = String(cfg.blockMinutes || 45);
     $('breakMinutes').value = String(cfg.breakMinutes == null ? 10 : cfg.breakMinutes);
@@ -1367,6 +1734,7 @@
       startDate: iso(new Date()),
       examDate: presets.defaultExamDate(),
       sleep: { bedtime: '23:30', wake: '07:00' },
+      timeMode: 'fixed', dailyCapHours: 8, dailyFloorHours: 1,
       availability: { sat: 4, sun: 4, mon: 4, tue: 4, wed: 4, thu: 6, fri: 5 },
       startTimes: { sat: '16:00', sun: '16:00', mon: '16:00', tue: '16:00', wed: '16:00', thu: '09:00', fri: '09:00' },
       blockMinutes: 45,
@@ -1443,6 +1811,14 @@
     try {
       const cfg = collectConfig();
       const plan = engine.createPlan(cfg);
+      try {
+        window.__revalDebug = {
+          cfg: { timeMode: cfg.timeMode, dailyCapHours: cfg.dailyCapHours, availability: cfg.availability, startDate: cfg.startDate, examDate: cfg.examDate },
+          auto: plan.summary.autoInfo,
+          summary: { totalHours: plan.summary.totalHours, avg: plan.summary.avgHoursPerDay, days: plan.days.length, cov: plan.summary.coverage.coverageRatio },
+          metaCfg: { autoHours: plan.meta.config.autoHours, timeMode: plan.meta.config.timeMode, avail: plan.meta.config.availability },
+        };
+      } catch (e) { /* بی‌صدا */ }
       state.config = cfg;
       state.plan = plan;
       state.week = 0;
@@ -1484,9 +1860,9 @@
     ].join('');
 
     $('coachNotes').innerHTML = s.coachNotes.map((n) => '<li>' + esc(n) + '</li>').join('');
-    $('warnBox').innerHTML = s.warnings.length
-      ? s.warnings.map((w) => '<div class="warn">⚠ ' + esc(w) + '</div>').join('')
-      : '';
+    const issues = issuesOf(plan);
+    renderIssues(issues, $('warnBox'));
+    renderIssues(issues, $('issueBox'));
 
     const maxMinutes = Math.max.apply(null, s.bySubject.map((x) => x.minutes).concat([1]));
     $('subjectBars').innerHTML = s.bySubject.map((x) => {
@@ -2172,21 +2548,31 @@
     const title = $('ubarTitle');
     const sub = $('ubarSub');
     const act = $('ubarAction');
+    const fullBtn0 = $('ubarFull');
+    if (fullBtn0) fullBtn0.addEventListener('click', async () => {
+      try {
+        renderUpdate({ ...(updateSnap || {}), status: 'checking' }, { manual: false });
+        const snap = await upd.now({ full: true });
+        renderUpdate(snap || updateSnap, { manual: true });
+      } catch (e) {
+        renderUpdate({ ...(updateSnap || {}), status: 'error', error: 'دانلود کامل انجام نشد' }, { manual: true });
+      }
+    });
     const later = $('ubarLater');
     const prog = $('ubarProg');
     const fill = $('ubarFill');
     const fullBtn = $('ubarFull');
     bar.classList.remove('err', 'done');
+    /* هر رندر از صفر: وگرنه حالت پنهانِ رندر قبلی به ارث می‌رسد (باگ «دکمه‌ای نمی‌بینم») */
+    act.hidden = false;
+    act.disabled = false;
+    later.hidden = false;
+    prog.hidden = true;
+    if (fullBtn) fullBtn.hidden = true;
     const show = (kind) => { if (!(userDismissed && kind !== 'ready' && kind !== 'downloading')) bar.hidden = false; };
 
     const sizeMb = snap.sizeMb ? upFa(snap.sizeMb) + ' مگابایت' : '';
-
-    /* هر بار وضعیت از صفر رسم می‌شود؛ وگرنه ممکن است دکمه از حالت قبلی پنهان بماند */
-    act.hidden = false;
-    later.hidden = false;
-    act.disabled = false;
-    prog.hidden = true;
-    if (fullBtn) fullBtn.hidden = true;
+    const patchKb = snap.patchKb ? upFa(snap.patchKb) + ' کیلوبایت' : '';
 
     if (snap.status === 'downloading') {
       show('downloading');
@@ -2208,7 +2594,11 @@
       prog.hidden = false;
       fill.style.width = '100%';
       title.textContent = 'نسخهٔ ' + upVer(snap.latest) + ' دانلود شد ✅';
-      sub.textContent = 'برای نصب، برنامه بسته و خودکار دوباره باز می‌شود. برنامه‌ها، تیک‌ها و درصدهای تو حفظ می‌شوند.';
+      sub.textContent = snap.usedPatch
+        ? 'فقط کدِ تغییریافته دانلود شد' +
+          (snap.savedMb ? ' (' + upFa(snap.savedMb) + ' مگابایت صرفه‌جویی)' : '') +
+          ' — برای نصب، برنامه بسته و خودکار دوباره باز می‌شود. داده‌هایت حفظ می‌شود.'
+        : 'برای نصب، برنامه بسته و خودکار دوباره باز می‌شود. برنامه‌ها، تیک‌ها و درصدهای تو حفظ می‌شوند.';
       act.textContent = 'نصب و راه‌اندازی مجدد';
       act.disabled = false;
       later.hidden = false;
@@ -2220,19 +2610,6 @@
     later.textContent = 'بعداً';
     prog.hidden = true;
     act.disabled = false;
-
-    if (snap.status === 'ready' && snap.usedPatch) {
-      show('ready');
-      bar.classList.add('done');
-      prog.hidden = false;
-      fill.style.width = '100%';
-      title.textContent = 'نسخهٔ ' + upVer(snap.latest) + ' دانلود شد ✅';
-      sub.textContent = 'فقط کدِ تغییریافته دانلود شد' + (snap.savedMb ? ' (' + upFa(snap.savedMb) + ' مگابایت صرفه‌جویی)' : '') +
-        '. برای نصب، برنامه بسته و خودکار دوباره باز می‌شود.';
-      act.textContent = 'نصب و راه‌اندازی مجدد';
-      act.disabled = false;
-      return;
-    }
 
     if (snap.status === 'installing') {
       show('installing');
@@ -2246,20 +2623,14 @@
 
     if (snap.hasUpdate && snap.latest) {
       show('available');
+      const usePatch = snap.patchAvailable && patchKb;
       title.textContent = 'نسخهٔ جدید موجود است: ' + upVer(snap.latest);
-      if (snap.patchAvailable) {
-        const kb = snap.patchKb ? upFa(snap.patchKb) + ' کیلوبایت' : 'چند صد کیلوبایت';
-        const saved = snap.sizeMb ? ' · به‌جای ' + upFa(snap.sizeMb) + ' مگابایت' : '';
-        sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) + ' — فقط بخش‌های تغییریافته دانلود می‌شود (' +
-          kb + saved + '). با یک کلیک نصب و برنامه دوباره باز می‌شود.';
-        act.textContent = 'به‌روزرسانی سریع (' + kb + ')';
-        fullBtn.hidden = false;
-      } else {
-        sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) + (sizeMb ? ' · ' + sizeMb : '') +
-          ' — با یک کلیک دانلود و نصب می‌شود.';
-        act.textContent = 'به‌روزرسانی';
-        fullBtn.hidden = true;
-      }
+      sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) +
+        (usePatch
+          ? ' — فقط بخش‌های تغییریافته دانلود می‌شود (' + patchKb + (sizeMb ? ' · به‌جای ' + sizeMb : '') + '). با یک کلیک نصب و برنامه دوباره باز می‌شود.'
+          : (sizeMb ? ' · ' + sizeMb : '') + ' — با یک کلیک دانلود و نصب می‌شود.');
+      act.textContent = usePatch ? 'به‌روزرسانی سریع (' + patchKb + ')' : 'به‌روزرسانی';
+      if (fullBtn) fullBtn.hidden = !snap.patchAvailable;
       return;
     }
 
@@ -2355,19 +2726,6 @@
         renderUpdate({ ...(updateSnap || {}), status: 'error', error: 'خطای غیرمنتظره در به‌روزرسانی' }, { manual: true });
       }
     });
-    const fullBtn = $('ubarFull');
-    if (fullBtn) fullBtn.addEventListener('click', async () => {
-      fullBtn.disabled = true;
-      fullBtn.textContent = 'شروع دانلود کامل…';
-      try {
-        const snap = await upd.now({ full: true });
-        renderUpdate(snap, { manual: true });
-      } catch (e) {
-        renderUpdate({ ...(updateSnap || {}), status: 'error', error: 'دانلود کامل ناموفق بود' }, { manual: true });
-      }
-      fullBtn.disabled = false;
-      fullBtn.textContent = 'نصب کامل (فایل نصب‌کننده)';
-    });
     const later = $('ubarLater');
     if (later) later.addEventListener('click', () => {
       userDismissed = true;
@@ -2376,10 +2734,50 @@
     });
   }
 
+  /* ورودی‌های عددی: رقم فارسی هم پذیرفته می‌شود (کیبورد فارسی) */
+  document.addEventListener('input', (ev) => {
+    const el = ev.target;
+    if (!el || el.tagName !== 'INPUT') return;
+    const numeric = el.type === 'number' || (el.classList && el.classList.contains('num'));
+    if (!numeric) return;
+    const conv = String(el.value).replace(/[۰-۹٠-٩]/g, (c) => EN_DIGITS[c] || c).replace(/٫/g, '.');
+    if (conv !== el.value) {
+      const pos = el.selectionStart;
+      el.value = conv;
+      try { el.setSelectionRange(pos, pos); } catch (e) { /* بی‌صدا */ }
+    }
+  }, true);
+
+  /* ورودی ساعت: با خروج از فیلد، خودکار به شکل ۲۴ ساعتهٔ فارسی درمی‌آید */
+  document.addEventListener('focusout', (ev) => {
+    const el = ev.target;
+    if (!el || !el.classList || !el.classList.contains('tin')) return;
+    const t = normTime(el.value);
+    if (t) { el.value = faDigits(t); el.classList.remove('bad'); }
+    else if (String(el.value).trim()) el.classList.add('bad');
+  }, true);
+  /* Enter در ورودی ساعت: مقدار را نرمال کن و از فیلد بیرون بیا */
+  document.addEventListener('keydown', (ev) => {
+    const el = ev.target;
+    if (!el || !el.classList || !el.classList.contains('tin')) return;
+    if (ev.key === 'Enter') {
+      const t = normTime(el.value);
+      if (t) { el.value = faDigits(t); el.classList.remove('bad'); }
+      el.blur();
+      ev.preventDefault();
+    }
+  }, true);
+
   /* ---------------- شروع ---------------- */
 
   if (J) J.attachAll(document);
   initUpdates();
+  try { installHelp(); } catch (e) { console.error(e); }
+  [['modeFixed', 'fixed'], ['modeAuto', 'auto']].forEach(([id, mode]) => {
+    const b = $(id);
+    if (b) b.addEventListener('click', () => { setTimeMode(mode); try { persist(); } catch (e) { /* بی‌صدا */ } });
+  });
+  setTimeMode('fixed');
   restore().then(() => { try { renderHome(); } catch (e) { /* بی‌صدا */ } });
 
   /* با هر تغییر در فرم، نمای خانه و تیک‌های نوار کنار تازه می‌شوند */

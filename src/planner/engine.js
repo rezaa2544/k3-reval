@@ -114,6 +114,21 @@
     const t = ((Math.round(total) % 1440) + 1440) % 1440;
     return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
   }
+  /* ---------------- ساعت خواب و پنجرهٔ آزاد ----------------
+     باگ واقعی نسخهٔ ۲.۳.۱: دانش‌آموزی که ساعت خوابش بعد از نیمه‌شب است (۰۰:۳۰ یا ۰۱:۰۰)
+     عدد ۰۰:۳۰ را «نیم‌ساعت بعد از شروع روز» می‌فهمیدیم، پس پایان پنجرهٔ مطالعه
+     قبل از شروع آن می‌افتاد و کل برنامه صفر می‌شد (۰ ساعت، پوشش ۰٪، هشدارهای متناقض).
+     حالا اگر ساعت خواب از ساعت بیداری کوچک‌تر یا مساوی باشد، یعنی روز بعد. */
+  function sleepMinutes(cfg) {
+    const bed = minutesSinceMidnight(cfg.sleep && cfg.sleep.bedtime);
+    const wake = minutesSinceMidnight(cfg.sleep && cfg.sleep.wake);
+    return bed <= wake ? bed + 1440 : bed;
+  }
+  function bedtimeCrossesMidnight(cfg) {
+    const bed = minutesSinceMidnight(cfg.sleep && cfg.sleep.bedtime);
+    const wake = minutesSinceMidnight(cfg.sleep && cfg.sleep.wake);
+    return bed <= wake;
+  }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function roundTo5(n) { return Math.round(n / 5) * 5; }
   function sum(arr) { return arr.reduce((a, b) => a + b, 0); }
@@ -122,6 +137,25 @@
   /* ------------------------------------------------------------------ */
   /* نرمال‌سازی تنظیمات                                                  */
   /* ------------------------------------------------------------------ */
+
+  /** هدف تست روزانه (استاندارد، نه عدد دلبخواه) — با ساعت‌های مؤثر روز سنجیده می‌شود. */
+  function refreshTestTarget(cfg) {
+    const totalAvailHours = sum(WEEKDAY_KEY.map((k) => cfg.availability[k]));
+    const activeWeekdays = WEEKDAY_KEY.filter((k) => cfg.availability[k] > 0 && WEEKDAY_KEY.indexOf(k) !== cfg.restDay).length || 6;
+    const manual = (cfg.testTarget && cfg.testTarget.manual) ? Number(cfg.testTarget.daily) : 0;
+    const declaredDailyMinutes = (totalAvailHours * 60) / Math.max(1, activeWeekdays);
+    /* زمان واقعیِ روز = ساعت اعلامی × رَمپ‌آپ × (۱ − بافر)؛ هدف تست باید با همین سنجیده شود */
+    const effFactor = (cfg.RAMP_UP.start + cfg.RAMP_UP.step * 3) * (1 - (cfg.BUFFER_RATIO != null ? cfg.BUFFER_RATIO : 0.15));
+    const effectiveDailyMinutes = declaredDailyMinutes * Math.min(1, effFactor);
+    const feasibleDailyTests = Math.round((effectiveDailyMinutes * 0.45) / 2.0);  // ~۴۵٪ روز، ۲ دقیقه/تست
+    cfg._feasibleDailyTests = clamp(feasibleDailyTests, 20, 220);
+    const normByHours = clamp(Math.round(totalAvailHours * 2.2), 30, 200);      // نورم: ۲۲ تست به ازای هر ساعت هفتگی
+    const autoDaily = clamp(Math.min(normByHours, cfg._feasibleDailyTests), 25, 200);
+    cfg.testTarget = {
+      daily: clamp(Number(manual) || autoDaily, 0, 250),
+    };
+    return cfg.testTarget;
+  }
 
   function normalizeConfig(input) {
     const cfg = Object.assign({}, DEFAULTS, input || {});
@@ -147,6 +181,14 @@
     cfg.breakMinutes = clamp(Number(cfg.breakMinutes) || 10, 0, 30);
     cfg.restDay = clamp(Number(cfg.restDay), 0, 7);
     cfg.weeklyMock = cfg.weeklyMock !== false;
+
+    /* ---------------- حالت زمان‌بندی ----------------
+       fixed: کاربر ساعت هر روز را خودش می‌گوید (رفتار قبلی).
+       auto : کاربر فقط «سقف» را می‌گوید و برنامه خودش بر اساس نیازِ واقعی
+              (حجم فصل‌ها، ضریب، فاصلهٔ تسلط، مهلت‌ها) ساعت لازم را تعیین می‌کند. */
+    cfg.timeMode = cfg.timeMode === 'auto' ? 'auto' : 'fixed';
+    cfg.dailyCapHours = clamp(Number(cfg.dailyCapHours) || 10, 1, 16);
+    cfg.dailyFloorHours = clamp(Number(cfg.dailyFloorHours) || 1, 0.5, 8);
 
     /* ---------------- آزمون‌های دوره‌ای (weekly mocks) ----------------
        مدل قدیمی فقط یک آزمون جمعه داشت. حالا هر روز هفته، هر N هفته،
@@ -361,21 +403,7 @@
        پس سقف عملی روز = ساعت اعلامی × ۱۲ (با میانگین ~۲ دقیقه برای هر تست).
        و کف موردنیاز = مجموع تست لازمِ فصل‌ها ÷ روزهای در دسترس.
        هدف = بین این دو؛ اگر «لازم» از «سقف عملی» بیشتر بود، هشدار صادقانه داده می‌شود. */
-    const totalAvailHours = sum(WEEKDAY_KEY.map((k) => cfg.availability[k]));
-    const activeWeekdays = WEEKDAY_KEY.filter((k) => cfg.availability[k] > 0 && WEEKDAY_KEY.indexOf(k) !== cfg.restDay).length || 6;
-    cfg.testTarget = cfg.testTarget || {};
-    const declaredDailyMinutes = (totalAvailHours * 60) / Math.max(1, activeWeekdays);
-    /* زمان واقعیِ روز = ساعت اعلامی × رَمپ‌آپ × (۱ − بافر)؛ هدف تست باید با همین سنجیده شود */
-    const effFactor = (cfg.RAMP_UP.start + cfg.RAMP_UP.step * 3) * (1 - (cfg.BUFFER_RATIO != null ? cfg.BUFFER_RATIO : 0.15));
-    const effectiveDailyMinutes = declaredDailyMinutes * Math.min(1, effFactor);
-    const feasibleDailyTests = Math.round((effectiveDailyMinutes * 0.45) / 2.0);  // ~۴۵٪ روز، ۲ دقیقه/تست
-    cfg._feasibleDailyTests = clamp(feasibleDailyTests, 20, 220);
-    const normByHours = clamp(Math.round(totalAvailHours * 2.2), 30, 200);      // نورم: ۲۲ تست به ازای هر ساعت هفتگی
-    const autoDaily = clamp(Math.min(normByHours, cfg._feasibleDailyTests), 25, 200);
-    cfg.testTarget = {
-      daily: clamp(Number((cfg.testTarget || {}).daily) || autoDaily, 0, 250),
-    };
-
+    refreshTestTarget(cfg);
     return cfg;
   }
 
@@ -553,7 +581,8 @@
     const wd = persianWeekday(date);
     const key = WEEKDAY_KEY[wd];
     const windowStart = minutesSinceMidnight(cfg.startTimes[key]);
-    const bedGuard = minutesSinceMidnight(cfg.sleep.bedtime) - (cfg.SLEEP_GUARD_MIN || DEFAULTS.SLEEP_GUARD_MIN);
+    /* پایان پنجرهٔ مطالعه: ۴۵ دقیقه قبل از خواب؛ خوابِ بعد از نیمه‌شب تا پایان همان روز کشیده می‌شود */
+    const bedGuard = Math.min(1440, sleepMinutes(cfg) - (cfg.SLEEP_GUARD_MIN || DEFAULTS.SLEEP_GUARD_MIN));
     if (bedGuard <= windowStart) return [];
 
     // ادغام رویدادهای هم‌پوشان
@@ -838,7 +867,118 @@
   /* موتور اصلی                                                          */
   /* ------------------------------------------------------------------ */
 
+  /* ------------------------------------------------------------------ */
+  /* حالت خودکار: انتخاب ساعت روزانه با آزمون واقعی برنامه                */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * در حالت «خودکار» کاربر فقط سقف روزانه را می‌دهد. تخمینِ صرفِ «نیاز ÷ روزها»
+   * دقیق نیست (بلوک‌های ثابت روز، مرورها، رَمپ‌آپ و آزمون‌ها سهم می‌برند)، پس
+   * برنامه را چند بار با ساعت‌های مختلف می‌سازیم و کم‌ترین ساعتی را برمی‌داریم
+   * که پوشش فصل‌ها را به هدف برساند (یا اگر نشد، سقف کاربر).
+   */
   function createPlan(rawConfig) {
+    const raw = rawConfig || {};
+    if (raw.timeMode !== 'auto') return buildPlan(raw);
+
+    const cap = clamp(Number(raw.dailyCapHours) || 10, 1, 16);
+    const floorH = clamp(Number(raw.dailyFloorHours) || 1, 0.5, 8);
+    const TARGET = 98;
+    const MAX_BUILDS = 8;
+    const tried = [];
+    const cache = {};
+    const build = (hVal) => {
+      if (cache[hVal]) return cache[hVal];
+      const plan = buildPlan(Object.assign({}, raw, {
+        timeMode: 'fixed', availability: nullModeAvailability(hVal, raw.restDay),
+      }));
+      cache[hVal] = plan;
+      tried.push({ hours: hVal, coverage: plan.summary.coverage.coverageRatio });
+      return plan;
+    };
+    const covOf = (hVal) => build(hVal).summary.coverage.coverageRatio;
+
+    /* ۱) بالا رفتن از کف تا رسیدن به هدف یا سقف */
+    let lo = floorH;          // «کافی نیست» (یا همان کف)
+    let hi = null;            // «کافی است»
+    let h = floorH;
+    for (let i = 0; i < MAX_BUILDS; i += 1) {
+      const cov = covOf(h);
+      if (cov >= TARGET) { hi = h; break; }
+      lo = h;
+      if (h >= cap) break;
+      const linear = h * (TARGET / Math.max(1, cov));
+      h = Math.min(cap, Math.max(h + 0.5, Math.round(linear * 2) / 2));
+    }
+    /* ۲) ریز‌تنظیم: کم‌ترین ساعتی که کافی است (دقت ۰٫۵ ساعت) */
+    if (hi != null) {
+      while (tried.length < MAX_BUILDS && hi - lo > 0.5) {
+        const mid = Math.round(((lo + hi) / 2) * 2) / 2;
+        if (mid <= lo || mid >= hi) break;
+        if (covOf(mid) >= TARGET) hi = mid; else lo = mid;
+      }
+    }
+    const chosen = hi != null ? hi : h;
+    const best = build(chosen);
+    const cov = best.summary.coverage.coverageRatio;
+    const failed = Array.isArray(raw.__failures) ? raw.__failures : [];
+
+    const autoInfo = {
+      mode: 'auto',
+      chosenHours: chosen,
+      capHours: cap,
+      floorHours: floorH,
+      coverage: cov,
+      achieved: cov >= TARGET,
+      cappedByUser: cov < TARGET && chosen >= cap,
+      builds: tried.length,
+      tried,
+      needHours: best.summary.coverage.needMinutes ? Math.round((best.summary.coverage.needMinutes / 60) * 10) / 10 : null,
+      studyDays: best.days.filter((d) => !d.isRestDay).length,
+    };
+    if (!autoInfo.achieved) {
+      const autoDiag = {
+        id: 'auto-capped',
+        level: 'warn',
+        step: 'step-2',
+        field: 'dailyCap',
+        title: 'با سقف ' + toFa(cap) + ' ساعت در روز پوشش کامل نشد (پوشش ' + toFa(cov) + '٪)',
+        detail: 'برنامه تا سقفی که گذاشتی بالا رفت (' + toFa(chosen) + ' ساعت در روز) ولی برای پوشش کامل ' +
+          'همهٔ فصل‌ها جا کم است.',
+        fix: 'سقف را کمی بالا ببر، یا چند فصل کم‌ضریب را عقب بینداز، یا تعداد روزهای مطالعه را زیاد کن.',
+      };
+      best.summary.diagnostics = (best.summary.diagnostics || []).concat([autoDiag]);
+      best.summary.warnings = (best.summary.warnings || []).concat([autoDiag.detail]);
+      if (best.summary.coverage && best.summary.coverage.diagnostics) {
+        best.summary.coverage.diagnostics = best.summary.coverage.diagnostics.concat([autoDiag]);
+      }
+    }
+    best.summary.timeMode = 'auto';
+    best.summary.autoInfo = autoInfo;
+    if (best.meta.config) {
+      best.meta.config.timeMode = 'auto';
+      best.meta.config.dailyCapHours = cap;
+      best.meta.config.dailyFloorHours = floorH;
+      best.meta.config.autoHours = autoInfo.chosenHours;
+    }
+    /* یادداشت مربی: چرا این ساعت انتخاب شد */
+    best.summary.coachNotes = ['حالت خودکار: برنامه خودش ساعت لازم را حساب کرد — ' +
+      toFa(chosen) + ' ساعت در روز (سقف تو: ' + toFa(cap) + ' ساعت · پوشش ' + toFa(cov) + '٪).' +
+      (autoInfo.cappedByUser
+        ? ' با سقفی که گذاشتی پوشش کامل نشد؛ اگر می‌توانی سقف را بالا ببر یا چند فصل کم‌ضریب را عقب بینداز.'
+        : ' هر روز هم همین ساعت را در «برنامهٔ من» می‌بینی.')].concat(best.summary.coachNotes || []);
+    void failed;
+    return best;
+  }
+
+  /** توزیع ساعت خودکار روی روزهای هفته (روز استراحت صفر) */
+  function nullModeAvailability(hours, restDay) {
+    const out = {};
+    WEEKDAY_KEY.forEach((k, i) => { out[k] = (Number(restDay) === i) ? 0 : hours; });
+    return out;
+  }
+
+  function buildPlan(rawConfig) {
     const cfg = normalizeConfig(rawConfig);
     const topics = buildTopics(cfg);
     const stats = scoreSubjects(cfg);
@@ -955,16 +1095,85 @@
     const dueReviews = [];
     const days = [];
     const warnings = [];
+    /* هشدارهای ساخت‌یافته: هر مورد «چرا» + «چطور درستش کنم» + «کدام قدم» را دارد
+       تا رابط کاربری بتواند کاربر را مستقیم به همان فیلد ببرد. */
+    const diagnostics = [];
+    const diag = (d) => {
+      warnings.push(d.detail);
+      diagnostics.push(Object.assign({ level: 'warn' }, d));
+    };
     const notes = [];
     let learnedCount = 0;
     let unplacedTotal = 0;
     let yesterdayLearned = [];
     let capacityTotal = 0;
     const initialNeedTotal = sum(topics.map((t) => t.initialNeedMinutes));
+
+    /* ---------------- حالت خودکار: برنامه خودش ساعت لازم را تعیین می‌کند ----------------
+       کاربر فقط «سقف» را می‌دهد؛ اینجا از دل نیاز واقعی (فصل‌های خوانده‌نشده + جبران +
+       ارتقا + سوابق + کار عقب‌افتاده) و روزهای واقعیِ در دسترس، ساعت روزانهٔ لازم
+       حساب می‌شود و بین کف و سقفِ کاربر می‌نشیند. بعد از آن، کل موتور مثل حالت دستی
+       کار می‌کند (روی پنجرهٔ آزاد هر روز و کلاس‌های ثابت). */
+    if (cfg.timeMode === 'auto') {
+      const restKey = cfg.restDay !== 7 ? WEEKDAY_KEY[cfg.restDay] : null;
+      let studyDayCount = 0;
+      for (let i = 0; i < totalDays; i += 1) {
+        const dt = addDays(cfg._start, i);
+        if (restKey && WEEKDAY_KEY[persianWeekday(dt)] === restKey) continue;
+        const off = cfg.offDates.find((o) => o.date === isoDay(dt) && o.kind === 'halt');
+        if (off) continue;
+        studyDayCount += 1;
+      }
+      studyDayCount = Math.max(1, studyDayCount);
+      const needMinutes = sum(topics.map((t) => Math.max(0, t.needMinutes))) +
+        sum(finalTopics.map((t) => t.needMinutes)) + sum(carryTopics.map((t) => t.needMinutes));
+      /* سهم مرور/تست/آزمون: ~۳۵٪ زمان اضافه لازم است تا فصل خوانده‌شده فراموش نشود */
+      const REVIEW_OVERHEAD = 0.35;
+      /* رَمپ‌آپ هفته‌های اول بار را کم می‌کند؛ برای برآورد واقع‌بینانه ~۱۲٪ بیشتر حساب می‌کنیم */
+      const rampCompensation = 1.12;
+      const perDayMinutes = (needMinutes * (1 + REVIEW_OVERHEAD) * rampCompensation) / studyDayCount;
+      const rawHours = perDayMinutes / 60;
+      const hours = clamp(Math.round(rawHours * 2) / 2, cfg.dailyFloorHours, cfg.dailyCapHours);
+      WEEKDAY_KEY.forEach((k) => {
+        cfg.availability[k] = (restKey && k === restKey) ? 0 : hours;
+      });
+      cfg._autoInfo = {
+        mode: 'auto',
+        needHours: Math.round((needMinutes / 60) * 10) / 10,
+        studyDays: studyDayCount,
+        rawHours: Math.round(rawHours * 10) / 10,
+        hours,
+        capHours: cfg.dailyCapHours,
+        floorHours: cfg.dailyFloorHours,
+        cappedByUser: rawHours > cfg.dailyCapHours,
+        raisedToFloor: rawHours < cfg.dailyFloorHours,
+      };
+      refreshTestTarget(cfg);
+    }
     let classFixBacklog = []; // تثبیت کلاس‌هایی که همان روز جا نشدند
     let lastMissSweep = -1;
 
     /* فشار مهلت یک درس در یک روز: نسبت «دقیقهٔ لازم در روز» به ظرفیت واقعی */
+    /** سهم لازم امروزِ هر درس از مهلتش: (کار ماندهٔ مهلت) ÷ (روزهای مانده)
+        این عدد «کف تعهد روز» است؛ اگر برنامه کمتر از این به درس بدهد،
+        مهلت با تأخیر تمام می‌شود (همان چیزی که در گزارش «دیر می‌شود» می‌داد). */
+    function deadlineReserve(dayIndex) {
+      const out = {};
+      Object.keys(dlPerSubject).forEach((id) => {
+        const d = dlPerSubject[id];
+        const left = Math.max(0, d.idx - dayIndex + 1);
+        let remain = 0;
+        (learnBySubject[id] || []).forEach((t) => {
+          if (t.deadlineIdx != null && t.deadlineIdx <= d.idx) remain += Math.max(0, t.needMinutes);
+        });
+        if (remain <= 0) return;
+        /* هرچه به مهلت نزدیک‌تر، سهم روزانه بیشتر می‌شود (شتاب پایانی) */
+        const urgency = left <= (cfg.PRE_EXAM_DAYS || DEFAULTS.PRE_EXAM_DAYS) * 2 ? 1.6 : 1;
+        out[id] = Math.ceil((remain / Math.max(1, left)) * urgency);
+      });
+      return out;
+    }
+
     function deadlinePressure(id, dayIndex, dayMinutes) {
       const d = dlPerSubject[id];
       if (!d) return 0;
@@ -1345,17 +1554,30 @@
 
       const addLearnChunks = (budget) => {
         const perSubjectCap = Math.max(cfg.blockMinutes, Math.round(load.minutes * (daysLeft <= 7 ? 0.3 : 0.5)));
+        /* کف تعهد روزانهٔ هر درس بابت مهلت‌هایش */
+        const reserve = deadlineReserve(dayIndex);
         let used = 0;
         let guard = 0;
         while (used < budget && guard++ < 40) {
           // درس را بر اساس کمترین نسبت «زمان داده‌شده ÷ سهم هدف» انتخاب کن
           let chosenId = null;
           let chosenDeficit = -Infinity;
+          /* اولویت مطلق: درسی که امروز هنوز به کف تعهدِ مهلتش نرسیده */
+          let dueId = null;
+          let dueGap = 0;
+          Object.keys(reserve).forEach((id) => {
+            const q = (learnBySubject[id] || []).filter((t) => !scope || scope.has(t.subjectId));
+            if (!q.length) return;
+            const gap = reserve[id] - (subjectUsedToday[id] || 0);
+            if (gap > 0 && gap > dueGap) { dueGap = gap; dueId = id; }
+          });
           Object.keys(learnBySubject).forEach((id) => {
             const q = learnBySubject[id].filter((t) => !scope || scope.has(t.subjectId));
             if (!q.length) return;
             const take = Math.min(cfg.blockMinutes, q[0].needMinutes);
-            const capBoost = 1 + 0.6 * Math.min(1, deadlinePressure(id, dayIndex, load.minutes));
+            /* درس دارای مهلت نزدیک: سقف روزانه‌اش بازتر است */
+            const capBoost = 1 + 0.6 * Math.min(1, deadlinePressure(id, dayIndex, load.minutes))
+              + (dueId === id ? 1.2 : 0);
             if ((subjectUsedToday[id] || 0) + take > perSubjectCap * capBoost) return;
             /* فشار مهلت: درسی که باید تا تاریخ مشخصی تمام شود، سهم بیشتری می‌گیرد */
             const pressure = deadlinePressure(id, dayIndex, load.minutes);
@@ -1364,6 +1586,8 @@
             if (-ratio > chosenDeficit) { chosenDeficit = -ratio; chosenId = id; }
           });
           if (!chosenId) break;
+          /* اگر درسی به کف تعهد مهلتش نرسیده، همین حالا نوبتش است */
+          if (dueId && learnBySubject[dueId] && learnBySubject[dueId].length) chosenId = dueId;
           const topic = learnBySubject[chosenId][0];
 
           /* باقی‌ماندهٔ ناچیز (<۱۰ دقیقه): مبحث را بسته و بلوک کوچک نساز.
@@ -1809,42 +2033,75 @@
       totalCapacityMinutes: Math.round(capacityTotal),
     };
 
+    /* پنجرهٔ مطالعه بسته یا تقریباً بسته: ریشهٔ همهٔ صفرهای برنامه */
+    if (freeWindowHours < 1) {
+      diag({
+        id: 'no-window',
+        level: 'error',
+        step: 'step-2',
+        field: 'bedtime',
+        title: 'پنجرهٔ مطالعه‌ات بسته است — به همین دلیل برنامه صفر شد',
+        detail: 'بین «ساعت شروع مطالعه» و «ساعت خواب» منهای کلاس‌ها، روزی حدود ' + toFa(freeWindowHours) +
+          ' ساعت جا داری؛ پس برنامه هیچ بلوکی برایت نچید. اگر ساعت خوابت بعد از نیمه‌شب است، آن را ' +
+          'مثلاً ۰۰:۳۰ بنویس (برنامه خودش این را «بعد از نیمه‌شب» می‌فهمد).',
+        fix: '۱) ساعت خواب را درست کن (مثلاً ۲۳:۳۰ یا ۰۰:۳۰). ۲) ساعت شروع مطالعه را جلوتر ببر. ' +
+          '۳) اگر کلاسی روی این بازه افتاده، ساعت آن را اصلاح کن. بعد دوباره «ساخت برنامه» را بزن.',
+      });
+    }
     if (!capacityAdvisory.achievable && capacityAdvisory.limiter === 'window') {
-      warnings.push(
-        'ساعت اعلامی‌ات (' + toFa(declaredDailyHours) + ' ساعت در روز) از پنجرهٔ آزادی که داری بزرگ‌تر است: ' +
-        'بین ساعت شروع مطالعه و خواب، منهای کلاس/آزمون‌های ثابت، روزی حدود ' + toFa(freeWindowHours) +
-        ' ساعت جا داری. با همین پنجره پوشش فصل‌ها ' + toFa(coverageRatio) + '٪ می‌شود. ' +
-        'برای استفاده از ساعت‌های بیشتر، ساعت شروع را جلوتر ببر، یا ساعت خواب را عقب‌تر، ' +
-        'یا یکی از کلاس‌های ثابت را جابه‌جا کن (یا چند فصل کم‌ضریب را عقب بینداز).'
-      );
+      diag({
+        id: 'cap-over-window',
+        step: 'step-2',
+        field: 'startTimes',
+        title: 'ساعت اعلامی‌ات از پنجرهٔ آزادِ روز بزرگ‌تر است',
+        detail: 'می‌گویی ' + toFa(declaredDailyHours) + ' ساعت در روز می‌خوانی، ولی بین ساعت شروع مطالعه و خواب ' +
+          '(منهای کلاس/آزمون‌های ثابت) روزی ' + toFa(freeWindowHours) + ' ساعت جا داری؛ با همین پنجره پوشش فصل‌ها ' +
+          toFa(coverageRatio) + '٪ می‌شود.',
+        fix: 'ساعت شروع مطالعه را جلوتر ببر، ساعت خواب را عقب‌تر ببر، یا کلاس‌های ثابت را جابه‌جا کن. ' +
+          'اگر نمی‌توانی، چند فصل کم‌ضریب را عقب بینداز.',
+      });
     } else if (!capacityAdvisory.achievable) {
-      warnings.push(
-        'ساعت‌های فعلی برای پوشش کامل کافی نیست: با ' + toFa(declaredDailyHours) +
-        ' ساعت اعلامی (حدود ' + toFa(Math.round(capacityDailyMinutes / 60 * 10) / 10) +
-        ' ساعت مؤثر در روز' + (fixedWeeklyMinutes ? ' بعد از کلاس/آزمون‌های ثابت' : '') +
-        ')، پوشش فصل‌ها ' + toFa(coverageRatio) + '٪ می‌شود. برای پوشش کامل روزی حداقل ' +
-        toFa(minDailyHoursNeeded) + ' ساعت لازم است (کمبود ~' +
-        toFa(Math.round(shortfallMinutes / 60 * 10) / 10) + ' ساعت در روز). ' +
-        'ساعت مطالعه را بالا ببر یا چند فصل کم‌ضریب را عقب بینداز.'
-      );
+      diag({
+        id: 'low-capacity',
+        step: 'step-2',
+        field: 'availability',
+        title: 'ساعت‌های فعلی برای پوشش کامل کافی نیست (پوشش ' + toFa(coverageRatio) + '٪)',
+        detail: 'با ' + toFa(declaredDailyHours) + ' ساعت اعلامی (حدود ' +
+          toFa(Math.round(capacityDailyMinutes / 60 * 10) / 10) + ' ساعت مؤثر در روز' +
+          (fixedWeeklyMinutes ? ' بعد از کلاس/آزمون‌های ثابت' : '') + ') پوشش فصل‌ها ' + toFa(coverageRatio) +
+          '٪ می‌شود. برای پوشش کامل روزی حداقل ' + toFa(minDailyHoursNeeded) + ' ساعت لازم است (کمبود ~' +
+          toFa(Math.round(shortfallMinutes / 60 * 10) / 10) + ' ساعت در روز).',
+        fix: 'ساعت مطالعهٔ روزهایت را بالا ببر (یا حالت «خودکار» را روشن کن تا برنامه خودش ساعت لازم را بچیند)، ' +
+          'یا چند فصل کم‌ضریب را عقب بینداز.',
+      });
     }
     if (learnQueue.length && capacityAdvisory.achievable) {
       const missing = Math.max(0, Math.round(peekLearnNeed()));
       const low = cfg.subjects.filter((s) => s.weight < 3).sort((a, b) => a.weight - b.weight).slice(0, 2);
-      warnings.push(
-        'با زمان‌های فعلی (با احتساب کلاس‌ها و آزمون‌ها) حدود ' + Math.round(missing / 60) + ' ساعت برای پوشش کاملِ ' +
-        learnQueue.length + ' مبحث باقی‌مانده کم است. ' +
-        (low.length ? 'پیشنهاد: فصل‌های کم‌ضریب (' + low.map((s) => s.name).join('، ') + ') را عقب بینداز یا یک بازهٔ اضافه در روزهای آزاد بساز.'
-                    : 'پیشنهاد: ۱ ساعت به روزهای آزاد اضافه کن یا تعداد فصل‌ها را واقعی‌تر کن.')
-      );
+      diag({
+        id: 'need-left',
+        step: 'step-4',
+        field: 'subjectsBox',
+        title: 'حدود ' + toFa(Math.round(missing / 60)) + ' ساعت کار برای ' + toFa(learnQueue.length) + ' مبحث باقی‌مانده کم می‌آید',
+        detail: 'زمان‌های فعلی (با احتساب کلاس‌ها و آزمون‌ها) برای پوشش کامل همهٔ مباحث کافی نیست؛ ' +
+          'حدود ' + toFa(Math.round(missing / 60)) + ' ساعت کم می‌آید.',
+        fix: low.length
+          ? 'چند فصل کم‌ضریب (' + low.map((s) => s.name).join('، ') + ') را عقب بینداز، یا ساعت مطالعه را بالا ببر، یا حالت خودکار را روشن کن.'
+          : 'یک ساعت به روزهای آزاد اضافه کن، یا تعداد فصل‌های خوانده‌نشده را واقعی‌تر کن.',
+      });
     }
     if (testCoverageRatio < 0.85) {
-      warnings.push(
-        'ظرفیت تست کمتر از استاندارد است: برای پوشش کامل تست‌ها روزی ~' +
-        toFa(capacityAdvisory.requiredDailyTests) + ' تست لازم است؛ همین برنامه روزی ~' +
-        toFa(Math.round(testsPerDay)) + ' تست می‌چیند (هدف ' + toFa(targetDaily) + ' · پوشش تست: ' +
-        toFa(Math.round(testCoverageRatio * 100)) + '٪). با افزایش ساعت مطالعه (یا ساعت شروع زودتر) ظرفیت تست هم بالا می‌رود.'
-      );
+      diag({
+        id: 'test-capacity',
+        step: 'step-2',
+        field: 'availability',
+        title: 'ظرفیت تست کمتر از استاندارد است (پوشش ' + toFa(Math.round(testCoverageRatio * 100)) + '٪)',
+        detail: 'برای پوشش کامل تست‌ها روزی ~' + toFa(capacityAdvisory.requiredDailyTests) +
+          ' تست لازم است؛ همین برنامه روزی ~' + toFa(Math.round(testsPerDay)) + ' تست می‌چیند (هدف ' +
+          toFa(targetDaily) + ' تست در روز).',
+        fix: 'ساعت مطالعه را بالا ببر (با ساعت شروع زودتر یا حالت خودکار) تا ظرفیت تست هم بالا برود؛ ' +
+          'در غیر این صورت تست‌های کم‌ضریب را به بعد موکول کن.',
+      });
     }
     const weakChapters = chapterStats
       .filter((c) => c.read && c.mastery < DEFAULTS.BOOST_BELOW)
@@ -1919,16 +2176,44 @@
       .concat(DL.exams.map((d) => summarizeDeadline(d, 'exam')))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-    deadlineReport.forEach((d) => {
-      if (d.status === 'late' || d.status === 'late-done') {
-        warnings.push('مهلت «' + d.title + '» (' + jDate(d.date) + ') با ساعت‌های فعلی ' +
-          (d.status === 'late-done' ? 'با تأخیر تمام می‌شود.' :
-            'محقق نمی‌شود: ' + Math.round(d.remainingMinutes / 60) + ' ساعت کار مانده و روزی ' +
-            d.needPerDay + ' دقیقه لازم است.'));
-      }
-    });
+    /* مهلت‌های عقب‌افتاده: یک کارت واحد به‌جای پنج هشدار تکراری */
+    const lateDeadlines = deadlineReport.filter((d) => d.status === 'late' || d.status === 'late-done');
+    if (lateDeadlines.length) {
+      diag({
+        id: 'deadline-late',
+        step: 'step-6',
+        field: 'bookRows',
+        title: lateDeadlines.length === 1
+          ? 'مهلت «' + lateDeadlines[0].title + '» با ساعت‌های فعلی محقق نمی‌شود'
+          : toFa(lateDeadlines.length) + ' مهلت با ساعت‌های فعلی محقق نمی‌شود',
+        detail: 'مهلت‌ها با ساعت‌های فعلی محقق نمی‌شوند: ' + lateDeadlines.map((d) =>
+          '«' + d.title + '» (' + jDate(d.date) + '): ' + toFa(Math.round(d.remainingMinutes / 60)) +
+          ' ساعت کار مانده، روزی ' + toFa(d.needPerDay) + ' دقیقه لازم است').join(' · '),
+        fix: 'یا تاریخ مهلت را واقعی‌تر کن، یا ساعت مطالعه را بالا ببر، یا فصل‌های کم‌ضریب را از مهلت بردار.',
+        deadlines: lateDeadlines.map((d) => d.id),
+      });
+    }
+
+    /* ---- برنامهٔ خالی: هیچ بلوکی چیده نشد ---- */
+    if (!totalStudy || totalStudy < 60) {
+      diag({
+        id: 'empty-plan',
+        level: 'error',
+        step: 'step-2',
+        field: 'bedtime',
+        title: 'برنامه تقریباً خالی است (فقط ' + toFa(Math.round(totalStudy / 60 * 10) / 10) + ' ساعت در کل)',
+        detail: 'با ساعت‌های فعلی هیچ بازهٔ مطالعهٔ معناداری در روز پیدا نشد. علت معمولاً یکی است: ' +
+          'ساعت خواب یا ساعت شروع مطالعه اشتباه وارد شده، یا کلاس ثابتی تمام روز را گرفته است.',
+        fix: '«ساعت‌های تو» را باز کن و ببین پنجرهٔ آزاد روزی چند ساعت است؛ ساعت خواب/شروع را اصلاح کن. ' +
+          'اگر مطمئنی زمان‌ها درست است، حالت «خودکار» را روشن کن تا برنامه خودش جا را پیدا کند.',
+      });
+    }
+
+    /* ---- حالت خودکار: سقف کاربر اجازهٔ پوشش کامل را نداد ---- */
+    if (cfg._autoWarn) diagnostics.push(cfg._autoWarn);
 
     const coverage = {
+      diagnostics,
       totalChapters: topics.length,
       coveredChapters: coveredCount,
       coverageRatio,
@@ -2010,7 +2295,7 @@
 
     return {
       meta: {
-        version: '2.1.0', createdAt: new Date().toISOString(),
+        version: '2.4.0', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
@@ -2020,6 +2305,8 @@
         config: configForStorage(cfg),
       },
       summary: {
+        timeMode: cfg.timeMode,
+        autoInfo: cfg._autoInfo || null,
         totalMinutes: totalStudy,
         totalHours: Math.round((totalStudy / 60) * 10) / 10,
         avgHoursPerDay: Math.round((totalStudy / 60 / Math.max(1, days.length)) * 10) / 10,
@@ -2031,6 +2318,7 @@
         unplacedMinutes: unplacedTotal,
         bySubject,
         warnings,
+        diagnostics,
         coachNotes: coachNotes(cfg, bySubject, warnings, notes, coverage),
         coverage,
         priorities,
@@ -2057,6 +2345,10 @@
 
   function coachNotes(cfg, bySubject, warnings, extra, coverage) {
     const out = [];
+    if (coverage && !(coverage.capacityMinutes > 0)) {
+      out.push('برنامه‌ای چیده نشد چون ظرفیت زمانی صفر بود؛ اول «ساعت‌های تو» را درست کن، بعد دوباره بساز.');
+      return out.concat(extra || []);
+    }
     if (coverage) {
       out.push('ارزیابی فصل‌به‌فصل خوانده شد: ' + coverage.readChapters + ' از ' + coverage.totalChapters +
         ' فصل خوانده شده؛ ' + coverage.reteachChapters + ' فصل «جبران» و ' + coverage.boostChapters +
@@ -2083,10 +2375,15 @@
         ' روز آخر قبل از هر آزمون «فقط مرور» است و روز بعد از آزمون، بلوک تحلیل خطا دارد.');
     }
     const first = bySubject[0];
-    if (first) out.push('بیشترین زمان به «' + first.name + '» داده شد (' + first.hours + ' ساعت) — ترکیب ضریب، فاصلهٔ تسلط و حجم باقی‌مانده.');
+    /* اگر برنامه خالی است، «۰ ساعت به فلان درس داده شد» بی‌معنی و گیج‌کننده است */
+    if (first && first.hours > 0) {
+      out.push('بیشترین زمان به «' + first.name + '» داده شد (' + first.hours + ' ساعت) — ترکیب ضریب، فاصلهٔ تسلط و حجم باقی‌مانده.');
+    }
     const weakest = cfg.subjects.slice().sort((a, b) => a.mastery - b.mastery)[0];
-    if (weakest) out.push('ضعیف‌ترین درس فعلی: «' + weakest.name + '» — مرورهایش زودتر و بیشتر تکرار می‌شود.');
-    out.push('هر بلوک با ۵ دقیقه بازیابی فعال تمام می‌شود؛ در لحظه سخت‌تر است، یک هفته بعد نتیجه‌اش دیده می‌شود.');
+    if (weakest && coverage && coverage.coverageRatio > 0) out.push('ضعیف‌ترین درس فعلی: «' + weakest.name + '» — مرورهایش زودتر و بیشتر تکرار می‌شود.');
+    if (!coverage || coverage.coverageRatio > 0) {
+      out.push('هر بلوک با ۵ دقیقه بازیابی فعال تمام می‌شود؛ در لحظه سخت‌تر است، یک هفته بعد نتیجه‌اش دیده می‌شود.');
+    }
     (extra || []).forEach((n) => out.push(n));
     return out;
   }
@@ -2099,7 +2396,9 @@
       weeklyMocks: cfg.weeklyMocks,
       classes: cfg.classes, exams: cfg.exams, subjects: cfg.subjects,
       finals: cfg.finals, deadlines: cfg.deadlines, offDates: cfg.offDates,
-      carryOver: cfg.carryOver, testTarget: cfg.testTarget,
+      carryOver: cfg.carryOver,
+      /* هدف تست محاسبه‌شده ذخیره نمی‌شود؛ هر بار از ساعت‌های تازه ساخته می‌شود */
+      timeMode: cfg.timeMode, dailyCapHours: cfg.dailyCapHours, dailyFloorHours: cfg.dailyFloorHours,
     };
   }
 
