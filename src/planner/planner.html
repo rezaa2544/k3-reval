@@ -79,6 +79,9 @@
   .b-boost{background:#fff7ed;color:#b45309}
   .b-cum{background:#ecfeff;color:#0e7490}
   .b-classfix{background:#f5f3ff;color:#6d28d9}
+  .b-final{background:#ecfdf5;color:#047857}
+  .b-deadline{background:#fef9c3;color:#a16207}
+  .b-carry{background:#fee2e2;color:#b91c1c}
   .b-review{background:#e6f4fd;color:#0369a1}
   .b-practice{background:#e5f7f5;color:#0f766e}
   .b-mock{background:#fdf1e0;color:#b45309}
@@ -124,6 +127,17 @@
   .pill{font-size:10.5px;padding:2px 7px;border-radius:99px;background:#eef2ff;color:#3730a3;border:1px solid #e0e7ff}
   .pill.hot{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
   .pill.warm{background:#fff7ed;color:#b45309;border-color:#fed7aa}
+  .pill.ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+  .pill.bad{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+  .tablewrap{overflow:auto;max-width:100%}
+  table.chap{width:100%;border-collapse:collapse;font-size:12px}
+  table.chap th{text-align:right;font-weight:600;color:var(--muted);font-size:11px;padding:6px 8px;border-bottom:1px solid var(--line)}
+  table.chap td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.chap input{font-family:inherit}
+  .num{direction:ltr;unicode-bidi:isolate;display:inline-block}
+  .dyn-row .del{width:34px;height:34px;padding:0;border-radius:9px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;cursor:pointer;font-size:13px;align-self:end}
+  .dyn-row .del:hover{background:#fee2e2}
+  .dyn-row.off,.dyn-row.dlbook,.dyn-row.dlexam{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end;margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
   .block{
     display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:start;
     background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px
@@ -164,6 +178,7 @@
   <div class="tabs">
     <button class="tab active" data-view="setup">تنظیمات</button>
     <button class="tab" data-view="plan">برنامه</button>
+    <button class="tab" data-view="report">گزارش و آنالیز</button>
     <button class="tab" data-view="science">علمِ پشت برنامه</button>
   </div>
 </header>
@@ -228,6 +243,18 @@
     </div>
 
     <div class="card">
+      <h2>۲.۵) ساعت شروع مطالعهٔ هر روز <span class="muted" style="font-size:11px;font-weight:400">(برنامه از این ساعت به بعد چیده می‌شود)</span></h2>
+      <div class="grid g4" id="startTimes"></div>
+    </div>
+
+    <div class="card">
+      <h2>۴.۵) روزهای خارج از برنامه <span class="muted" style="font-size:11px;font-weight:400">(سفر، بیماری، مهمانی — برنامه خودش را بازچینش می‌کند)</span></h2>
+      <p class="muted" style="margin-top:0;font-size:11.5px">«تعطیل کامل» = آن روز هیچ بلوکی چیده نمی‌شود و کارها به روزهای بعد می‌روند. «روز سبک» = فقط نیمی از بار عادی.</p>
+      <div id="offRows"></div>
+      <button class="btn ghost small" id="addOff" style="margin-top:8px">+ افزودن روز خارج از برنامه</button>
+    </div>
+
+    <div class="card">
       <h2>۳) کلاس‌های آنلاین هفتگی <span class="muted" style="font-size:11px;font-weight:400">(رویداد ثابت — برنامه دور این‌ها چیده می‌شود)</span></h2>
       <p class="muted" style="margin-top:0">هر کلاس را با روز و ساعت وارد کن. بعد از هر کلاس، برنامه خودش یک بلوک «تثبیت کلاس» می‌گذارد.</p>
       <div id="classRows"></div>
@@ -280,6 +307,56 @@
         <span class="muted" style="font-size:11px">اگر مدرسه‌ات عمومی‌ها را جدا امتحان می‌گیرد، ضریبشان را بالاتر ببر.</span>
       </div>
       <table id="general"></table>
+    </div>
+
+    <div class="card" id="deadlineCard">
+      <h2>۸) مهلت‌های کلی — «این کتاب را تا این تاریخ تمام کن»</h2>
+      <p class="muted" style="margin-top:0;font-size:11.5px">
+        مدل اولِ مهلت‌بندی: کل یک کتاب (مثلاً همهٔ فصل‌های زیست) تا یک تاریخ مشخص خوانده <b>و به تثبیت</b> برسد.
+        موتور برنامه، سهم آن درس را خودکار بالا می‌برد تا مهلت محقق شود؛ اگر ساعت‌ها کافی نباشد، صریح می‌گوید چه‌قدر کم است.
+      </p>
+      <div id="bookDeadlineRows"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn ghost small" id="addBookDeadline">+ افزودن مهلت کتابی</button>
+        <button class="btn ghost small" id="suggestBookDeadlines">پیشنهاد هوشمند (همه تا پایان اسفند)</button>
+      </div>
+    </div>
+
+    <div class="card" id="shortDeadlineCard">
+      <h2>۹) مهلت‌های کوتاه — آزمون تک‌درس و آزمون جامع</h2>
+      <p class="muted" style="margin-top:0;font-size:11.5px">
+        مدل دومِ مهلت‌بندی: آزمون‌های تک‌درس (مثلاً «فصل ۲ زیست») و آزمون‌های جامع.
+        دو روز آخر قبل از هر آزمون، موتور خودش بلوک «آماده‌سازی مهلت» از همان محدوده می‌چیند.
+      </p>
+      <div id="shortDeadlineRows"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn ghost small" id="addShortDeadline">+ افزودن آزمون تک‌درس / جامع</button>
+      </div>
+    </div>
+
+    <div class="card" id="finalsCard">
+      <h2>۱۰) سوابق تحصیلی (امتحانات نهایی) — ۶۰٪ نمرهٔ ۱۴۰۶</h2>
+      <p class="muted" style="margin-top:0;font-size:11.5px">
+        سوابق ۶۰٪ نمرهٔ کنکور ۱۴۰۶ است: دوازدهم ۴۳٪ و یازدهم ۱۷٪. نمرهٔ فعلی و هدف هر درس را بنویس؛
+        اگر نمره‌ای ثبت نشود، موتور <b>فرض ۱۲</b> می‌گذارد و در گزارش اعلام می‌کند. برنامه از همین امروز
+        هفته‌ای یک جلسهٔ سوابق می‌چیند و در بازهٔ خرداد، بخش اصلی روز را به نهایی می‌دهد.
+      </p>
+      <div class="grid g4">
+        <div><label>لایهٔ سوابق در برنامه</label>
+          <select id="finalsEnabled"><option value="1" selected>فعال</option><option value="0">غیرفعال</option></select></div>
+        <div><label>پایهٔ امتحانات</label>
+          <select id="finalsGrade"><option value="دوازدهم" selected>دوازدهم</option><option value="یازدهم">یازدهم</option></select></div>
+        <div><label>شروع بازهٔ نهایی (شمسی)</label><input id="finalsStart" data-jdate placeholder="۱۴۰۶/۰۲/۳۰" /></div>
+        <div><label>پایان بازهٔ نهایی (شمسی)</label><input id="finalsEnd" data-jdate placeholder="۱۴۰۶/۰۴/۰۴" /></div>
+      </div>
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>جلسهٔ هفتگی سوابق در طول سال</label>
+          <select id="finalsSpread"><option value="1" selected>بله — هر هفته یک جلسه</option><option value="0">نه — فقط خرداد</option></select></div>
+        <div><label>طول جلسهٔ هفتگی (دقیقه)</label>
+          <select id="finalsSpreadMinutes"><option value="30">۳۰</option><option value="45" selected>۴۵</option><option value="60">۶۰</option><option value="90">۹۰</option></select></div>
+        <div><label>&nbsp;</label><button class="btn ghost small" id="finalsDefaults">بازگردانی درس‌های این پایه</button></div>
+      </div>
+      <table id="finalsTable" class="chap" style="margin-top:10px"></table>
     </div>
 
     <div class="card">
@@ -338,11 +415,75 @@
           <button class="btn small" data-export="json">پشتیبان JSON</button>
           <button class="btn small" data-export="tasks">کپی تسک‌های امروز</button>
         </div>
+        <h3>بازچینش هوشمند روزهای ازدست‌رفته</h3>
+        <p class="muted" style="margin-top:0;font-size:11.5px">
+          اگر یک روز نتوانستی برنامه را اجرا کنی، آن را تیک نزن؛ این‌جا موتور کارهای جامانده را
+          به روزهای آینده منتقل می‌کند (بدون شکستن مرورهای فاصله‌دار).
+        </p>
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn ghost small" id="smartReplan">بازچینش کارهای جامانده</button>
+          <button class="btn ghost small" id="markTodayDone">تیک همهٔ کارهای امروز</button>
+          <span class="muted" id="carryCount" style="font-size:11.5px"></span>
+        </div>
         <h3>ثبت درصد آزمون (بازتنظیم هوشمند)</h3>
         <p class="muted" style="margin-top:0">درصد هر درس را وارد کن؛ تسلط و فاصلهٔ مرورهای بعدی خودکار اصلاح می‌شود.</p>
         <div class="grid g4" id="scoreGrid"></div>
         <div class="row end" style="margin-top:10px">
           <button class="btn primary small" id="replan">بازبرنامه‌ریزی با نتایج جدید</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ گزارش ═══════════ -->
+  <section class="view" id="view-report">
+    <div id="reportEmpty" class="empty">
+      هنوز برنامه‌ای ساخته نشده.<br />اول در تب «تنظیمات» برنامه را بساز؛ بعد این‌جا کتاب‌به‌کتاب و فصل‌به‌فصل می‌بینی.
+    </div>
+    <div id="reportBody" style="display:none">
+      <div class="grid g4" id="reportStats"></div>
+
+      <div class="card" style="margin-top:12px">
+        <h2>مهلت‌ها — آیا به تاریخ‌ها می‌رسی؟</h2>
+        <p class="muted" style="margin-top:0;font-size:11.5px">مدل کتابی (کل کتاب تا یک تاریخ) و مدل کوتاه (آزمون تک‌درس/جامع). وضعیت بر پایهٔ همین برنامه محاسبه می‌شود، نه حدس.</p>
+        <h3>مهلت‌های کتابی</h3>
+        <div id="bookDeadlineTable"></div>
+        <h3>مهلت‌های آزمون (تک‌درس / جامع)</h3>
+        <div id="shortDeadlineTable"></div>
+      </div>
+
+      <div class="card" id="finalsReportCard">
+        <h2>سوابق تحصیلی (نهایی)</h2>
+        <div id="finalsReport"></div>
+      </div>
+
+      <div class="card">
+        <h2>کتاب‌به‌کتاب</h2>
+        <div id="bookTable" class="tablewrap"></div>
+      </div>
+
+      <div class="card">
+        <h2>فصل‌به‌فصل — مسیر، باقی‌مانده و پیشرفت</h2>
+        <div class="row" style="margin-bottom:8px">
+          <select id="reportBook" style="max-width:220px"></select>
+          <select id="reportFilter" style="max-width:220px">
+            <option value="all">همهٔ فصل‌ها</option>
+            <option value="open">پوشش‌نداده‌ها</option>
+            <option value="weak">تسلط زیر ۷۵٪</option>
+            <option value="week">این هفته در برنامه</option>
+            <option value="deadline">دارای مهلت</option>
+          </select>
+          <span class="muted" style="font-size:11.5px;margin-inline-start:auto">ستون «چه چیزی مانده» می‌گوید قدم بعدی دقیقاً چیست.</span>
+        </div>
+        <div id="chapterTable" class="tablewrap"></div>
+      </div>
+
+      <div class="card">
+        <h2>خروجی گزارش</h2>
+        <div class="row">
+          <button class="btn small" data-export="report-md">گزارش Markdown</button>
+          <button class="btn small" data-export="report-csv">گزارش فصل‌ها (CSV)</button>
+          <button class="btn small" data-export="json">پشتیبان کامل (JSON)</button>
         </div>
       </div>
     </div>

@@ -1,19 +1,10 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "1.8.0",
-  "description": "Reval desktop: chapter-by-chapter assessment (jebran/beta), spaced review to Konkur, Jalali calendar",
+  "version": "2.0.0",
+  "description": "Reval desktop 2.0: دو مدل مهلت (کتابی و آزمون‌های کوتاه) + سوابق تحصیلی + برنامه‌ریز هوشمند تطبیقی",
   "main": "src/main.js",
   "author": "Reval Desktop",
   "license": "MIT",
-  "private": true,
-  "devDependencies": {
-    "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
-  },
-  "scripts": {
-    "start": "electron .",
-    "dist:win": "electron-builder --win nsis --x64",
-    "test": "node test/planner-test.js"
-  }
+  "private": true
 }

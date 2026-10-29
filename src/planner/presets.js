@@ -250,8 +250,77 @@
     return found;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* سوابق تحصیلی و امتحانات نهایی                                       */
+  /* کنکور ۱۴۰۶: ۶۰٪ سوابق (یازدهم ۱۷٪ + دوازدهم ۴۳٪) و ۴۰٪ آزمون       */
+  /* ------------------------------------------------------------------ */
+
+  const FINALS_COURSES = [
+    { id: 'fa3', name: 'فارسی ۳', influence: 3 },
+    { id: 'ar3', name: 'عربی ۳', influence: 3 },
+    { id: 'dini3', name: 'دین و زندگی ۳', influence: 3 },
+    { id: 'en3', name: 'زبان خارجی ۳', influence: 3 },
+    { id: 'math3', name: 'ریاضی ۳', influence: 3 },
+    { id: 'bio3', name: 'زیست‌شناسی ۳', influence: 3 },
+    { id: 'chem3', name: 'شیمی ۳', influence: 3 },
+    { id: 'phys3', name: 'فیزیک ۳', influence: 3 },
+    { id: 'salamat3', name: 'سلامت و بهداشت', influence: 2 },
+    { id: 'hoviat3', name: 'هویت اجتماعی', influence: 2 },
+  ];
+
+  /* یازدهم: ۶ درس با تأثیر مثبت (۱۷٪ سوابق) */
+  const FINALS_Y11 = [
+    { id: 'fa2', name: 'فارسی ۲', influence: 3 },
+    { id: 'ar2', name: 'عربی ۲', influence: 3 },
+    { id: 'dini2', name: 'دین و زندگی ۲', influence: 3 },
+    { id: 'en2', name: 'زبان خارجی ۲', influence: 3 },
+    { id: 'math2', name: 'ریاضی ۲', influence: 3 },
+    { id: 'bio2', name: 'زیست‌شناسی ۲', influence: 3 },
+  ];
+
+  /**
+   * درس‌های نهایی یک پایه.
+   * @param {string} field گروه آزمایشی (فعلاً همه یکسان)
+   * @param {string} grade «دوازدهم» یا «یازدهم»
+   * @returns {Array<{id,name,grade,influence,current,target,inProgram}>}
+   */
+  function finalsFor(field, grade) {
+    const g = grade === 'یازدهم' ? 'یازدهم' : 'دوازدهم';
+    const src = g === 'یازدهم' ? FINALS_Y11 : FINALS_COURSES;
+    return src.map((c) => ({
+      id: c.id + (g === 'یازدهم' ? '-11' : '-12'),
+      name: c.name,
+      grade: g,
+      influence: c.influence,
+      current: null,     // ثبت‌نشده → موتور «فرض ۱۲» می‌گذارد و اعلام می‌کند
+      target: 18,
+      inProgram: true,
+    }));
+  }
+
+  /** پنجرهٔ پیشنهادی امتحانات نهایی: ۲۰ اردیبهشت تا ۴ تیر */
+  function defaultFinalsWindow(now) {
+    const d = now ? new Date(now) : new Date();
+    const gy = d.getMonth() > 6 ? d.getFullYear() + 1 : d.getFullYear();
+    return { start: gy + '-05-20', end: gy + '-06-25' };
+  }
+
+  /** مهلت‌های کتابی پیشنهادی: هر کتاب تا پایان اسفند خوانده و تثبیت شود */
+  function suggestedBookDeadlines(subjects, now) {
+    const d = now ? new Date(now) : new Date();
+    const gy = d.getMonth() > 6 ? d.getFullYear() + 1 : d.getFullYear();
+    const esfandEnd = gy + '-03-20';   // ۲۹ اسفند
+    const ordibehesht = gy + '-04-20'; // پایان اردیبهشت
+    return (subjects || []).map((s) => ({
+      subjectId: s.id,
+      date: s.general ? ordibehesht : esfandEnd,
+      goal: 'read',
+    }));
+  }
+
   return {
     FIELDS, GENERAL, GRADE_KEYS, grades, normalizeGrades, subjectsFor, generalFor, defaultExamDate,
     CHAPTERS, chaptersFor, chapterLabel, generalChaptersFor,
+    finalsFor, FINALS_COURSES, defaultFinalsWindow, suggestedBookDeadlines,
   };
 });

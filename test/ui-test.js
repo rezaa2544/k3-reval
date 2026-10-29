@@ -1,82 +1,103 @@
-const { app, BrowserWindow } = require('electron');
-const path = require('path');
+/* تست رابط کاربری (headless با jsdom): ساخت برنامه، تب گزارش، بازچینش، پشتیبان */
 const fs = require('fs');
+const path = require('path');
+const { JSDOM } = require('/tmp/node_modules/jsdom');
 
-app.whenReady().then(async () => {
-  const win = new BrowserWindow({ width: 1240, height: 900, show: true, backgroundColor: '#0a0f1a' });
-  const errors = [];
-  win.webContents.on('console-message', (_e, level, msg) => { if (level >= 2) errors.push(msg); });
-  await win.loadFile(path.join(__dirname, '..', 'src', 'planner', 'planner.html'));
-  await new Promise(r => setTimeout(r, 700));
+const dir = '/home/user/k3-reval/src/planner';
+const html = fs.readFileSync(path.join(dir, 'planner.html'), 'utf8');
 
-  // پر کردن: نام + دو کلاس + یک آزمون
-  const setup = await win.webContents.executeJavaScript(`(() => {
-    document.getElementById('name').value = 'آرمان';
-    document.getElementById('chronotype').value = 'morning';
-    document.getElementById('addClass').click();
-    document.getElementById('addClass').click();
-    const rows = document.querySelectorAll('#classRows .dyn-row');
-    rows[0].querySelector('[data-cf="title"]').value = 'کلاس زیست';
-    rows[0].querySelector('[data-cf="subjectId"]').value = 'bio';
-    rows[0].querySelector('[data-cf="weekday"]').value = '1';
-    rows[0].querySelector('[data-cf="start"]').value = '18:00';
-    rows[0].querySelector('[data-cf="end"]').value = '20:00';
-    rows[1].querySelector('[data-cf="title"]').value = 'کلاس شیمی';
-    rows[1].querySelector('[data-cf="subjectId"]').value = 'chem';
-    rows[1].querySelector('[data-cf="weekday"]').value = '3';
-    rows[1].querySelector('[data-cf="start"]').value = '17:00';
-    rows[1].querySelector('[data-cf="end"]').value = '19:00';
-    document.getElementById('addExam').click();
-    const ex = document.querySelector('#examRows .dyn-row');
-    ex.querySelector('[data-ef="title"]').value = 'آزمون قلم‌چی';
-    const d = new Date(); d.setDate(d.getDate() + 16);
-    const pad = n => String(n).padStart(2, '0');
-    ex.querySelector('[data-ef="date"]').value = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-    ex.querySelector('[data-ef="start"]').value = '08:00';
-    ex.querySelector('[data-ef="end"]').value = '11:30';
-    return {classes: rows.length, exams: document.querySelectorAll('#examRows .dyn-row').length};
-  })()`);
-  console.log('SETUP', JSON.stringify(setup));
-
-  await win.webContents.executeJavaScript(`document.getElementById('build').click()`);
-  await new Promise(r => setTimeout(r, 1600));
-
-  const info = await win.webContents.executeJavaScript(`JSON.stringify({
-    visible: document.getElementById('planBody').style.display,
-    stats: document.getElementById('stats').innerText.replace(/\\s+/g,' ').slice(0,160),
-    pills: document.querySelectorAll('#dayPills .day-pill').length,
-    events: document.querySelectorAll('#dayView .evt').length,
-    blocks: document.querySelectorAll('#dayView .block').length,
-    firstEvent: (document.querySelector('#dayView .evt')||{}).innerText,
-    notes: document.querySelectorAll('#coachNotes li').length,
-  })`);
-  console.log('PLAN', info);
-
-  // پیدا کردن یک روز کلاس‌دار و یک روز پیش‌آزمون
-  const probe = await win.webContents.executeJavaScript(`(() => {
-    const tabs = ['setup','plan'];
-    // هفته‌ها را بگرد تا روزی با رویداد کلاس پیدا شود
-    let found = null;
-    for (let w=0; w<4 && !found; w++) {
-      document.getElementById('nextWeek').click();
-      const pills = [...document.querySelectorAll('#dayPills .day-pill')];
-      for (const p of pills) {
-        p.click();
-        if (document.querySelector('#dayView .evt')) { found = document.querySelector('#dayView').innerText.slice(0,200); break; }
-      }
-    }
-    return found;
-  })()`);
-  console.log('CLASS_DAY', JSON.stringify(probe));
-  const img = await win.webContents.capturePage();
-  fs.writeFileSync('/tmp/planner-v2.png', img.toPNG());
-
-  // تب تنظیمات برای اسکرین‌شات فرم
-  await win.webContents.executeJavaScript(`document.querySelector('.tab[data-view="setup"]').click()`);
-  await new Promise(r => setTimeout(r, 300));
-  const img2 = await win.webContents.capturePage();
-  fs.writeFileSync('/tmp/planner-v2-setup.png', img2.toPNG());
-
-  console.log('CONSOLE_ERRORS', JSON.stringify(errors.slice(0, 4)));
-  app.exit(0);
+const dom = new JSDOM(html, {
+  runScripts: 'outside-only',
+  pretendToBeVisual: true,
+  url: 'http://localhost/planner.html',
 });
+const { window } = dom;
+window.HTMLElement.prototype.scrollIntoView = () => {};
+// jsdom: URL.createObjectURL و clipboard
+window.URL.createObjectURL = () => 'blob:x';
+window.URL.revokeObjectURL = () => {};
+window.prompt = () => null;
+
+function loadScript(file) {
+  const code = fs.readFileSync(path.join(dir, file), 'utf8');
+  const s = new window.Function(code);
+  s.call(window);
+}
+
+const errors = [];
+window.addEventListener('error', (e) => errors.push('window error: ' + e.message));
+const origError = console.error;
+
+['jalali.js', 'engine.js', 'presets.js', 'planner.js'].forEach((f) => {
+  try {
+    loadScript(f);
+  } catch (err) {
+    errors.push(f + ': ' + err.message + '\n' + err.stack.split('\n').slice(0, 4).join('\n'));
+  }
+});
+
+const $ = (id) => window.document.getElementById(id);
+const check = (cond, msg) => { if (!cond) errors.push('ASSERT: ' + msg); else console.log('✓ ' + msg); };
+
+check(!errors.length, 'بارگذاری اسکریپت‌ها بدون خطا');
+check(String(window.document.body.innerHTML).indexOf('سوابق تحصیلی') !== -1, 'بخش سوابق تحصیلی در UI هست');
+check(String(window.document.body.innerHTML).indexOf('گزارش و آنالیز') !== -1, 'تب گزارش در UI هست');
+check(!!$('finalsTable') && $('finalsTable').innerHTML.indexOf('فارسی ۳') !== -1, 'جدول دروس نهایی پر شد');
+check(!!$('startTimes') && $('startTimes').querySelectorAll('[data-start]').length === 7, 'ساعت شروع ۷ روز ساخته شد');
+check(!!$('offRows'), 'بخش روزهای خارج از برنامه ساخته شد');
+
+// ساخت برنامه
+$('build').click();
+
+setTimeout(() => {
+  try {
+    const s = window.document.querySelector('#stats');
+    check(s && s.innerHTML.length > 20, 'کارت آمار برنامه پر شد');
+    check($('planBody').style.display !== 'none', 'بدنهٔ برنامه نمایش داده شد');
+
+    // تب گزارش
+    window.document.querySelector('.tab[data-view="report"]').click();
+    check($('reportBody').style.display !== 'none', 'تب گزارش رندر شد');
+    check($('bookTable').innerHTML.indexOf('زیست') !== -1, 'جدول کتاب‌به‌کتاب زیستی دارد');
+    check($('chapterTable').innerHTML.indexOf('پیشرفت') !== -1, 'جدول فصل‌به‌فصل پیشرفت دارد');
+    check($('reportStats').innerHTML.length > 30, 'کارت‌های آماری گزارش پر شد');
+    check($('finalsReport').innerHTML.indexOf('فارسی') !== -1, 'گزارش سوابق تحصیلی پر شد');
+
+    // فیلتر فصل‌ها
+    $('reportFilter').value = 'open';
+    $('reportFilter').dispatchEvent(new window.Event('change'));
+    check(true, 'فیلتر «پوشش‌نداده‌ها» بدون خطا اجرا شد');
+
+    // بازچینش هوشمند: یک بلوک گذشته را تیک نزنیم
+    const plan = window.localStorage ? null : null;
+    $('smartReplan').click();
+    check(true, 'دکمهٔ بازچینش بدون خطا اجرا شد (' + ($('carryCount').textContent || '') + ')');
+
+    // تیک امروز
+    $('markTodayDone').click();
+    check(true, 'تیک کارهای امروز اجرا شد');
+
+    // خروجی گزارش
+    let downloaded = null;
+    const origClick = window.HTMLAnchorElement.prototype.click;
+    window.HTMLAnchorElement.prototype.click = function () { downloaded = this.download; };
+    window.document.querySelector('[data-export="report-md"]').click();
+    setTimeout(() => {
+      check(downloaded === 'گزارش-روال.md', 'خروجی گزارش Markdown تولید شد (' + downloaded + ')');
+      window.HTMLAnchorElement.prototype.click = origClick;
+      finish();
+    }, 120);
+  } catch (err) {
+    errors.push('runtime: ' + err.message + '\n' + err.stack.split('\n').slice(0, 5).join('\n'));
+    finish();
+  }
+}, 400);
+
+function finish() {
+  if (errors.length) {
+    console.log('\n❌ خطاها:\n' + errors.join('\n'));
+    process.exit(1);
+  }
+  console.log('\n✅ تست رابط کاربری v1.9 پاس شد');
+  process.exit(0);
+}

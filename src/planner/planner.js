@@ -13,6 +13,14 @@
     learn: 'b-learn', review: 'b-review', practice: 'b-practice',
     mock: 'b-mock', analysis: 'b-analysis', warmup: 'b-warmup',
     reteach: 'b-reteach', boost: 'b-boost', cumreview: 'b-cum', classfix: 'b-classfix',
+    finalprep: 'b-final', deadlinecheck: 'b-deadline', carry: 'b-carry', carryreview: 'b-carry',
+  };
+
+  const DL_STATUS = {
+    met: { fa: 'سر وقت تمام شد', cls: 'ok' },
+    ontrack: { fa: 'روی مسیر', cls: 'ok' },
+    late: { fa: 'دیر می‌شود', cls: 'bad' },
+    'late-done': { fa: 'با تأخیر تمام شد', cls: 'warn' },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -32,6 +40,12 @@
     chapters: {},            // ارزیابی فصل‌به‌فصل: sid → [{name, read, mastery}]
     coreSubjects: [],        // آخرین فهرست دروس اختصاصی نمایش‌داده‌شده
     assessOpen: {},          // کدام درس‌ها در بخش ارزیابی باز است
+    finals: {},              // سوابق: id → {current, target, inProgram, influence}
+    deadlineBooks: [],       // مهلت‌های کتابی (مدل اول)
+    deadlineExams: [],       // مهلت‌های کوتاه: تک‌درس/جامع (مدل دوم)
+    offDates: [],            // روزهای خارج از برنامه
+    startTimes: null,        // ساعت شروع هر روز
+    lastCarry: [],           // کارهای جامانده‌ای که بازچینش شدند
   };
 
   /* ---------------- ابزار ---------------- */
@@ -93,6 +107,279 @@
     return Math.floor(dayIndex / 7);
   }
 
+  /* ---------------- ساعت شروع هر روز ---------------- */
+
+  const DEFAULT_START_TIMES = {
+    sat: '16:00', sun: '16:00', mon: '16:00', tue: '16:00', wed: '16:00', thu: '09:00', fri: '09:00',
+  };
+
+  function renderStartTimes(values) {
+    const box = $('startTimes');
+    if (!box) return;
+    const v = Object.assign({}, DEFAULT_START_TIMES, values || {});
+    box.innerHTML = WEEKDAY_FA.map((w, i) =>
+      '<div><label>' + w + '</label><input type="time" data-start="' + WEEKDAY_KEY[i] + '" value="' + v[WEEKDAY_KEY[i]] + '" /></div>').join('');
+  }
+
+  function readStartTimes() {
+    const out = {};
+    document.querySelectorAll('[data-start]').forEach((inp) => { out[inp.dataset.start] = inp.value || '16:00'; });
+    return Object.keys(out).length ? out : Object.assign({}, DEFAULT_START_TIMES);
+  }
+
+  /* ---------------- روزهای خارج از برنامه ---------------- */
+
+  function renderOffRows(rows) {
+    const box = $('offRows');
+    if (!box) return;
+    box.innerHTML = '';
+    (rows || []).forEach((o) => {
+      const div = document.createElement('div');
+      div.className = 'dyn-row off';
+      div.innerHTML =
+        '<div><label>تاریخ (شمسی)</label><input data-of="date" data-jdate data-iso="' + esc(o.date || '') + '" /></div>' +
+        '<div><label>نوع</label><select data-of="kind">' +
+          '<option value="halt"' + (o.kind !== 'light' ? ' selected' : '') + '>تعطیل کامل</option>' +
+          '<option value="light"' + (o.kind === 'light' ? ' selected' : '') + '>روز سبک</option>' +
+        '</select></div>' +
+        '<div><label>یادداشت</label><input data-of="note" value="' + esc(o.note || '') + '" placeholder="سفر / بیماری / مهمانی" /></div>' +
+        '<button class="del" title="حذف">✕</button>';
+      div.querySelector('.del').addEventListener('click', () => div.remove());
+      box.appendChild(div);
+    });
+    if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">روزی ثبت نشده — همهٔ روزها عادی‌اند.</div>';
+    else if (J) J.attachAll(box);
+  }
+
+  function readOffRows() {
+    const out = [];
+    $('offRows').querySelectorAll('.dyn-row').forEach((row) => {
+      const d = row.querySelector('[data-of="date"]');
+      const date = d.dataset.iso || (J ? J.parse(d.value) : null);
+      if (!date) return;
+      out.push({
+        date,
+        kind: row.querySelector('[data-of="kind"]').value,
+        note: row.querySelector('[data-of="note"]').value.trim(),
+      });
+    });
+    return out;
+  }
+
+  $('addOff').addEventListener('click', () => {
+    const rows = readOffRows();
+    const d = new Date(); d.setDate(d.getDate() + 3);
+    rows.push({ date: J ? J.dateToISO(d) : iso(d), kind: 'halt', note: '' });
+    renderOffRows(rows);
+  });
+
+  /* ---------------- مدل ۱: مهلت کتابی ---------------- */
+
+  function coreSubjectOptions(selected) {
+    const list = state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi');
+    return list.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === selected ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
+  }
+
+  function renderBookDeadlineRows(rows) {
+    const box = $('bookDeadlineRows');
+    if (!box) return;
+    box.innerHTML = '';
+    (rows || []).forEach((r) => {
+      const div = document.createElement('div');
+      div.className = 'dyn-row dlbook';
+      div.innerHTML =
+        '<div><label>کتاب</label><select data-bd="subjectId">' + coreSubjectOptions(r.subjectId) + '</select></div>' +
+        '<div><label>تا تاریخ (شمسی)</label><input data-bd="date" data-jdate data-iso="' + esc(r.date || '') + '" /></div>' +
+        '<div><label>هدف</label><select data-bd="goal">' +
+          '<option value="read"' + (r.goal !== 'solid' ? ' selected' : '') + '>خوانده + تثبیت شود</option>' +
+          '<option value="solid"' + (r.goal === 'solid' ? ' selected' : '') + '>تسلط کامل (فقط مرور بماند)</option>' +
+        '</select></div>' +
+        '<button class="del" title="حذف">✕</button>';
+      div.querySelector('.del').addEventListener('click', () => div.remove());
+      box.appendChild(div);
+    });
+    if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">مهلت کتابی ثبت نشده — برنامه فقط بر پایهٔ کنکور چیده می‌شود.</div>';
+    else if (J) J.attachAll(box);
+  }
+
+  function readBookDeadlines() {
+    const out = [];
+    $('bookDeadlineRows').querySelectorAll('.dyn-row').forEach((row) => {
+      const d = row.querySelector('[data-bd="date"]');
+      const date = d.dataset.iso || (J ? J.parse(d.value) : null);
+      if (!date) return;
+      out.push({
+        subjectId: row.querySelector('[data-bd="subjectId"]').value,
+        date,
+        goal: row.querySelector('[data-bd="goal"]').value,
+      });
+    });
+    return out;
+  }
+
+  $('addBookDeadline').addEventListener('click', () => {
+    const rows = readBookDeadlines();
+    const d = new Date(); d.setMonth(d.getMonth() + 4);
+    rows.push({ subjectId: (state.coreSubjects[0] || {}).id || 'bio', date: J ? J.dateToISO(d) : iso(d), goal: 'read' });
+    renderBookDeadlineRows(rows);
+  });
+
+  $('suggestBookDeadlines').addEventListener('click', () => {
+    state.deadlineBooks = presets.suggestedBookDeadlines
+      ? presets.suggestedBookDeadlines(state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi'))
+      : [];
+    renderBookDeadlineRows(state.deadlineBooks);
+    toast('مهلت پیشنهادی ساخته شد — هر تاریخ را می‌توانی عوض کنی.');
+  });
+
+  /* ---------------- مدل ۲: آزمون تک‌درس / جامع ---------------- */
+
+  function renderShortDeadlineRows(rows) {
+    const box = $('shortDeadlineRows');
+    if (!box) return;
+    box.innerHTML = '';
+    (rows || []).forEach((r) => {
+      const isSingle = r.kind !== 'comprehensive';
+      const sub = state.coreSubjects.find((x) => x.id === r.subjectId) || state.coreSubjects[0] || { chapters: 24 };
+      const chapters = sub.chapters || 24;
+      const fromOpts = Array.from({ length: chapters }, (_, i) => i + 1)
+        .map((n) => '<option value="' + n + '"' + ((r.from || 1) === n ? ' selected' : '') + '>' + faNum(n) + '</option>').join('');
+      const toOpts = Array.from({ length: chapters }, (_, i) => i + 1)
+        .map((n) => '<option value="' + n + '"' + ((r.to || chapters) === n ? ' selected' : '') + '>' + faNum(n) + '</option>').join('');
+      const div = document.createElement('div');
+      div.className = 'dyn-row dlexam';
+      div.innerHTML =
+        '<div><label>عنوان</label><input data-sd="title" value="' + esc(r.title || '') + '" placeholder="آزمون فصل ۲ زیست" /></div>' +
+        '<div><label>نوع</label><select data-sd="kind">' +
+          '<option value="single"' + (isSingle ? ' selected' : '') + '>تک‌درس</option>' +
+          '<option value="comprehensive"' + (!isSingle ? ' selected' : '') + '>جامع</option>' +
+        '</select></div>' +
+        '<div><label>درس</label><select data-sd="subjectId">' + coreSubjectOptions(r.subjectId) + '</select></div>' +
+        '<div><label>از فصل</label><select data-sd="from">' + fromOpts + '</select></div>' +
+        '<div><label>تا فصل</label><select data-sd="to">' + toOpts + '</select></div>' +
+        '<div><label>تاریخ (شمسی)</label><input data-sd="date" data-jdate data-iso="' + esc(r.date || '') + '" /></div>' +
+        '<button class="del" title="حذف">✕</button>';
+      div.querySelector('.del').addEventListener('click', () => div.remove());
+      box.appendChild(div);
+    });
+    if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">آزمونی ثبت نشده.</div>';
+    else if (J) J.attachAll(box);
+  }
+
+  function readShortDeadlines() {
+    const out = [];
+    $('shortDeadlineRows').querySelectorAll('.dyn-row').forEach((row) => {
+      const get = (f) => row.querySelector('[data-sd="' + f + '"]');
+      const d = get('date');
+      const date = d.dataset.iso || (J ? J.parse(d.value) : null);
+      if (!date) return;
+      const kind = get('kind').value === 'comprehensive' ? 'comprehensive' : 'single';
+      out.push({
+        title: get('title').value.trim() || (kind === 'single' ? 'آزمون تک‌درس' : 'آزمون جامع'),
+        kind,
+        subjectId: kind === 'single' ? get('subjectId').value : null,
+        from: Number(get('from').value) || 1,
+        to: Number(get('to').value) || 120,
+        date,
+      });
+    });
+    return out;
+  }
+
+  $('addShortDeadline').addEventListener('click', () => {
+    const rows = readShortDeadlines();
+    const d = new Date(); d.setDate(d.getDate() + 21);
+    rows.push({
+      title: '', kind: 'single', subjectId: (state.coreSubjects[0] || {}).id || 'bio',
+      from: 1, to: 1, date: J ? J.dateToISO(d) : iso(d),
+    });
+    renderShortDeadlineRows(rows);
+  });
+
+  /* ---------------- سوابق تحصیلی ---------------- */
+
+  function finalsDefaults(field, grade) {
+    return presets.finalsFor ? presets.finalsFor(field || 'tajrobi', grade || 'دوازدهم') : [];
+  }
+
+  function renderFinalsTable() {
+    const box = $('finalsTable');
+    if (!box) return;
+    const courses = state.finalsList || [];
+    if (!courses.length) { box.innerHTML = '<tr><td class="muted">درسی بارگذاری نشده.</td></tr>'; return; }
+    box.innerHTML =
+      '<thead><tr><th>درس</th><th>ضریب</th><th>نمرهٔ فعلی (۰–۲۰)</th><th>هدف</th><th>در برنامه</th></tr></thead><tbody>' +
+      courses.map((c, i) => {
+        const st = state.finals[c.id] || {};
+        const cur = st.current == null ? '' : st.current;
+        return '<tr data-fin-id="' + esc(c.id) + '">' +
+          '<td><b>' + esc(c.name) + '</b></td>' +
+          '<td>' + faNum(c.influence) + '</td>' +
+          '<td><input data-fin-cur="' + i + '" value="' + (cur === '' ? '' : faNum(cur)) + '" placeholder="۱۲ (فرض)" style="max-width:90px" /></td>' +
+          '<td><input data-fin-tgt="' + i + '" value="' + faNum(st.target == null ? c.target : st.target) + '" style="max-width:70px" /></td>' +
+          '<td><input type="checkbox" data-fin-in="' + i + '"' + (st.inProgram === false ? '' : ' checked') + ' /></td>' +
+        '</tr>';
+      }).join('') + '</tbody>';
+
+    box.querySelectorAll('[data-fin-cur]').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const c = state.finalsList[Number(inp.dataset.finCur || inp.getAttribute('data-fin-cur'))];
+        if (!c) return;
+        state.finals[c.id] = state.finals[c.id] || {};
+        state.finals[c.id].current = inp.value.trim() === '' ? null : faToEn(inp.value);
+      });
+    });
+    box.querySelectorAll('[data-fin-tgt]').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const c = state.finalsList[Number(inp.getAttribute('data-fin-tgt'))];
+        if (!c) return;
+        state.finals[c.id] = state.finals[c.id] || {};
+        state.finals[c.id].target = faToEn(inp.value);
+      });
+    });
+    box.querySelectorAll('[data-fin-in]').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const c = state.finalsList[Number(inp.getAttribute('data-fin-in'))];
+        if (!c) return;
+        state.finals[c.id] = state.finals[c.id] || {};
+        state.finals[c.id].inProgram = inp.checked;
+      });
+    });
+  }
+
+  function readFinals() {
+    return (state.finalsList || []).map((c) => {
+      const st = state.finals[c.id] || {};
+      const cur = st.current;
+      return {
+        id: c.id, name: c.name, grade: c.grade, influence: c.influence,
+        current: cur === '' || cur == null ? null : Number(faToEn(String(cur))),
+        target: st.target == null || st.target === '' ? c.target : Number(faToEn(String(st.target))),
+        inProgram: st.inProgram !== false,
+      };
+    });
+  }
+
+  function loadFinalsFor(grade) {
+    const list = finalsDefaults($('field').value, grade);
+    state.finalsList = list;
+    list.forEach((c) => {
+      if (!state.finals[c.id]) state.finals[c.id] = { current: null, target: c.target, inProgram: true };
+    });
+    renderFinalsTable();
+  }
+
+  $('finalsGrade').addEventListener('change', () => {
+    loadFinalsFor($('finalsGrade').value);
+    toast('درس‌های نهایی پایهٔ ' + $('finalsGrade').value + ' بارگذاری شد.');
+  });
+
+  $('finalsDefaults').addEventListener('click', () => {
+    state.finals = {};
+    loadFinalsFor($('finalsGrade').value);
+    toast('درس‌های نهایی و نمره‌ها بازگردانی شد.');
+  });
+
   /* ---------------- تب‌ها ---------------- */
 
   document.querySelectorAll('.tab').forEach((tab) => {
@@ -101,6 +388,7 @@
       document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
       tab.classList.add('active');
       $('view-' + tab.dataset.view).classList.add('active');
+      if (tab.dataset.view === 'report') renderReport();
     });
   });
 
@@ -680,6 +968,19 @@
       exams: readExams(),
       generalGrades: state.gradeSel.slice(),
       subjects,
+      startTimes: readStartTimes(),
+      offDates: readOffRows(),
+      deadlines: { books: readBookDeadlines(), exams: readShortDeadlines() },
+      finals: {
+        enabled: ($('finalsEnabled') || {}).value !== '0',
+        courses: readFinals(),
+        window: {
+          start: readJDate('finalsStart') || (presets.defaultFinalsWindow ? presets.defaultFinalsWindow().start : null),
+          end: readJDate('finalsEnd') || (presets.defaultFinalsWindow ? presets.defaultFinalsWindow().end : null),
+        },
+        spread: ($('finalsSpread') || {}).value !== '0',
+        spreadMinutes: Number(($('finalsSpreadMinutes') || {}).value) || 45,
+      },
     };
   }
 
@@ -728,6 +1029,38 @@
     renderGeneralForGrades();
     renderClassRows(cfg.classes || []);
     renderExamRows(cfg.exams || []);
+
+    /* --- ساعت شروع، روزهای خارج از برنامه، مهلت‌ها، سوابق --- */
+    renderStartTimes(cfg.startTimes || DEFAULT_START_TIMES);
+    state.offDates = cfg.offDates || [];
+    renderOffRows(state.offDates);
+    state.deadlineBooks = (cfg.deadlines && cfg.deadlines.books) || [];
+    state.deadlineExams = (cfg.deadlines && cfg.deadlines.exams) || [];
+    renderBookDeadlineRows(state.deadlineBooks);
+    renderShortDeadlineRows(state.deadlineExams);
+
+    const fcfg = cfg.finals || {};
+    const fgrade = (fcfg.courses && fcfg.courses[0] && fcfg.courses[0].grade) ||
+      (cfg.student && cfg.student.grade === 'یازدهم' ? 'یازدهم' : 'دوازدهم');
+    if ($('finalsEnabled')) $('finalsEnabled').value = fcfg.enabled === false ? '0' : '1';
+    if ($('finalsGrade')) $('finalsGrade').value = fgrade;
+    if ($('finalsSpread')) $('finalsSpread').value = fcfg.spread === false ? '0' : '1';
+    if ($('finalsSpreadMinutes')) $('finalsSpreadMinutes').value = String(fcfg.spreadMinutes || 45);
+    const win = presets.defaultFinalsWindow ? presets.defaultFinalsWindow() : { start: null, end: null };
+    writeJDate('finalsStart', (fcfg.window && fcfg.window.start) || win.start);
+    writeJDate('finalsEnd', (fcfg.window && fcfg.window.end) || win.end);
+    if (fcfg.courses && fcfg.courses.length) {
+      state.finalsList = fcfg.courses.map((c) => ({
+        id: c.id, name: c.name, grade: c.grade || fgrade, influence: c.influence || 3, target: c.target == null ? 18 : c.target,
+      }));
+      state.finals = {};
+      fcfg.courses.forEach((c) => {
+        state.finals[c.id] = { current: c.current == null ? null : c.current, target: c.target == null ? 18 : c.target, inProgram: c.inProgram !== false };
+      });
+      renderFinalsTable();
+    } else {
+      loadFinalsFor(fgrade);
+    }
   }
 
   function defaultConfig() {
@@ -752,6 +1085,20 @@
       exams: [],
       generalGrades: state.gradeSel.slice(),
       subjects: presets.subjectsFor(field).concat(generalFromGrades()),
+      startTimes: Object.assign({}, DEFAULT_START_TIMES),
+      offDates: [],
+      /* پیش‌فرض: هر دو مدل مهلت از روز اول دیده شوند (قابل حذف/ویرایش) */
+      deadlines: {
+        books: presets.suggestedBookDeadlines ? presets.suggestedBookDeadlines(presets.subjectsFor(field)) : [],
+        exams: [],
+      },
+      finals: {
+        enabled: true,
+        courses: finalsDefaults(field, $('grade').value || 'دوازدهم'),
+        window: presets.defaultFinalsWindow ? presets.defaultFinalsWindow() : { start: null, end: null },
+        spread: true,
+        spreadMinutes: 45,
+      },
     };
   }
 
@@ -810,6 +1157,7 @@
       state.scores = {};
       state.done = {};
       renderPlan();
+      renderReport();
       document.querySelector('.tab[data-view="plan"]').click();
       toast('برنامه ساخته شد ✓');
       await persist();
@@ -859,6 +1207,188 @@
     renderWeek();
     renderScoreGrid();
   }
+
+  /* ---------------- تب گزارش و آنالیز ---------------- */
+
+  function progressBar(pct) {
+    const v = Math.max(0, Math.min(100, Math.round(pct)));
+    return '<div class="bar" style="min-width:60px"><i style="width:' + v + '%"></i></div>' +
+      '<span class="muted" style="font-size:10.5px">' + faNum(v) + '٪</span>';
+  }
+
+  function statusPill(st) {
+    const m = DL_STATUS[st] || { fa: st, cls: 'warn' };
+    return '<span class="pill ' + m.cls + '">' + esc(m.fa) + '</span>';
+  }
+
+  function renderReport() {
+    const plan = state.plan;
+    if (!plan) {
+      if ($('reportEmpty')) $('reportEmpty').style.display = 'block';
+      if ($('reportBody')) $('reportBody').style.display = 'none';
+      return;
+    }
+    $('reportEmpty').style.display = 'none';
+    $('reportBody').style.display = 'block';
+    const c = plan.summary.coverage;
+
+    $('reportStats').innerHTML = [
+      stat(faNum(c.coverageRatio) + '٪', 'پوشش فصل‌ها'),
+      stat(faNum(c.readiness) + ' → ' + faNum(c.projectedReadiness) + '٪', 'آمادگی کنکور (اکنون → پایان)'),
+      stat(faNum(c.finalsReadiness) + '٪', 'آمادگی سوابق تحصیلی'),
+      stat(faNum(c.composite) + '٪', 'نمرهٔ ترکیبی ۱۴۰۶ (۴۰/۶۰)'),
+    ].join('');
+
+    /* --- مهلت‌های کتابی --- */
+    const books = c.deadlineBooks || [];
+    $('bookDeadlineTable').innerHTML = books.length
+      ? '<table class="chap"><thead><tr><th>کتاب</th><th>مهلت</th><th>وضعیت</th><th>فصل</th>' +
+        '<th>زمان چیده‌شده / لازم</th><th>تمام‌شدن</th></tr></thead><tbody>' +
+        books.map((d) => '<tr><td><b style="font-size:12px">' + esc(d.subjectName) + '</b></td>' +
+          '<td>' + faNum(J ? J.fmt(d.date) : d.date) + '</td>' +
+          '<td>' + statusPill(d.status) + '</td>' +
+          '<td>' + faNum(d.doneChapters) + ' از ' + faNum(d.chapters) + '</td>' +
+          '<td><span class="num">' + faNum(Math.round(d.plannedMinutes / 60)) + ' / ' + faNum(Math.round(d.needMinutes / 60)) + '</span> ساعت</td>' +
+          '<td>' + (d.finishDate ? faNum(J ? J.fmt(d.finishDate) : d.finishDate) : '—') + '</td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="muted" style="font-size:12px">مهلت کتابی ثبت نشده. از تب تنظیمات، بخش ۸ اضافه کن.</div>';
+
+    /* --- مهلت‌های کوتاه --- */
+    const exams = c.deadlineExams || [];
+    $('shortDeadlineTable').innerHTML = exams.length
+      ? '<table class="chap"><thead><tr><th>آزمون</th><th>نوع</th><th>تاریخ</th><th>وضعیت</th>' +
+        '<th>فصل‌های آماده</th><th>زمان چیده‌شده / لازم</th></tr></thead><tbody>' +
+        exams.map((d) => '<tr><td><b style="font-size:12px">' + esc(d.title) + '</b>' +
+          (d.subjectName && d.kind === 'single' ? '<div class="muted" style="font-size:10.5px">' + esc(d.subjectName) + '</div>' : '') + '</td>' +
+          '<td>' + (d.kind === 'comprehensive' ? 'جامع' : 'تک‌درس') + '</td>' +
+          '<td>' + faNum(J ? J.fmt(d.date) : d.date) + '</td>' +
+          '<td>' + statusPill(d.status) + '</td>' +
+          '<td>' + faNum(d.doneChapters) + ' از ' + faNum(d.chapters) + '</td>' +
+          '<td>' + faNum(Math.round(d.plannedMinutes / 60 * 10) / 10) + ' / ' + faNum(Math.round(d.needMinutes / 60 * 10) / 10) + ' ساعت</td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="muted" style="font-size:12px">آزمون تک‌درس یا جامعی ثبت نشده. از تب تنظیمات، بخش ۹ اضافه کن.</div>';
+
+    /* --- سوابق تحصیلی --- */
+    const fc = c.finalsCourses || [];
+    $('finalsReport').innerHTML = fc.length
+      ? '<p class="muted" style="margin-top:0;font-size:11.5px">نمرهٔ فعلی، برآورد پایان دوره و زمانی که برنامه برای هر درس گذاشته است. ' +
+        'اگر نمره‌ای ثبت نکرده باشی، «فرض ۱۲» علامت می‌خورد.</p>' +
+        '<table class="chap"><thead><tr><th>درس</th><th>ضریب</th><th>فعلی</th><th>هدف</th><th>برآورد پایان</th>' +
+        '<th>زمان چیده‌شده / لازم</th><th style="width:130px">پیشرفت</th></tr></thead><tbody>' +
+        fc.map((x) => '<tr><td><b style="font-size:12px">' + esc(x.name) + '</b>' +
+          (x.assumed ? ' <span class="pill warm" title="نمره ثبت نشده">فرض</span>' : '') + '</td>' +
+          '<td>' + faNum(x.influence) + '</td>' +
+          '<td>' + faNum(Math.round(x.current * 10) / 10) + '</td>' +
+          '<td>' + faNum(x.target) + '</td>' +
+          '<td><b>' + faNum(Math.round((x.projected / 100) * 20 * 10) / 10) + '</b></td>' +
+          '<td><span class="num">' + faNum(Math.round(x.plannedMinutes / 60 * 10) / 10) + ' / ' + faNum(Math.round(x.needMinutes / 60 * 10) / 10) + '</span> ساعت</td>' +
+          '<td>' + progressBar(x.progress) + '</td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="muted" style="font-size:12px">لایهٔ سوابق غیرفعال است (تنظیمات، بخش ۱۰).</div>';
+
+    renderBookTable(plan);
+    renderChapterTable(plan);
+    renderReportFilters(plan);
+  }
+
+  function renderReportFilters(plan) {
+    const sel = $('reportBook');
+    if (!sel) return;
+    const cur = sel.value || 'all';
+    const subs = (plan.summary.bySubject || []).filter((x) => plan.summary.chapterStats.some((c) => c.subjectId === x.id));
+    sel.innerHTML = '<option value="all">همهٔ کتاب‌ها</option>' +
+      subs.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('');
+    sel.value = subs.some((x) => x.id === cur) ? cur : 'all';
+    renderChapterTable(plan);
+  }
+
+  function renderBookTable(plan) {
+    const chs = plan.summary.chapterStats || [];
+    const rows = (plan.summary.bySubject || []).map((sub) => {
+      const list = chs.filter((c) => c.subjectId === sub.id);
+      if (!list.length) return null;
+      const need = list.reduce((a, c) => a + c.needMinutes, 0);
+      const planned = list.reduce((a, c) => a + c.plannedMinutes, 0);
+      const testsNeed = list.reduce((a, c) => a + c.testsNeed, 0);
+      const testsDone = list.reduce((a, c) => a + c.testsDone, 0);
+      const covered = list.filter((c) => c.covered).length;
+      const mastery = Math.round(list.reduce((a, c) => a + c.mastery, 0) / list.length);
+      const reviews = list.reduce((a, c) => a + (c.reviews || 0), 0);
+      return '<tr><td><b style="font-size:12px">' + esc(sub.name) + '</b>' +
+        '<div class="muted" style="font-size:10.5px">ضریب ' + faNum(sub.weight) + '</div></td>' +
+        '<td>' + faNum(covered) + ' / ' + faNum(list.length) + '</td>' +
+        '<td>' + faNum(Math.round(covered / list.length * 100)) + '٪</td>' +
+        '<td>' + faNum(Math.round(planned / 60)) + ' / ' + faNum(Math.round(need / 60)) + ' ساعت</td>' +
+        '<td>' + faNum(testsDone) + ' / ' + faNum(testsNeed) + '</td>' +
+        '<td>' + faNum(mastery) + '٪</td>' +
+        '<td>' + faNum(reviews) + '</td>' +
+        '<td>' + progressBar(planned / Math.max(1, need) * 100) + '</td></tr>';
+    }).filter(Boolean);
+    $('bookTable').innerHTML =
+      '<table class="chap"><thead><tr><th>کتاب</th><th>فصل</th><th>پوشش</th><th>زمان چیده‌شده / لازم</th>' +
+      '<th>تست انجام‌شده / لازم</th><th>تسلط فعلی</th><th>مرور</th><th style="width:120px">پیشرفت</th></tr></thead><tbody>' +
+      rows.join('') + '</tbody></table>';
+  }
+
+  /** «چه چیزی مانده» — جملهٔ دقیق و قابل‌اجرا برای هر فصل */
+  function remainingText(c) {
+    if (c.mode === 'solid') return 'مرور فاصله‌دار تا کنکور';
+    if (c.plannedMinutes === 0) {
+      return c.read
+        ? 'جبران نشده — نیازمند ' + faNum(c.needMinutes) + ' دقیقه بازآموزی'
+        : 'هنوز خوانده نشده — نیازمند ' + faNum(c.needMinutes) + ' دقیقه';
+    }
+    if (c.covered) return c.testsNeed > 0 ? faNum(Math.max(0, c.testsNeed - c.testsDone)) + ' تست برای تکمیل' : 'تثبیت‌شده';
+    const parts = [];
+    if (c.remainingMinutes > 0) parts.push(faNum(c.remainingMinutes) + ' دقیقه مطالعه');
+    if (c.testsNeed > c.testsDone) parts.push(faNum(c.testsNeed - c.testsDone) + ' تست');
+    if (c.mastery < 75) parts.push('تسلط زیر ۷۵٪ (اکنون ' + faNum(Math.round(c.mastery)) + '٪)');
+    return parts.length ? parts.join(' · ') : 'مرور';
+  }
+
+  function renderChapterTable(plan) {
+    const box = $('chapterTable');
+    if (!box) return;
+    plan = plan || state.plan;
+    if (!plan) return;
+    const all = plan.summary.chapterStats || [];
+    const book = ($('reportBook') && $('reportBook').value) || 'all';
+    const filter = ($('reportFilter') && $('reportFilter').value) || 'all';
+    let list = all.filter((c) => book === 'all' || c.subjectId === book);
+    if (filter === 'open') list = list.filter((c) => !c.covered);
+    else if (filter === 'weak') list = list.filter((c) => c.read && c.mastery < 75);
+    else if (filter === 'deadline') list = list.filter((c) => c.deadlineIdx != null);
+    else if (filter === 'week') {
+      const today = iso(new Date());
+      const weekEnd = (function () { const d = new Date(); d.setDate(d.getDate() + 7); return iso(d); })();
+      const inWeek = new Set();
+      state.plan.days.forEach((d) => {
+        if (d.date >= today && d.date <= weekEnd) {
+          d.blocks.forEach((b) => inWeek.add(b.subjectId + '|' + b.topic));
+        }
+      });
+      list = list.filter((c) => Array.from(inWeek).some((k) => k.indexOf(c.subjectName + '|') === 0 && k.indexOf(c.label) !== -1));
+    }
+
+    if (!list.length) { box.innerHTML = '<div class="muted" style="font-size:12px">موردی با این فیلتر نیست.</div>'; return; }
+    box.innerHTML =
+      '<table class="chap"><thead><tr><th>فصل</th><th>وضعیت</th><th>تسلط</th><th>تست</th>' +
+      '<th style="width:110px">پیشرفت</th><th>چه چیزی مانده</th></tr></thead><tbody>' +
+      list.map((c) => '<tr' + (c.mode === 'solid' ? ' style="opacity:.75"' : '') + '>' +
+        '<td><b style="font-size:12px">' + esc(c.label) + '</b>' +
+          '<div class="muted" style="font-size:10.5px">' + esc(c.subjectName) +
+          (c.deadlineTitle ? ' · مهلت: ' + esc(c.deadlineTitle) : '') + '</div></td>' +
+        '<td><span class="pill ' + (c.mode === 'solid' ? '' : c.mastery < 45 ? 'hot' : c.mastery < 75 ? 'warm' : '') + '">' +
+          esc(c.status) + '</span></td>' +
+        '<td>' + faNum(Math.round(c.mastery)) + '٪<div class="muted" style="font-size:10.5px">هدف ۷۵٪</div></td>' +
+        '<td><span dir="rtl">' + faNum(c.testsDone) + ' از ' + faNum(c.testsNeed) + '</span></td>' +
+        '<td>' + progressBar(c.progress) + '</td>' +
+        '<td style="font-size:11.5px">' + esc(remainingText(c)) + '</td>' +
+      '</tr>').join('') + '</tbody></table>';
+  }
+
+  $('reportFilter').addEventListener('change', () => renderChapterTable(state.plan));
+  $('reportBook').addEventListener('change', () => renderChapterTable(state.plan));
 
   /* ---------------- کارت مشاور: آمادگی و نقشهٔ جبران ---------------- */
 
@@ -1052,6 +1582,79 @@
     }
   });
 
+  /* ---------------- بازچینش هوشمند روزهای ازدست‌رفته ---------------- */
+
+  function missedBlocks() {
+    const plan = state.plan;
+    if (!plan) return [];
+    const today = iso(new Date());
+    const out = [];
+    plan.days.forEach((d) => {
+      if (d.date >= today) return;
+      d.blocks.forEach((b, bi) => {
+        if (b.kind === 'exam' || b.kind === 'mock') return;      // آزمون برگزارشده قابل جبران نیست
+        const key = d.date + '#' + bi;
+        if (state.done[key]) return;
+        out.push({ day: d.date, block: b, key });
+      });
+    });
+    return out;
+  }
+
+  $('smartReplan').addEventListener('click', () => {
+    if (!state.plan) return toast('اول برنامه را بساز.');
+    const missed = missedBlocks();
+    if (!missed.length) {
+      state.lastCarry = [];
+      $('carryCount').textContent = 'کار جامانده‌ای نیست — عالی پیش رفته‌ای.';
+      return toast('چیزی برای جبران نیست.');
+    }
+    /* کارهای جامانده را به «کار عقب‌افتاده» تبدیل کن (فقط بخش یادگیری/تست، با سقف) */
+    const byTopic = {};
+    missed.forEach((m) => {
+      if (m.block.kind === 'analysis' || m.block.kind === 'warmup') return;
+      const k = m.block.subjectId + '|' + m.block.topic;
+      byTopic[k] = byTopic[k] || {
+        subjectId: m.block.subjectId, subjectName: m.block.subjectName,
+        label: m.block.topic || m.block.kindLabel, minutes: 0,
+        kind: (m.block.kind === 'review' || m.block.kind === 'cumreview') ? 'review' : 'learn',
+      };
+      byTopic[k].minutes += m.block.minutes;
+    });
+    const carry = Object.keys(byTopic).map((k) => byTopic[k]);
+    if (!carry.length) {
+      $('carryCount').textContent = 'جاماندهٔ قابل‌جبران نداشتی.';
+      return toast('جاماندهٔ قابل‌جبران نبود.');
+    }
+    const cfg = JSON.parse(JSON.stringify(state.config || collectConfig()));
+    cfg.startDate = iso(new Date());                 // از امروز به بعد بازچینش
+    cfg.carryOver = carry;
+    try {
+      state.plan = engine.createPlan(cfg);
+      state.config = cfg;
+      state.week = 0;
+      state.selectedDay = null;
+      state.lastCarry = carry;
+      $('carryCount').textContent = faNum(carry.length) + ' کار جامانده به روزهای آینده منتقل شد (' +
+        faNum(Math.round(carry.reduce((a, c) => a + c.minutes, 0) / 60 * 10) / 10) + ' ساعت).';
+      renderPlan();
+      renderReport();
+      persist();
+      toast('بازچینش انجام شد ✓');
+    } catch (err) { toast('خطا در بازچینش: ' + err.message); }
+  });
+
+  $('markTodayDone').addEventListener('click', () => {
+    if (!state.plan) return toast('اول برنامه را بساز.');
+    const today = iso(new Date());
+    const d = state.plan.days.find((x) => x.date === today);
+    if (!d) return toast('امروز در برنامه نیست.');
+    let n = 0;
+    d.blocks.forEach((b, bi) => { state.done[today + '#' + bi] = true; n += 1; });
+    persist();
+    toast(faNum(n) + ' بلوک امروز تیک خورد.');
+  });
+
   /* ---------------- خروجی‌ها ---------------- */
 
   document.querySelectorAll('[data-export]').forEach((btn) => {
@@ -1064,6 +1667,30 @@
           const text = engine.toTaskList(state.plan, today) || engine.toTaskList(state.plan);
           await navigator.clipboard.writeText(text);
           return toast('تسک‌های امروز کپی شد — در روال بچسبان.');
+        }
+        if (type === 'report-md') {
+          const content = buildReportMarkdown();
+          if (api && api.saveFile) {
+            const res = await api.saveFile({ name: 'گزارش-روال.md', ext: 'md', content });
+            return toast(res && res.ok ? 'ذخیره شد: ' + res.path : 'ذخیره لغو شد.');
+          }
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+          a.download = 'گزارش-روال.md';
+          a.click();
+          return toast('گزارش ذخیره شد.');
+        }
+        if (type === 'report-csv') {
+          const rows = [['کتاب', 'فصل', 'وضعیت', 'تسلط', 'تست انجام‌شده', 'تست لازم', 'پیشرفت', 'باقی‌مانده (دقیقه)']];
+          (state.plan.summary.chapterStats || []).forEach((c) => rows.push([
+            c.subjectName, c.label, c.status, c.mastery, c.testsDone, c.testsNeed, c.progress, c.remainingMinutes,
+          ]));
+          const csv = '\ufeff' + rows.map((r) => r.map((x) => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+          a.download = 'گزارش-فصل‌ها.csv';
+          a.click();
+          return toast('گزارش فصل‌ها ذخیره شد.');
         }
         const map = {
           md: { content: engine.toMarkdown(state.plan), ext: 'md', label: 'برنامه-روال.md' },
@@ -1088,6 +1715,45 @@
       }
     });
   });
+
+  function buildReportMarkdown() {
+    const plan = state.plan;
+    const c = plan.summary.coverage;
+    const L = [];
+    L.push('# گزارش برنامهٔ روال — ' + (plan.meta.studentName || ''));
+    L.push('');
+    L.push('- پوشش فصل‌ها: **' + faNum(c.coverageRatio) + '٪**');
+    L.push('- آمادگی کنکور: ' + faNum(c.readiness) + '٪ → برآورد پایان: **' + faNum(c.projectedReadiness) + '٪**');
+    L.push('- آمادگی سوابق تحصیلی: **' + faNum(c.finalsReadiness) + '٪** · نمرهٔ ترکیبی ۱۴۰۶: **' + faNum(c.composite) + '٪**');
+    L.push('- ساعت برنامه‌ریزی‌شده: ' + faNum(plan.summary.totalHours) + ' ساعت · تست: ' + faNum(c.testsPlanned) +
+      ' (' + faNum(c.testsPerDay) + ' در روز)');
+    L.push('');
+    if ((c.deadlines || []).length) {
+      L.push('## مهلت‌ها');
+      L.push('| مهلت | مدل | تاریخ | وضعیت | زمان چیده‌شده / لازم |');
+      L.push('|---|---|---|---|---|');
+      c.deadlines.forEach((d) => L.push('| ' + d.title + ' | ' + (d.model === 'book' ? 'کتابی' : 'آزمون') +
+        ' | ' + faNum(J ? J.fmt(d.date) : d.date) + ' | ' + (DL_STATUS[d.status] || {}).fa +
+        ' | ' + Math.round(d.plannedMinutes / 60) + ' / ' + Math.round(d.needMinutes / 60) + ' ساعت |'));
+      L.push('');
+    }
+    if ((c.finalsCourses || []).length) {
+      L.push('## سوابق تحصیلی (نهایی)');
+      L.push('| درس | ضریب | فعلی | هدف | برآورد پایان | زمان چیده‌شده / لازم |');
+      L.push('|---|---|---|---|---|---|');
+      c.finalsCourses.forEach((x) => L.push('| ' + x.name + ' | ' + x.influence + ' | ' +
+        (Math.round(x.current * 10) / 10) + (x.assumed ? ' (فرض)' : '') + ' | ' + x.target + ' | ' +
+        (Math.round((x.projected / 100) * 20 * 10) / 10) + ' | ' +
+        Math.round(x.plannedMinutes / 60 * 10) / 10 + ' / ' + Math.round(x.needMinutes / 60 * 10) / 10 + ' |'));
+      L.push('');
+    }
+    L.push('## فصل‌به‌فصل');
+    L.push('| کتاب | فصل | وضعیت | تسلط | تست | پیشرفت | چه چیزی مانده |');
+    L.push('|---|---|---|---|---|---|---|');
+    (plan.summary.chapterStats || []).forEach((x) => L.push('| ' + x.subjectName + ' | ' + x.label + ' | ' + x.status +
+      ' | ' + Math.round(x.mastery) + '٪ | ' + x.testsDone + '/' + x.testsNeed + ' | ' + x.progress + '٪ | ' + remainingText(x) + ' |'));
+    return L.join('\n');
+  }
 
   /* ---------------- ذخیره/بازیابی ---------------- */
 

@@ -13,6 +13,9 @@ files:
 asar: true
 compression: maximum
 win:
+  # روی لینوکس، ویرایش منابع exe با rcedit به wine نیاز دارد؛ پیکربندی آیکن نصب‌کننده
+  # جدا انجام می‌شود و این مرحله لازم نیست.
+  signAndEditExecutable: false
   target:
     - target: nsis
       arch:

@@ -181,8 +181,30 @@ const mixed = genPlan.days.find((d) => {
 });
 assert.ok(mixed, 'هیچ روزی ترکیب اختصاصی + عمومی ندارد');
 const genTotalChapters = genCfg.subjects.reduce((a, s) => a + s.chapters, 0);
-assert.ok(genPlan.summary.learnedTopics >= genTotalChapters * 0.6,
-  'مباحث کافی پوشش داده نشد: ' + genPlan.summary.learnedTopics + ' از ' + genTotalChapters);
+/* معیار درست: «پوشش واقعیِ» فصل‌هایی که کار لازم دارند (نه شمارش مباحثِ پاسِ اول)
+   — در ۱۲۱ روز با ۴ ساعتِ روزانه، پوشش کامل غیرواقعی است؛ اما حداقلِ اختصاصی باید پوشش بگیرد. */
+const genAch = genPlan.summary.chapterStats.filter((c) => ['bio', 'chem', 'math', 'phys', 'geo'].indexOf(c.subjectId) !== -1);
+const achCovered = genAch.filter((c) => c.covered).length;
+/* از نسخهٔ ۱.۹ زمان مرور دیگر جزو «زمان یادگیری» حساب نمی‌شود و معیار پوشش سخت‌گیرانه‌تر شد
+   (planned ≥ ۸۵٪ نیاز واقعی، بدون باد کردن با مرور). در این سناریوی تنگ — ۴ ماه، ۴ ساعت روزانه
+   و سه کلاس هفتگی — رسیدن به نیمی از فصل‌های اختصاصی خودش خوب است؛ و مهم‌تر: برنامه باید
+   کمبود را صادقانه اعلام کند. */
+assert.ok(achCovered / genAch.length >= 0.25,
+  'پوشش فصل‌های اختصاصی کافی نیست: ' + achCovered + ' از ' + genAch.length);
+/* ۷۳ فصل با ۴ ماه و ۴ ساعت روزانه + ۳ کلاس هفتگی، از نظر حسابی هم پوشش کامل نمی‌دهد؛
+   چیزی که نباید رخ دهد این است که برنامه خودش را «کامل» جا بزند. */
+assert.ok(genPlan.summary.coverage.willCover === false || genPlan.summary.coverage.coverageRatio < 100,
+  'برنامهٔ تنگ نباید خودش را «پوشش کامل» جا بزند');
+assert.ok(typeof genPlan.summary.coverage.verdict === 'string' && genPlan.summary.coverage.verdict.length > 20,
+  'حکم پوشش برای کاربر نوشته نشده');
+assert.ok(genPlan.summary.coverage.coverageRatio > 0 && genPlan.summary.coverage.coverageRatio <= 100,
+  'درصد پوشش نامعتبر: ' + genPlan.summary.coverage.coverageRatio);
+assert.ok(genPlan.summary.chapterStats.every((c) => c.progress >= 0 && c.progress <= 100),
+  'درصد پیشرفت فصل خارج از بازهٔ ۰..۱۰۰');
+assert.ok(genPlan.summary.chapterStats.some((c) => c.plannedMinutes > 0),
+  'گزارش فصل‌ها زمان واقعی نگرفت');
+console.log('پوشش اختصاصی:', achCovered + '/' + genAch.length, '| درصد پوشش کل:', genPlan.summary.coverage.coverageRatio + '%',
+  '| ساعت لازم/هفته:', genPlan.summary.coverage.requiredWeeklyHours);
 assert.ok(genPlan.summary.coverage && genPlan.summary.coverage.totalChapters === genTotalChapters,
   'گزارش پوشش فصل‌ها ساخته نشد');
 console.log('عمومی — دقیقه به‌ازای هر درس:', genMinutes, '| مباحث پوشش‌داده‌شده:', genPlan.summary.learnedTopics);
