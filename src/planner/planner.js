@@ -46,6 +46,7 @@
     deadlineBooks: [],       // مهلت‌های کتابی (مدل اول)
     deadlineExams: [],       // مهلت‌های کوتاه: تک‌درس/جامع (مدل دوم)
     offDates: [],            // روزهای خارج از برنامه
+    visited: {},             // قدم‌هایی که کاربر باز کرده (تیک مسیر آماده‌سازی)
     startTimes: null,        // ساعت شروع هر روز
     lastCarry: [],           // کارهای جامانده‌ای که بازچینش شدند
   };
@@ -58,6 +59,17 @@
     el.classList.add('show');
     clearTimeout(toast._t);
     toast._t = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  const EN_DIGITS = { '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9', '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9', '٫': '.', ',': '.' };
+  function numVal(el) {
+    if (!el) return 0;
+    const raw = String(el.value == null ? '' : el.value).replace(/[۰-۹٠-٩٫,]/g, (c) => EN_DIGITS[c] || c);
+    const n = parseFloat(raw);
+    return isFinite(n) ? n : 0;
+  }
+  function faDigits(v) {
+    return String(v == null ? '' : v).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]).replace(/\./g, '٫');
   }
 
   function faNum(n) {
@@ -200,6 +212,8 @@
       div.querySelector('.del').addEventListener('click', () => div.remove());
       box.appendChild(div);
     });
+    const cnt = $('bookDeadlineCount');
+    if (cnt) cnt.textContent = faNum(box.children.length);
     if (!box.children.length) box.innerHTML = '<div class="muted" style="font-size:11.5px">مهلت کتابی ثبت نشده — برنامه فقط بر پایهٔ کنکور چیده می‌شود.</div>';
     else if (J) J.attachAll(box);
   }
@@ -263,8 +277,8 @@
           [60, 90, 100, 120, 150, 180, 210]
             .map((v) => '<option value="' + v + '"' + (Number(m.minutes || 100) === v ? ' selected' : '') + '>' + faNum(v) + '</option>').join('') +
         '</select></div>' +
-        '<div><label>دروس (خالی = همه)</label><select data-mk="subjectIds" multiple size="4">' + subjectOptionsAll(m.subjectIds) + '</select></div>' +
-        '<button class="del" title="حذف">✕</button>';
+        '<div class="mock-subjects"><label>دروس (خالی = همه)</label><select data-mk="subjectIds" multiple size="4">' + subjectOptionsAll(m.subjectIds) + '</select></div>' +
+        '<button class="del mock-del" title="حذف">✕</button>';
       div.querySelector('.del').addEventListener('click', () => div.remove());
       box.appendChild(div);
     });
@@ -325,6 +339,8 @@
     const box = $('shortDeadlineRows');
     if (!box) return;
     box.innerHTML = '';
+    const cnt = $('shortDeadlineCount');
+    if (cnt) cnt.textContent = faNum((rows || []).length);
     (rows || []).forEach((r) => {
       const isSingle = r.kind !== 'comprehensive';
       const sub = state.coreSubjects.find((x) => x.id === r.subjectId) || state.coreSubjects[0] || { chapters: 24 };
@@ -467,17 +483,202 @@
     toast('درس‌های نهایی و نمره‌ها بازگردانی شد.');
   });
 
-  /* ---------------- تب‌ها ---------------- */
+  /* ---------------- ناوبری (نوار کنار) ---------------- */
 
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-      document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
-      tab.classList.add('active');
-      $('view-' + tab.dataset.view).classList.add('active');
-      if (tab.dataset.view === 'report') renderReport();
+  const NAVS = () => Array.from(document.querySelectorAll('.nav[data-view]'));
+
+  function gotoView(name) {
+    const nav = NAVS().find((n) => n.dataset.view === name);
+    if (!nav) return;
+    NAVS().forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+    nav.classList.add('active');
+    const view = $('view-' + name);
+    if (view) view.classList.add('active');
+    const scroller = $('mainScroll');
+    if (scroller) scroller.scrollTop = 0;
+    document.querySelector('aside') && document.querySelector('aside').classList.remove('open');
+    if (name === 'report') renderReport();
+    if (String(name).indexOf('step-') === 0) {
+      state.visited = state.visited || {};
+      state.visited[name] = true;
+      try { persist(); } catch (e) { /* بی‌صدا */ }
+      renderHome();
+    }
+    if (name === 'home') renderHome();
+    try { window.__revalView = name; } catch (e) { /* بی‌صدا */ }
+  }
+
+  NAVS().forEach((nav) => nav.addEventListener('click', () => gotoView(nav.dataset.view)));
+  /* سازگاری با نسخهٔ قبل (کلاس .tab) */
+  document.querySelectorAll('.tab[data-view]').forEach((tab) => {
+    tab.addEventListener('click', () => gotoView(tab.dataset.view));
+  });
+
+  /* ---------------- خانه: نمای کلی ---------------- */
+
+  function readAvailabilityTotal() {
+    let total = 0;
+    document.querySelectorAll('[data-avail]').forEach((el) => { total += Math.max(0, numVal(el)); });
+    return total;
+  }
+  function readChaptersRead() {
+    let read = 0, all = 0;
+    document.querySelectorAll('[data-cf="read"]').forEach((el) => { all += 1; if (el.checked) read += 1; });
+    return { read, all };
+  }
+  function readMocksCount() {
+    return document.querySelectorAll('#mockRows .dyn-row').length;
+  }
+  function readDeadlinesCount() {
+    return document.querySelectorAll('#bookDeadlineRows .dyn-row, #shortDeadlineRows .dyn-row').length;
+  }
+  function readFinalsCount() {
+    return document.querySelectorAll('#finalsTable [data-fin-cur]').length;
+  }
+
+  const STEPS_META = [
+    { n: 1, view: 'step-1', title: 'دربارهٔ تو', hint: 'پایه، رشته، تاریخ کنکور' },
+    { n: 2, view: 'step-2', title: 'زمان‌های تو', hint: 'ساعت مطالعه و شروع' },
+    { n: 3, view: 'step-3', title: 'کلاس‌ها و رویدادها', hint: 'کلاس، آزمون، سفر', optional: true },
+    { n: 4, view: 'step-4', title: 'دروس و تسلط', hint: 'ارزیابی فصل‌به‌فصل' },
+    { n: 5, view: 'step-5', title: 'سوابق تحصیلی', hint: 'نمرات نهایی' },
+    { n: 6, view: 'step-6', title: 'مهلت‌ها و آزمون‌ها', hint: 'اختیاری — برنامه پیش‌فرض هم خوب است', optional: true },
+  ];
+
+  function stepValid() {
+    const avail = readAvailabilityTotal();
+    const ch = readChaptersRead();
+    const finalsOn = $('finalsEnabled') ? $('finalsEnabled').value === '1' : false;
+    const nameOk = Boolean(($('name') && $('name').value.trim()) || ($('grade') && $('grade').value));
+    return {
+      1: Boolean(nameOk),
+      2: avail > 0,
+      3: document.querySelectorAll('#classRows .dyn-row, #examRows .dyn-row, #offRows .dyn-row').length > 0,
+      4: ch.read > 0,
+      5: finalsOn && readFinalsCount() > 0,
+      6: readMocksCount() > 0 || readDeadlinesCount() > 0,
+    };
+  }
+
+  /* یک قدم «تکمیل‌شده» است که هم کاربر بازش کرده باشد و هم داده‌اش معتبر باشد */
+  function stepStatus() {
+    const valid = stepValid();
+    const out = {};
+    [1, 2, 3, 4, 5, 6].forEach((n) => {
+      const seen = state.visited && state.visited['step-' + n];
+      out[n] = Boolean(seen && valid[n]);
+    });
+    return out;
+  }
+
+  function renderHome() {
+    const st = stepStatus();
+    const avail = readAvailabilityTotal();
+    const ch = readChaptersRead();
+
+    /* چیپ تیک روی نوار کنار */
+    NAVS().forEach((nav) => {
+      const step = Number(nav.dataset.step || 0);
+      if (!step) return;
+      const tick = nav.querySelector('.tick');
+      const num = nav.querySelector('.num');
+      const meta = STEPS_META.find((m) => m.n === step);
+      const done = Boolean(st[step]);
+      if (tick) tick.hidden = !done;
+      if (num) {
+        num.classList.toggle('done', done);
+        num.classList.toggle('opt', !done && Boolean(meta && meta.optional));
+      }
+    });
+
+    /* چک‌لیست خانه */
+    const box = $('homeSteps');
+    if (box) {
+      const doneCount = STEPS_META.filter((m) => st[m.n]).length;
+      const tag = $('homeProgressTag');
+      if (tag) tag.textContent = faNum(doneCount) + ' از ۶';
+      box.innerHTML = STEPS_META.map((m) => {
+        const done = Boolean(st[m.n]);
+        const cls = 'chkitem' + (done ? ' done' : (m.optional ? ' opt' : ''));
+        return '<button class="' + cls + '" data-goto="' + m.view + '">' +
+          '<span class="ic">' + (done ? '✓' : faNum(m.n)) + '</span>' +
+          '<span class="tx"><b>' + m.title + '</b><small>' + (done ? 'تکمیل شد' : m.hint) + '</small></span>' +
+          '<span class="go">' + (done ? 'ویرایش' : 'برو') + ' <span class="ar">‹</span></span></button>';
+      }).join('');
+      box.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => gotoView(b.dataset.goto)));
+    }
+
+    /* KPIهای خانه */
+    const kpis = $('homeKpis');
+    if (kpis) {
+      let daysLeft = 0;
+      try {
+        const cfgStart = $('startDate') && $('startDate').dataset.iso;
+        const cfgExam = $('examDate') && $('examDate').dataset.iso;
+        if (cfgStart && cfgExam) daysLeft = Math.max(0, Math.round((new Date(cfgExam) - new Date(cfgStart)) / 86400000));
+      } catch (e) { /* بی‌صدا */ }
+      const items = [
+        { v: faNum(avail) + ' ساعت', l: 'جمع ساعت هفتگی' },
+        { v: faNum(daysLeft) + ' روز', l: 'تا آزمون هدف' },
+        { v: faNum(ch.read) + ' از ' + faNum(ch.all), l: 'فصل خوانده‌شده' },
+        { v: faNum(readFinalsCount()), l: 'درس سوابق' },
+      ];
+      kpis.innerHTML = items.map((i) => '<div class="stat"><b>' + i.v + '</b><span>' + i.l + '</span></div>').join('');
+    }
+
+    /* وضعیت برنامه */
+    const lead = $('homePlanLead');
+    const stats = $('homePlanStats');
+    if (lead && stats) {
+      if (state.plan && state.plan.summary) {
+        const sm = state.plan.summary;
+        const cov = sm.coverage || {};
+        const firstDay = state.plan.days[0] ? state.plan.days[0].date : '';
+        const lastDay = state.plan.days[state.plan.days.length - 1] ? state.plan.days[state.plan.days.length - 1].date : '';
+        const fmt = (iso) => (iso && J && J.fmt) ? J.fmt(iso) : (iso || '');
+        lead.textContent = 'برنامهٔ فعلی ساخته شده است — ' + faNum(state.plan.days.length) + ' روز، از ' +
+          fmt(firstDay) + ' تا ' + fmt(lastDay) + '.';
+        stats.innerHTML = [
+          { v: faNum(Math.round(cov.coverageRatio || 0)) + '٪', l: 'پوشش فصل‌ها' },
+          { v: faNum(cov.testsPlanned || 0), l: 'تست چیده‌شده' },
+          { v: faNum(Math.round((sm.totalMinutes || 0) / 60)) + ' ساعت', l: 'زمان کل' },
+        ].map((i) => '<div class="stat"><b>' + i.v + '</b><span>' + i.l + '</span></div>').join('');
+      } else {
+        stats.innerHTML = '';
+      }
+    }
+  }
+
+  /* چیپ‌های پرش داخل گزارش */
+  document.querySelectorAll('[data-jump]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const target = $(b.dataset.jump);
+      if (!target) return;
+      document.querySelectorAll('[data-jump]').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+
+  /* دکمه‌های جهش بین قدم‌ها */
+  document.querySelectorAll('[data-goto]').forEach((b) => {
+    if (b.classList.contains('chkitem')) return;
+    b.addEventListener('click', () => gotoView(b.dataset.goto));
+  });
+  document.querySelectorAll('[data-next]').forEach((b) => {
+    b.addEventListener('click', () => gotoView('step-' + b.dataset.next));
+  });
+  document.querySelectorAll('[data-back]').forEach((b) => {
+    b.addEventListener('click', () => gotoView('step-' + b.dataset.back));
+  });
+
+  /* دکمه‌های ساخت برنامه در نوار بالا و نوار کنار و خانه */
+  [['buildTop', null], ['buildSide', null], ['homeBuild', null]].forEach(([id]) => {
+    const el = $(id);
+    if (el) el.addEventListener('click', () => { if ($('build')) $('build').click(); });
+  });
+  if ($('homeStart')) $('homeStart').addEventListener('click', () => gotoView('step-1'));
 
   /* ---------------- فرم تنظیمات ---------------- */
 
@@ -486,8 +687,9 @@
     box.innerHTML = '';
     WEEKDAY_KEY.forEach((k, i) => {
       const div = document.createElement('div');
+      div.className = 'avail-cell';
       div.innerHTML = '<label>' + WEEKDAY_FA[i] + ' (ساعت)</label>' +
-        '<input type="number" min="0" max="12" step="0.5" data-avail="' + k + '" value="' + (values[k] != null ? values[k] : 4) + '" />';
+        '<input type="text" inputmode="decimal" data-avail="' + k + '" value="' + faDigits(values[k] != null ? values[k] : 4) + '" style="text-align:center;font-weight:700;font-size:14px" />';
       box.appendChild(div);
     });
   }
@@ -1029,7 +1231,7 @@
   function collectConfig() {
     const availability = {};
     document.querySelectorAll('[data-avail]').forEach((inp) => {
-      availability[inp.dataset.avail] = Number(inp.value) || 0;
+      availability[inp.dataset.avail] = numVal(inp);
     });
     const subjects = readSubjects()
       .concat(readGeneral().filter((x) => x.include))
@@ -1247,9 +1449,11 @@
       state.selectedDay = null;
       state.scores = {};
       state.done = {};
+      state.visited = { 'step-1': true, 'step-2': true, 'step-3': true, 'step-4': true, 'step-5': true, 'step-6': true };
       renderPlan();
       renderReport();
-      document.querySelector('.tab[data-view="plan"]').click();
+      renderHome();
+      gotoView('plan');
       toast('برنامه ساخته شد ✓');
       await persist();
     } catch (err) {
@@ -1662,6 +1866,18 @@
 
   $('prevWeek').addEventListener('click', () => { state.week--; state.selectedDay = null; renderWeek(); });
   $('nextWeek').addEventListener('click', () => { state.week++; state.selectedDay = null; renderWeek(); });
+  /* «امروز»: هفته و روز جاری را پیدا و انتخاب می‌کند */
+  if ($('todayBtn')) $('todayBtn').addEventListener('click', () => {
+    const plan = state.plan;
+    if (!plan || !plan.days || !plan.days.length) return;
+    const todayISO = J ? J.dateToISO(new Date()) : iso(new Date());
+    let idx = plan.days.findIndex((d) => d.date >= todayISO);
+    if (idx < 0) idx = plan.days.length - 1;
+    state.week = Math.floor(idx / 7);
+    state.selectedDay = idx;
+    renderWeek();
+    toast('رفتی روی ' + (plan.days[idx] ? plan.days[idx].weekday : '') + ' ' + (plan.days[idx] && J ? J.fmt(plan.days[idx].date) : ''));
+  });
 
   /* ---------------- ثبت درصد آزمون ---------------- */
 
@@ -1907,6 +2123,7 @@
         plan: state.plan,
         scores: state.scores,
         done: state.done,
+        visited: state.visited,
       });
     } catch (e) { /* بی‌صدا */ }
   }
@@ -1919,6 +2136,7 @@
           applyConfigToForm(data.config);
           state.scores = data.scores || {};
           state.done = data.done || {};
+          state.visited = data.visited || {};
           if (data.plan) {
             state.plan = data.plan;
             renderPlan();
@@ -2118,5 +2336,13 @@
 
   if (J) J.attachAll(document);
   initUpdates();
-  restore();
+  restore().then(() => { try { renderHome(); } catch (e) { /* بی‌صدا */ } });
+
+  /* با هر تغییر در فرم، نمای خانه و تیک‌های نوار کنار تازه می‌شوند */
+  let homeTick = null;
+  document.addEventListener('input', () => {
+    clearTimeout(homeTick);
+    homeTick = setTimeout(() => { if (window.__revalView === 'home' || !window.__revalView) renderHome(); else renderHome(); }, 250);
+  }, true);
+  document.addEventListener('change', () => { try { renderHome(); } catch (e) { /* بی‌صدا */ } }, true);
 })();

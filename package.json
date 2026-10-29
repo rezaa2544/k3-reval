@@ -1,8 +1,8 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "2.2.0",
-  "description": "Reval desktop 2.2: به‌روزرسانی خودکار داخل برنامه (یک دکمه)، آزمون‌های دوره‌ای قابل تنظیم، ظرفیت تست استاندارد، هشدار ساعت لازم، دو مدل مهلت",
+  "version": "2.3.0",
+  "description": "Reval desktop 2.3: رابط کاربری تازه (خانه + ۶ قدم + نوار کنار)، به‌روزرسانی خودکار، آزمون‌های دوره‌ای، ظرفیت تست استاندارد",
   "main": "src/main.js",
   "author": "Reval Desktop",
   "license": "MIT",

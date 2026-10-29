@@ -48,7 +48,7 @@ app.whenReady().then(async () => {
   await wait(3000);
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="plan"]').click();
+      document.querySelector('.nav[data-view="plan"]').click();
       document.querySelector('main').scrollTop = 0;
       return true;
     })()
@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   // ۳) تب گزارش — بالای صفحه
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="report"]').click();
+      document.querySelector('.nav[data-view="report"]').click();
       document.querySelector('main').scrollTop = 0;
       return { stats: document.getElementById('reportStats').innerText.slice(0,120),
                books: document.getElementById('bookTable').innerText.slice(0,200) };
@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
   // ۶) برنامهٔ روزانه + بازچینش هوشمند
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="plan"]').click();
+      document.querySelector('.nav[data-view="plan"]').click();
       document.getElementById('carryCount').scrollIntoView({block:'center'});
       return document.getElementById('carryCount').innerText;
     })()
@@ -102,10 +102,11 @@ app.whenReady().then(async () => {
   // ۷) دو مدل مهلت: مهلت کتابی و مهلت آزمون تک‌درس
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="setup"]').click();
+      document.querySelector('.nav[data-view="step-6"]').click();
       /* ردیف پیشنهادی زیست را به «تا اسفند» تغییر بده (تاریخ شمسی از ISO) */
       const rows = document.querySelectorAll('#bookDeadlineRows .dyn-row');
       if (rows[0]) {
+        document.querySelectorAll('#view-step-6 details.adv').forEach((d) => { d.open = true; });
         const sel = rows[0].querySelector('[data-bd="subjectId"]');
         if (sel) sel.value = 'bio';
         const d = rows[0].querySelector('[data-bd="date"]');
@@ -133,7 +134,7 @@ app.whenReady().then(async () => {
   await wait(3000);
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="report"]').click();
+      document.querySelector('.nav[data-view="report"]').click();
       const t = document.getElementById('bookDeadlineTable');
       if (t) t.scrollIntoView({block:'center'});
       return t ? t.innerText.slice(0,200) : 'none';
@@ -145,7 +146,8 @@ app.whenReady().then(async () => {
   // ۹) آزمون‌های دوره‌ای (نسخهٔ ۲.۱)
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="setup"]').click();
+      document.querySelector('.nav[data-view="step-6"]').click();
+      document.querySelectorAll('#view-step-6 details.adv').forEach((d) => { d.open = true; });
       document.getElementById('suggestMocks').click();
       const rows = document.querySelectorAll('#mockRows .dyn-row');
       if (rows[0]) {
@@ -175,7 +177,7 @@ app.whenReady().then(async () => {
   await wait(3500);
   await win.webContents.executeJavaScript(`
     (function(){
-      document.querySelector('.tab[data-view="report"]').click();
+      document.querySelector('.nav[data-view="report"]').click();
       const el = document.getElementById('capacityBox');
       if (el) el.scrollIntoView({ block: 'start' });
       return (el ? el.innerText : '').slice(0, 240);

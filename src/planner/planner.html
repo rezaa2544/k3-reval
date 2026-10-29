@@ -5,182 +5,363 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'self';" />
 <title>مشاور هوشمند روال</title>
 <style>
+  /* ═══════════════════════════════════════════════════════════
+     روال — سیستم طراحی ۳.۰ : آرام، خوانا، یک‌قدم-یک‌کار
+     ═══════════════════════════════════════════════════════════ */
   :root{
-    --bg:#f6f8fc; --panel:#ffffff; --panel2:#f8fafc; --line:#e3e9f2; --line2:#eef2f8;
-    --fg:#16233a; --muted:#64748b; --brand:#4f46e5; --brand2:#0ea5e9; --ok:#059669;
-    --warn:#b45309; --danger:#dc2626; --learn:#4f46e5; --review:#0284c7; --practice:#0d9488;
-    --mock:#d97706; --analysis:#7c3aed; --warmup:#0891b2;
-    --field:#ffffff; --fieldline:#dbe3ef;
+    --bg:#f4f6fb; --bg2:#eef2f9;
+    --panel:#ffffff; --panel2:#f7f9fd; --panel3:#f1f5fb;
+    --line:#e4e9f2; --line2:#eef2f8; --line3:#dbe3ef;
+    --fg:#111c33; --fg2:#33415c; --muted:#6b7a90; --faint:#93a2b8;
+    --brand:#4f46e5; --brand-soft:#eef0ff; --brand-line:#c7c9ff;
+    --sky:#0ea5e9; --ok:#059669; --ok-soft:#ecfdf5; --warn:#b45309; --warn-soft:#fffaeb;
+    --danger:#dc2626; --danger-soft:#fef2f2;
+    --learn:#4f46e5; --review:#0284c7; --practice:#0d9488; --mock:#d97706;
+    --analysis:#7c3aed; --warmup:#0891b2;
+    --field:#ffffff; --fieldline:#d8e0ec;
+    --r-sm:10px; --r:14px; --r-lg:18px;
+    --sh-1:0 1px 2px rgba(16,25,45,.05);
+    --sh-2:0 2px 6px rgba(16,25,45,.05), 0 12px 28px -22px rgba(16,25,45,.35);
+    --sh-3:0 18px 44px -28px rgba(16,25,45,.45);
+    --side:246px;
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
   body{
-    font-family:"Segoe UI",Tahoma,sans-serif;
-    background:radial-gradient(120% 100% at 80% 0%,#ffffff 0%,#f4f7fd 45%,#eef3fb 100%);
-    color:var(--fg);display:flex;flex-direction:column;overflow:hidden;
+    font-family:"Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--fg);
+    display:flex; flex-direction:column; overflow:hidden; font-size:13px; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
   }
+  h1,h2,h3,h4{margin:0; font-weight:700; letter-spacing:-.1px}
+  h1{font-size:19px} h2{font-size:15px} h3{font-size:13px}
+  p{margin:0 0 8px}
+  a{color:var(--brand); text-decoration:none}
+  code{background:var(--panel3); border-radius:6px; padding:1px 6px; font-size:11.5px}
+
+  /* ---------- نوار بالا ---------- */
   header{
-    display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);
-    background:rgba(255,255,255,.92);backdrop-filter:blur(8px);-webkit-app-region:drag;
-    box-shadow:0 1px 0 rgba(15,23,42,.04);
+    display:flex; align-items:center; gap:12px; padding:10px 16px;
+    background:rgba(255,255,255,.94); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line); -webkit-app-region:drag; flex:0 0 auto; z-index:20;
   }
-  header img{width:34px;height:34px;border-radius:9px}
-  header h1{font-size:15px;margin:0}
-  header .sub{font-size:11px;color:var(--muted);margin-top:2px}
-  .tabs{display:flex;gap:6px;margin-inline-start:auto;-webkit-app-region:no-drag}
-  .tab{
-    border:1px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;
-    padding:7px 13px;border-radius:9px;cursor:pointer
+  header img{width:32px; height:32px; border-radius:9px}
+  header .brand{display:flex; flex-direction:column; gap:1px}
+  header .brand b{font-size:14px}
+  header .brand span{font-size:10.5px; color:var(--muted)}
+  header .spacer{margin-inline-start:auto}
+  .hbtn{
+    -webkit-app-region:no-drag; display:inline-flex; align-items:center; gap:6px;
+    border:1px solid var(--line); background:#fff; color:var(--fg2); border-radius:10px;
+    padding:7px 12px; font:inherit; font-size:12px; font-weight:600; cursor:pointer;
   }
-  .tab:hover{background:#eef2f9;color:var(--fg)}
-  .tab.active{background:linear-gradient(135deg,rgba(99,102,241,.9),rgba(14,165,233,.9));color:#fff}
-  main{flex:1;overflow:auto;padding:16px 18px 26px}
-  .view{display:none;max-width:1080px;margin:0 auto}
-  .view.active{display:block}
-  h2{font-size:15px;margin:0 0 10px}
-  h3{font-size:13px;margin:18px 0 8px;color:#3730a3}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -18px rgba(15,23,42,.18)}
-  .grid{display:grid;gap:10px}
-  .g2{grid-template-columns:1fr 1fr}
-  .g3{grid-template-columns:repeat(3,1fr)}
-  .g4{grid-template-columns:repeat(4,1fr)}
-  @media(max-width:760px){.g3,.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
-  label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
-  input,select{
-    width:100%;padding:9px 11px;border-radius:10px;border:1px solid var(--fieldline);background:var(--field);
-    color:var(--fg);font:inherit;font-size:12.5px;outline:none
+  .hbtn:hover{border-color:var(--brand-line); color:var(--brand); background:var(--brand-soft)}
+
+  /* چیپ نسخه / به‌روزرسانی */
+  .ver-chip{
+    display:inline-flex; align-items:center; gap:6px; -webkit-app-region:no-drag;
+    background:var(--panel3); border:1px solid var(--line); border-radius:999px;
+    padding:6px 12px; font-size:11.5px; color:var(--fg2); cursor:pointer; white-space:nowrap;
   }
-  input:focus,select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
-  input[type=checkbox]{width:auto}
+  .ver-chip:hover{border-color:var(--brand-line); color:var(--brand); background:var(--brand-soft)}
+  .ver-chip b{font-weight:700}
+  .ver-chip .dot{width:7px; height:7px; border-radius:50%; background:#22c55e}
+  .ver-chip.has .dot{background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.18)}
+
+  /* نوار به‌روزرسانی */
+  .ubar{
+    display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap;
+    padding:10px 16px; background:linear-gradient(90deg,#eff6ff,#f5f3ff);
+    border-bottom:1px solid var(--brand-line); color:var(--fg); flex:0 0 auto; z-index:19;
+  }
+  .ubar[hidden]{display:none}
+  .ubar .txt{display:flex; flex-direction:column; gap:2px; min-width:240px; flex:1}
+  .ubar .txt b{font-size:13px}
+  .ubar .txt span{font-size:11.5px; color:var(--fg2)}
+  .ubar .acts{display:flex; gap:8px; align-items:center}
+  .ubar .prog{width:100%; height:6px; border-radius:999px; background:#e2e8f0; overflow:hidden; margin-top:5px}
+  .ubar .prog i{display:block; height:100%; width:0; background:linear-gradient(90deg,#3b82f6,#6366f1); transition:width .25s}
+  .ubar .prog[hidden]{display:none}
+  .ubar.err{background:linear-gradient(90deg,#fef2f2,#fff7ed); border-color:#fecaca}
+  .ubar.done{background:linear-gradient(90deg,#ecfdf5,#f0fdf4); border-color:#bbf7d0}
+
+  /* ---------- قاب اصلی ---------- */
+  .app{flex:1; display:flex; min-height:0; overflow:hidden}
+
+  /* ---------- نوار کنار ---------- */
+  aside{
+    width:var(--side); flex:0 0 var(--side); background:#fff; border-inline-start:1px solid var(--line);
+    display:flex; flex-direction:column; padding:12px 10px; gap:2px; overflow:auto;
+  }
+  aside .sect{font-size:10px; font-weight:700; color:var(--faint); padding:10px 12px 4px; letter-spacing:.4px}
+  .nav{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:right;
+    border:1px solid transparent; background:transparent; color:var(--fg2);
+    border-radius:11px; padding:8px 10px; font:inherit; font-size:12.5px; cursor:pointer;
+  }
+  .nav:hover{background:var(--panel3); color:var(--fg)}
+  .nav.active{background:var(--brand-soft); border-color:var(--brand-line); color:var(--brand); font-weight:700}
+  .nav .num svg{width:15px;height:15px}
+  .nav .num{
+    flex:0 0 24px; height:24px; border-radius:8px; display:grid; place-items:center;
+    background:var(--panel3); color:var(--fg2); font-size:11px; font-weight:700;
+  }
+  .nav.active .num{background:var(--brand); color:#fff}
+  .nav .num.done{background:var(--ok-soft); color:var(--ok)}
+  .nav .num.opt{background:#fff; border:1px dashed var(--line3); color:var(--faint)}
+  .nav .lbl{flex:1; min-width:0}
+  .nav .lbl small{display:block; font-size:10px; color:var(--faint); font-weight:400; margin-top:1px}
+  .nav .tick{font-size:11px; color:var(--ok)}
+  aside .side-foot{margin-top:auto; padding:10px 6px 4px; border-top:1px solid var(--line2)}
+  .side-cta{
+    width:100%; justify-content:center; display:inline-flex; align-items:center; gap:6px;
+    border:0; border-radius:12px; padding:11px 14px; cursor:pointer; font:inherit; font-size:13px; font-weight:700; color:#fff;
+    background:linear-gradient(135deg,var(--brand),var(--sky)); box-shadow:0 10px 22px -12px rgba(79,70,229,.85);
+  }
+  .side-cta:hover{filter:brightness(1.06)}
+  .side-cta:disabled{opacity:.6; cursor:progress}
+  .side-note{font-size:10.5px; color:var(--faint); text-align:center; margin-top:6px; line-height:1.6}
+
+  /* ---------- محتوا ---------- */
+  main{flex:1; min-width:0; overflow-y:auto; overflow-x:hidden; padding:18px 22px 40px; scroll-behavior:smooth}
+  .view{display:none; max-width:920px; margin:0 auto}
+  .view.active{display:block; animation:fade .18s ease-out}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
+
+  /* سرتیتر هر صفحه */
+  .pagehead{display:flex; align-items:flex-start; gap:12px; margin:2px 0 14px}
+  .pagehead .stepno{
+    flex:0 0 34px; height:34px; border-radius:11px; display:grid; place-items:center;
+    background:var(--brand-soft); color:var(--brand); font-weight:800; font-size:14px; border:1px solid var(--brand-line);
+  }
+  .pagehead .tt{flex:1; min-width:0}
+  .pagehead .tt h1{font-size:17px}
+  .pagehead .tt p{margin:3px 0 0; font-size:12px; color:var(--muted)}
+
+  /* ---------- کارت ---------- */
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--r-lg);
+    padding:16px 18px; margin-bottom:14px; box-shadow:var(--sh-1);
+  }
+  .card > h2{display:flex; align-items:center; gap:8px; margin-bottom:4px}
+  .card > h2 .tag{
+    font-size:10px; font-weight:600; color:var(--brand); background:var(--brand-soft);
+    border:1px solid var(--brand-line); border-radius:999px; padding:1px 8px;
+  }
+  .card .lead{font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.9}
+  .card-headless{padding:0; border:0; box-shadow:none; background:transparent}
+  .soft{background:var(--panel2); border:1px solid var(--line2); border-radius:var(--r); padding:12px 14px}
+
+  /* ---------- گرید ---------- */
+  .grid{display:grid; gap:12px}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media(max-width:1100px){ .g4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media(max-width:860px){ .g3,.g2{grid-template-columns:1fr} }
+
+  /* ---------- فیلدها ---------- */
+  label{display:block; font-size:11.5px; color:var(--muted); margin-bottom:5px; font-weight:600}
+  input,select,textarea{
+    width:100%; padding:9px 11px; border-radius:var(--r-sm); border:1px solid var(--fieldline);
+    background:var(--field); color:var(--fg); font:inherit; font-size:12.5px; outline:none; min-height:38px;
+    transition:border-color .12s, box-shadow .12s;
+  }
+  input:hover,select:hover{border-color:#c5d0e0}
+  input:focus,select:focus,textarea:focus{border-color:var(--brand); box-shadow:0 0 0 3px rgba(79,70,229,.13)}
+  input[type=checkbox]{width:auto; min-height:0; accent-color:var(--brand)}
+  input[type=number]{font-variant-numeric:tabular-nums}
+  .hintline{font-size:10.5px; color:var(--faint); margin-top:4px; line-height:1.7}
+  /* ساعت‌ها و اعداد: چپ‌به‌راست و خوانا */
+  input[type=time]{direction:ltr; text-align:center; font-variant-numeric:tabular-nums; letter-spacing:.4px}
+  input[type=number]{text-align:center; font-variant-numeric:tabular-nums}
+  .avail-cell{background:var(--panel2); border:1px solid var(--line2); border-radius:var(--r); padding:8px 8px 6px}
+  .avail-cell label{text-align:center; margin-bottom:3px; font-size:11px}
+  .avail-cell input{border-color:transparent; background:#fff}
+
+  /* ---------- دکمه‌ها ---------- */
   .btn{
-    font:inherit;font-size:12.5px;font-weight:600;border:0;border-radius:11px;padding:10px 18px;cursor:pointer;
-    background:#eef2f9;color:#31415e;border:1px solid var(--line);transition:transform .1s,filter .15s
+    font:inherit; font-size:12.5px; font-weight:600; border-radius:var(--r-sm); padding:9px 16px;
+    cursor:pointer; background:#fff; color:var(--fg2); border:1px solid var(--line3);
+    transition:border-color .12s, background .12s, transform .08s; min-height:36px;
   }
-  .btn:hover{filter:brightness(1.12)}
+  .btn:hover{border-color:#b9c6da; background:var(--panel2)}
   .btn:active{transform:translateY(1px)}
-  .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border:0;box-shadow:0 10px 22px rgba(79,70,229,.22)}
-  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--muted)}
-  .btn.small{padding:7px 12px;font-size:11.5px;font-weight:500}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--brand),var(--sky)); color:#fff; border-color:transparent;
+    box-shadow:0 10px 22px -14px rgba(79,70,229,.95);
+  }
+  .btn.primary:hover{filter:brightness(1.05); background:linear-gradient(135deg,var(--brand),var(--sky))}
+  .btn.ghost{background:transparent; border-color:var(--line3); color:var(--muted)}
+  .btn.small{padding:6px 11px; font-size:11.5px; min-height:30px; font-weight:500; border-radius:9px}
+  .btn.lg{padding:12px 22px; font-size:13.5px; border-radius:12px; min-height:44px}
+  .btn:disabled{opacity:.55; cursor:not-allowed}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
   .row.end{justify-content:flex-end}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th,td{padding:7px 6px;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle}
-  th{color:var(--muted);font-weight:600;font-size:11px}
-  td input{padding:6px 8px;font-size:12px}
-  .muted{color:var(--muted);font-size:12px;line-height:1.9}
-  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px}
-  .stat b{display:block;font-size:19px;margin-bottom:3px}
-  .stat span{font-size:11px;color:var(--muted)}
-  .bar{height:8px;border-radius:99px;background:#e8edf5;overflow:hidden;margin-top:6px}
-  .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
-  .badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;font-weight:600}
-  .b-learn{background:#eef0ff;color:#4338ca}
-  .b-reteach{background:#fef2f2;color:#b91c1c}
-  .b-boost{background:#fff7ed;color:#b45309}
-  .b-cum{background:#ecfeff;color:#0e7490}
-  .b-classfix{background:#f5f3ff;color:#6d28d9}
-  .b-final{background:#ecfdf5;color:#047857}
-  .b-deadline{background:#fef9c3;color:#a16207}
-  .b-carry{background:#fee2e2;color:#b91c1c}
-  .b-review{background:#e6f4fd;color:#0369a1}
-  .b-practice{background:#e5f7f5;color:#0f766e}
-  .b-mock{background:#fdf1e0;color:#b45309}
-  .b-analysis{background:#f3ebff;color:#6d28d9}
-  .b-warmup{background:#e4f6fb;color:#0e7490}
-  .notes{margin:0;padding-inline-start:16px;font-size:12.5px;line-height:2}
-  .notes li{margin-bottom:4px}
-  .warn{background:#fffaeb;border:1px solid #f6d78b;color:#92400e;border-radius:12px;padding:10px 13px;font-size:12px;line-height:1.9}
-  .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
+  .row.between{justify-content:space-between}
+
+  /* ---------- نشانگرها ---------- */
+  .badge{display:inline-block; font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:600}
+  .b-learn{background:#eef0ff; color:#4338ca}
+  .b-reteach{background:#fef2f2; color:#b91c1c}
+  .b-boost{background:#fff7ed; color:#b45309}
+  .b-cum{background:#ecfeff; color:#0e7490}
+  .b-classfix{background:#f5f3ff; color:#6d28d9}
+  .b-review{background:#e6f4fd; color:#0369a1}
+  .b-practice{background:#e5f7f5; color:#0f766e}
+  .b-mock{background:#fdf1e0; color:#b45309}
+  .b-analysis{background:#f3ebff; color:#6d28d9}
+  .b-warmup{background:#e4f6fb; color:#0e7490}
+  .pill{font-size:10.5px; padding:2px 8px; border-radius:999px; background:var(--brand-soft); color:#3730a3; border:1px solid #e0e7ff}
+  .pill.hot{background:var(--danger-soft); color:#b91c1c; border-color:#fecaca}
+  .pill.warm{background:#fff7ed; color:#b45309; border-color:#fed7aa}
+  .pill.ok{background:var(--ok-soft); color:#047857; border-color:#a7f3d0}
+
+  /* ---------- آمار ---------- */
+  .stat{background:var(--panel2); border:1px solid var(--line2); border-radius:var(--r); padding:12px 14px}
+  .stat b{display:block; font-size:20px; margin-bottom:2px; font-variant-numeric:tabular-nums; letter-spacing:-.4px; white-space:nowrap}
+  .grid.g3 .stat b{font-size:17px}
+  .grid.g4 .stat b{font-size:19px}
+  .stat span{font-size:11px; color:var(--muted); display:block}
+  .stat small{font-size:10.5px; color:var(--faint); display:block; margin-top:3px}
+  .bar{height:7px; border-radius:999px; background:#e8edf5; overflow:hidden; margin-top:7px}
+  .bar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--brand),var(--sky))}
+  .bar.ok i{background:linear-gradient(90deg,#10b981,#34d399)}
+  .bar.warn i{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+
+  /* ---------- جدول ---------- */
+  table{width:100%; border-collapse:collapse; font-size:12px}
+  th,td{padding:8px 7px; text-align:right; border-bottom:1px solid var(--line2); vertical-align:middle}
+  th{color:var(--muted); font-weight:600; font-size:11px; background:var(--panel2); position:sticky; top:0}
+  tbody tr:hover{background:#fbfcff}
+  td input,td select{padding:6px 8px; font-size:12px; min-height:32px}
+
+  /* ---------- متن ---------- */
+  .muted{color:var(--muted); font-size:11.5px; line-height:1.9}
+  .notes{margin:0; padding-inline-start:16px; font-size:12px; line-height:2}
+  .notes li{margin-bottom:3px}
+  .warn{background:var(--warn-soft); border:1px solid #f6d78b; color:#92400e; border-radius:var(--r-sm); padding:10px 13px; font-size:11.5px; line-height:1.9}
+  .hint{font-size:11.5px; background:#eef6ff; border:1px solid #cfe3fb; color:#1e40af; border-radius:var(--r-sm); padding:9px 11px; margin-bottom:10px}
+
+  /* ---------- برنامهٔ روزانه ---------- */
+  .days{display:flex; gap:7px; overflow-x:auto; padding-bottom:6px; margin-bottom:12px}
   .day-pill{
-    flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:11px;
-    padding:8px 10px;font:inherit;font-size:11.5px;cursor:pointer;text-align:center;min-width:88px
+    flex:0 0 auto; border:1px solid var(--line); background:#fff; color:var(--muted); border-radius:11px;
+    padding:8px 10px; font:inherit; font-size:11.5px; cursor:pointer; text-align:center; min-width:86px;
   }
-  .day-pill.active{border-color:rgba(79,70,229,.55);background:#eef0ff;color:#3730a3;font-weight:600}
-  .day-pill small{display:block;font-size:10px;color:var(--muted);margin-top:2px}
-  .day-pill .xp-day{font-size:10.5px;color:#4338ca;font-weight:600;margin-top:3px}
-  /* --- ارزیابی فصل به فصل --- */
-  .assess-top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);
-    border-radius:12px;background:var(--panel2);margin-bottom:10px}
-  .acard{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;background:#fff}
-  .acard.open{border-color:#c7d2fe;box-shadow:0 6px 18px -14px rgba(79,70,229,.55)}
-  .acard-h{display:flex;align-items:center;gap:12px;padding:9px 12px;cursor:pointer;flex-wrap:wrap}
-  .acard-h:hover{background:#f8fafc}
-  .acard-t{font-size:12.5px;font-weight:700;min-width:190px}
-  .acard-t small{display:block;font-weight:400;font-size:10.5px;color:var(--muted);margin-top:2px}
-  .acard-m{font-size:11.5px;color:var(--muted);flex:1;min-width:150px}
-  .acard-bar{width:150px;height:7px;border-radius:99px;background:#e8edf6;overflow:hidden}
-  .acard-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#6366f1,#0ea5e9)}
-  .acard-b{padding:0 12px 12px;border-top:1px dashed var(--line2)}
-  table.chap{width:100%;border-collapse:collapse;margin-top:8px}
-  table.chap th{font-size:11px;color:var(--muted);text-align:right;font-weight:500;padding:6px 6px;border-bottom:1px solid var(--line)}
-  table.chap td{padding:5px 6px;border-bottom:1px solid var(--line2);font-size:12px}
-  table.chap input[type=text],table.chap input:not([type]){padding:6px 8px;font-size:12px}
-  table.chap input[type=number]{padding:5px 7px;font-size:12px;text-align:center}
-  .mrow{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-  .mini{font:inherit;font-size:10.5px;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:#f2f5fb;
-    color:#334155;cursor:pointer}
-  .mini:hover{background:#e8edf8}
-  .mini.del{color:#dc2626;border-color:#fecaca;background:#fef2f2}
-  .mini:disabled{opacity:.45;cursor:not-allowed}
-  .hint{font-size:11.5px;background:#eef6ff;border:1px solid #cfe3fb;color:#1e40af;border-radius:10px;padding:9px 11px;margin-bottom:10px}
-  .weakrow{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2);font-size:12px}
-  .pill{font-size:10.5px;padding:2px 7px;border-radius:99px;background:#eef2ff;color:#3730a3;border:1px solid #e0e7ff}
-  .pill.hot{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
-  .pill.warm{background:#fff7ed;color:#b45309;border-color:#fed7aa}
-  .pill.ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
-  .pill.bad{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
-  .tablewrap{overflow:auto;max-width:100%}
-  table.chap{width:100%;border-collapse:collapse;font-size:12px}
-  table.chap th{text-align:right;font-weight:600;color:var(--muted);font-size:11px;padding:6px 8px;border-bottom:1px solid var(--line)}
-  table.chap td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-  table.chap input{font-family:inherit}
-  .num{direction:ltr;unicode-bidi:isolate;display:inline-block}
-  .dyn-row .del{width:34px;height:34px;padding:0;border-radius:9px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;cursor:pointer;font-size:13px;align-self:end}
-  .dyn-row .del:hover{background:#fee2e2}
-  .dyn-row.off,.dyn-row.dlbook,.dyn-row.dlexam{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end;margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+  .day-pill:hover{border-color:#c5d0e0}
+  .day-pill.active{border-color:var(--brand-line); background:var(--brand-soft); color:#3730a3; font-weight:700}
+  .day-pill small{display:block; font-size:10px; color:var(--muted); margin-top:2px}
+  .day-pill .xp-day{font-size:10.5px; color:#4338ca; font-weight:600; margin-top:3px}
   .block{
-    display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:start;
-    background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px
+    display:grid; grid-template-columns:92px minmax(0,1fr) auto; gap:12px; align-items:start;
+    background:var(--panel2); border:1px solid var(--line2); border-radius:var(--r); padding:11px 13px; margin-bottom:8px;
   }
-  .block .time{font-size:12px;color:#3730a3;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .block .time [dir=ltr]{display:inline-block}
-  .block .time small{display:block;color:var(--muted);font-weight:400;margin-top:3px}
-  .block .t{font-size:13px;font-weight:600;margin-bottom:3px}
-  .block .c{font-size:11.5px;color:var(--muted);line-height:1.85}
-  .block .tech{font-size:10.5px;color:#2563eb;margin-top:4px}
-  details{font-size:11px;color:var(--muted);margin-top:6px}
-  summary{cursor:pointer;color:#4f46e5}
-  .chk{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
-  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sp .8s linear infinite}
+  .block .time{font-size:12px; color:#3730a3; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .block .time small{display:block; color:var(--muted); font-weight:400; margin-top:3px}
+  .block .t{font-size:12.5px; font-weight:700; margin-bottom:3px}
+  .block .c{font-size:11.5px; color:var(--muted); line-height:1.85}
+  .block .tech{font-size:10.5px; color:#2563eb; margin-top:4px}
+  details{font-size:11px; color:var(--muted); margin-top:6px}
+  summary{cursor:pointer; color:var(--brand)}
+  .chk{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted)}
+
+  /* ---------- ارزیابی فصل ---------- */
+  .assess-top{display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:11px 13px; border:1px solid var(--line2);
+    border-radius:var(--r); background:var(--panel2); margin-bottom:10px}
+  .acard{border:1px solid var(--line); border-radius:var(--r); margin-bottom:8px; overflow:hidden; background:#fff}
+  .acard.open{border-color:var(--brand-line); box-shadow:var(--sh-2)}
+  .acard-h{display:flex; align-items:center; gap:12px; padding:10px 13px; cursor:pointer; flex-wrap:wrap}
+  .acard-h:hover{background:var(--panel2)}
+  .acard-t{font-size:12.5px; font-weight:700; min-width:180px}
+  .acard-t small{display:block; font-weight:400; font-size:10.5px; color:var(--muted); margin-top:2px}
+  .acard-m{font-size:11.5px; color:var(--muted); flex:1; min-width:140px}
+  .acard-bar{width:140px; height:6px; border-radius:999px; background:#e8edf6; overflow:hidden}
+  .acard-bar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#6366f1,#0ea5e9)}
+  .acard-b{padding:0 13px 12px; border-top:1px dashed var(--line2)}
+  table.chap{width:100%; border-collapse:collapse; margin-top:8px}
+  table.chap th{font-size:11px; color:var(--muted); text-align:right; font-weight:500; padding:6px; background:transparent; border-bottom:1px solid var(--line)}
+  table.chap td{padding:5px 6px; border-bottom:1px solid var(--line2); font-size:12px}
+  table.chap input[type=number]{text-align:center}
+
+  .mrow{display:flex; align-items:center; gap:4px; flex-wrap:wrap}
+  .mini{font:inherit; font-size:10.5px; padding:4px 8px; border-radius:8px; border:1px solid var(--line); background:var(--panel3);
+    color:var(--fg2); cursor:pointer}
+  .mini:hover{background:#e8edf8}
+  .mini.del{color:var(--danger); border-color:#fecaca; background:var(--danger-soft)}
+  .mini:disabled{opacity:.45; cursor:not-allowed}
+  .weakrow{display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line2); font-size:12px}
+
+  /* ---------- خانه ---------- */
+  .hero{
+    display:grid; grid-template-columns:1.35fr 1fr; gap:16px; align-items:stretch;
+    background:linear-gradient(135deg,#ffffff 0%,#f7f8ff 55%,#eef4ff 100%);
+    border:1px solid var(--line); border-radius:22px; padding:20px 22px; margin-bottom:14px; box-shadow:var(--sh-2);
+  }
+  @media(max-width:900px){ .hero{grid-template-columns:1fr} }
+  .hero .eyebrow{font-size:10.5px; font-weight:700; color:var(--brand); letter-spacing:.4px; margin-bottom:6px}
+  .hero h1{font-size:21px; margin-bottom:8px; line-height:1.5}
+  .hero p{font-size:12.5px; color:var(--fg2); line-height:1.95; margin-bottom:14px; max-width:52ch}
+  .hero-kpis{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-content:center}
+  .hero-kpis .stat{background:#fff; box-shadow:var(--sh-1)}
+  .hero-kpis .stat b{font-size:17px}
+  .checklist{display:grid; gap:8px}
+  .chkitem{display:flex; align-items:center; gap:10px; padding:11px 13px; border:1px solid var(--line2);
+    border-radius:var(--r); background:#fff; cursor:pointer; text-align:right; font:inherit; width:100%}
+  .chkitem:hover{border-color:var(--brand-line); background:#fcfdff}
+  .chkitem .ic{flex:0 0 26px; height:26px; border-radius:9px; display:grid; place-items:center; font-size:11px; font-weight:700;
+    background:var(--panel3); color:var(--muted)}
+  .chkitem.done .ic{background:var(--ok-soft); color:var(--ok)}
+  .chkitem.opt .ic{background:#fff; border:1px dashed var(--line3); color:var(--faint)}
+  .chkitem .tx{flex:1; min-width:0}
+  .chkitem .tx b{display:block; font-size:12.5px}
+  .chkitem .tx small{display:block; font-size:10.5px; color:var(--faint); margin-top:1px}
+  .chkitem .go{font-size:11px; color:var(--brand); font-weight:600}
+
+  /* ---------- پابرگ مرحله ---------- */
+  .stepfoot{
+    display:flex; align-items:center; gap:10px; justify-content:space-between;
+    border-top:1px solid var(--line2); padding-top:12px; margin-top:4px;
+  }
+  .stepfoot .tips{font-size:11px; color:var(--faint)}
+
+  /* ---------- سایر ---------- */
+  .spinner{width:13px; height:13px; border:2px solid rgba(255,255,255,.45); border-top-color:#fff; border-radius:50%;
+    display:inline-block; animation:sp .8s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
-  .kbd{font:11px Consolas,monospace;background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
-  .sci h4{font-size:12.5px;margin:14px 0 6px;color:#3730a3}
-  .sci p,.sci li{font-size:12px;line-height:2;color:#3b4a63}
+  .ar{font-size:15px; line-height:1; font-weight:700; opacity:.85; display:inline-block; vertical-align:-1px}
+  .kbd{font:11px Consolas,monospace; background:var(--panel3); border:1px solid var(--line); border-radius:6px; padding:1px 6px}
+  .sci h4{font-size:12.5px; margin:14px 0 6px; color:#3730a3}
+  .sci p,.sci li{font-size:12px; line-height:2; color:#3b4a63}
   .sci table{font-size:11.5px}
+  .empty{text-align:center; color:var(--muted); font-size:13px; padding:46px 10px; line-height:2}
   .toast{
-    position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
-    background:#16233a;border:1px solid #16233a;color:#f8fafc;padding:10px 18px;border-radius:12px;
-    font-size:12.5px;transition:.25s;z-index:99;box-shadow:0 18px 40px rgba(15,23,42,.28)
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:#111c33; color:#f8fafc; padding:10px 18px; border-radius:12px; font-size:12.5px;
+    transition:.25s; z-index:99; box-shadow:0 18px 40px rgba(15,23,42,.3);
   }
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  .empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 10px;line-height:2}
-  ::-webkit-scrollbar{width:10px;height:10px}
-  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  ::-webkit-scrollbar{width:10px; height:10px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1; border-radius:999px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- ریسپانسیو: بدون نوار کنار ---------- */
+  @media(max-width:820px){
+    aside{position:fixed; inset-inline-start:0; top:0; height:100%; z-index:30; transform:translateX(-100%);
+      transition:transform .2s; box-shadow:var(--sh-3)}
+    aside.open{transform:none}
+    main{padding:14px}
+  }
 </style>
 </head>
 <body>
 <header>
   <img src="../../assets/icon.png" alt="" />
-  <div>
-    <h1>مشاور هوشمند روال</h1>
-    <div class="sub">برنامه‌ریزی خودکار بر پایهٔ علم یادگیری — نه حدس</div>
+  <div class="brand">
+    <b>مشاور هوشمند روال</b>
+    <span>برنامه‌ریزی خودکار بر پایهٔ علم یادگیری</span>
   </div>
-  <div class="tabs">
-    <button class="tab active" data-view="setup">تنظیمات</button>
-    <button class="tab" data-view="plan">برنامه</button>
-    <button class="tab" data-view="report">گزارش و آنالیز</button>
-    <button class="tab" data-view="science">علمِ پشت برنامه</button>
-  </div>
+  <div class="spacer"></div>
+  <button class="hbtn" id="buildTop" title="ساخت برنامه با اطلاعات فعلی"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-inline-end:5px"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/></svg>ساخت برنامه</button>
   <button class="ver-chip" id="verChip" title="بررسی به‌روزرسانی"><span class="dot"></span> نسخهٔ <b id="verText">—</b></button>
 </header>
 
@@ -197,223 +378,440 @@
   </div>
 </div>
 
-<main>
-  <!-- ═══════════ تنظیمات ═══════════ -->
-  <section class="view active" id="view-setup">
-    <div class="card">
-      <h2>۱) دربارهٔ تو</h2>
-      <div class="grid g3">
-        <div><label>نام</label><input id="name" placeholder="مثلاً آرمان" /></div>
-        <div><label>پایه</label>
-          <select id="grade">
-            <option>دهم</option><option>یازدهم</option><option selected>دوازدهم</option><option>فارغ‌التحصیل</option>
-          </select>
-        </div>
-        <div><label>گروه آزمایشی</label>
-          <select id="field">
-            <option value="tajrobi" selected>علوم تجربی</option>
-            <option value="riazi">علوم ریاضی</option>
-            <option value="ensani">علوم انسانی</option>
-            <option value="zaban">زبان‌های خارجی</option>
-            <option value="honar">هنر</option>
-          </select>
-        </div>
-        <div><label>تیپ زیستی (چه وقتی سرت بهتر کار می‌کند؟)</label>
-          <select id="chronotype">
-            <option value="morning">صبح‌زی — صبح‌ها بهترم</option>
-            <option value="neutral" selected>متعادل</option>
-            <option value="evening">شب‌زی — شب‌ها بهترم</option>
-          </select>
-        </div>
-        <div><label>تاریخ شروع (شمسی)</label><input id="startDate" data-jdate placeholder="۱۴۰۵/۰۸/۰۷" /></div>
+<div class="app">
+  <!-- ═══════════ نوار کنار ═══════════ -->
+  <aside id="sideNav">
+    <button class="nav active" data-view="home"><span class="num"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg></span><span class="lbl">خانه<small>نمای کلی و شروع سریع</small></span></button>
+
+    <div class="sect">آماده‌سازی — ۶ قدم</div>
+    <button class="nav" data-view="step-1" data-step="1"><span class="num">۱</span><span class="lbl">دربارهٔ تو<small>پایه، رشته، تاریخ‌ها</small></span><span class="tick" hidden>✓</span></button>
+    <button class="nav" data-view="step-2" data-step="2"><span class="num">۲</span><span class="lbl">زمان‌های تو<small>ساعت مطالعه، خواب، شروع</small></span><span class="tick" hidden>✓</span></button>
+    <button class="nav" data-view="step-3" data-step="3"><span class="num">۳</span><span class="lbl">کلاس‌ها و رویدادها<small>کلاس، آزمون، روزهای تعطیل</small></span><span class="tick" hidden>✓</span></button>
+    <button class="nav" data-view="step-4" data-step="4"><span class="num">۴</span><span class="lbl">دروس و تسلط<small>فصل‌به‌فصل + عمومی‌ها</small></span><span class="tick" hidden>✓</span></button>
+    <button class="nav" data-view="step-5" data-step="5"><span class="num">۵</span><span class="lbl">سوابق تحصیلی<small>نمرات نهایی و بازهٔ خرداد</small></span><span class="tick" hidden>✓</span></button>
+    <button class="nav" data-view="step-6" data-step="6"><span class="num">۶</span><span class="lbl">مهلت‌ها و آزمون‌ها<small>مهلت کتابی، آزمون دوره‌ای</small></span><span class="tick" hidden>✓</span></button>
+
+    <div class="sect">نتیجه</div>
+    <button class="nav" data-view="plan"><span class="num"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span><span class="lbl">برنامهٔ من<small>روزبه‌روز و قابل تیک</small></span></button>
+    <button class="nav" data-view="report"><span class="num"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="lbl">گزارش و آنالیز<small>کتاب‌به‌کتاب و ظرفیت</small></span></button>
+    <button class="nav" data-view="science"><span class="num"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.2L4.8 18A2.2 2.2 0 0 0 6.7 21.4h10.6A2.2 2.2 0 0 0 19.2 18L14 9.2V3"/><path d="M7.5 15h9"/></svg></span><span class="lbl">علمِ پشت برنامه<small>هر قاعده و منبعش</small></span></button>
+
+    <div class="side-foot">
+      <button class="side-cta" id="buildSide"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-inline-end:6px"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/></svg>ساخت برنامهٔ من</button>
+      <div class="side-note" id="sideNote">اطلاعاتت خودکار ذخیره می‌شود</div>
+    </div>
+  </aside>
+
+  <main id="mainScroll">
+    <!-- ═══════════ خانه ═══════════ -->
+    <section class="view active" id="view-home">
+      <div class="hero">
         <div>
-          <label>تاریخ آزمون هدف (شمسی)</label>
-          <input id="examDate" data-jdate placeholder="۱۴۰۶/۰۴/۱۱" />
-          <select id="examDatePreset" style="margin-top:6px">
-            <option value="">— انتخاب سریع تاریخ کنکور ۱۴۰۶ —</option>
-            <option value="2027-07-02">۱۱ تیر ۱۴۰۶ (پیش‌فرض کنونی)</option>
-            <option value="2027-06-25">۴ تیر ۱۴۰۶</option>
-            <option value="2027-07-09">۱۸ تیر ۱۴۰۶</option>
-          </select>
-          <div class="muted" style="font-size:10.5px;margin-top:4px">تاریخ رسمی کنکور ۱۴۰۶ هنوز اعلام نشده؛ محاسبات روی همین تاریخ بسته می‌شود و با تغییر آن، همه‌چیز خودکار جابه‌جا می‌شود.</div>
+          <div class="eyebrow">مشاور هوشمند روال</div>
+          <h1 id="homeTitle">سلام، خوش آمدی — در ۵ دقیقه برنامه‌ات را می‌سازیم</h1>
+          <p id="homeLead">۶ قدم کوتاه جلو می‌رویم: خودت، زمان‌هایت، کلاس‌ها، دروس و تسلط، سوابق و مهلت‌ها. آخرش یک دکمه می‌زنی و برنامهٔ روزانهٔ کامل — با مرور فاصله‌دار، تست استاندارد و آزمون‌های دوره‌ای — آماده است.</p>
+          <div class="row">
+            <button class="btn primary lg" id="homeStart">شروع از قدم ۱</button>
+            <button class="btn lg" id="homeBuild">ساخت برنامه با همین اطلاعات</button>
+          </div>
+        </div>
+        <div class="hero-kpis" id="homeKpis"></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card">
+          <h2>مسیر آماده‌سازی <span class="tag" id="homeProgressTag">۰ از ۶</span></h2>
+          <p class="lead">هر قدم را که کامل کنی، تیک می‌خورد. قدم‌های اختیاری را می‌توانی رد کنی.</p>
+          <div class="checklist" id="homeSteps"></div>
+        </div>
+        <div class="card" id="homePlanCard">
+          <h2>وضعیت برنامهٔ من</h2>
+          <p class="lead" id="homePlanLead">هنوز برنامه‌ای ساخته نشده. با دکمهٔ «ساخت برنامه» شروع کن.</p>
+          <div class="grid g3" id="homePlanStats"></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" data-goto="plan">دیدن برنامه</button>
+            <button class="btn" data-goto="report">گزارش تحلیلی</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>۲) زمان‌های تو</h2>
-      <p class="muted" style="margin:0 0 10px;font-size:11.5px">همهٔ تاریخ‌ها در این برنامه <b>شمسی</b> هستند؛ روی فیلد تاریخ کلیک کن تا تقویم باز شود.</p>
-      <div class="grid g4" id="availability"></div>
-      <div class="grid g3" style="margin-top:10px">
-        <div><label>ساعت خواب</label><input id="bedtime" type="time" value="23:30" /></div>
-        <div><label>ساعت بیداری</label><input id="wake" type="time" value="07:00" /></div>
-        <div><label>روز استراحت هفتگی</label>
-          <select id="restDay">
-            <option value="5" selected>پنجشنبه</option>
-            <option value="6">جمعه</option>
-            <option value="7">بدون روز استراحت</option>
-          </select>
-        </div>
-        <div><label>طول هر بلوک (دقیقه)</label>
-          <select id="blockMinutes"><option value="25">۲۵</option><option value="45" selected>۴۵</option><option value="50">۵۰</option><option value="90">۹۰</option></select>
-        </div>
-        <div><label>استراحت بین بلوک‌ها (دقیقه)</label>
-          <select id="breakMinutes"><option value="5">۵</option><option value="10" selected>۱۰</option><option value="15">۱۵</option></select>
-        </div>
-        <div><label>آزمون‌های دوره‌ای</label>
-          <select id="weeklyMock"><option value="1" selected>فعال (در کارت ۲.۶ تنظیم می‌شود)</option><option value="0">غیرفعال</option></select>
+      <div class="card">
+        <h2>سه نکتهٔ مهم قبل از شروع</h2>
+        <div class="grid g3">
+          <div class="soft"><b style="font-size:12.5px">۱. ساعت واقعی‌ات را بنویس</b>
+            <div class="muted" style="margin-top:4px">برنامه دقیقاً روی همان ساعتی چیده می‌شود که اعلام می‌کنی؛ اگر کم باشد، خودش می‌گوید حداقل چند ساعت لازم است.</div></div>
+          <div class="soft"><b style="font-size:12.5px">۲. تسلط را صادقانه بزن</b>
+            <div class="muted" style="margin-top:4px">فصل ضعیف «جبران» می‌گیرد، فصل متوسط «تست هدفمند» و فصل قوی «مرور فاصله‌دار».</div></div>
+          <div class="soft"><b style="font-size:12.5px">۳. بعد از ساخت، تیک بزن</b>
+            <div class="muted" style="margin-top:4px">هر بلوکی که انجام دادی را تیک بزن؛ روزهای ازدست‌رفته خودکار بازچینش می‌شوند.</div></div>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>۲.۶) آزمون‌های دوره‌ای <span class="muted" style="font-size:11px;font-weight:400">(هر روز هفته · هر ۱ تا ۴ هفته · چند آزمون در یک روز)</span></h2>
-      <p class="muted" style="margin:0 0 10px;font-size:11.5px">
-        هر آزمونی که واقعاً می‌دهی را اینجا بنویس — مثلاً «زیستاز» پنجشنبه‌های فرد و «آلفا» پنجشنبه‌های زوج.
-        موتور روزِ آزمون را به‌عنوان بلوک ثابت می‌چیند، روزهای قبلش را سبک می‌کند و بلوک «تحلیل آزمون» را بلافاصله بعدش می‌گذارد.
-      </p>
-      <div id="mockRows"></div>
-      <div class="row" style="margin-top:6px">
-        <button class="btn small" id="addMock">+ افزودن آزمون دوره‌ای</button>
-        <button class="btn ghost small" id="suggestMocks">پیشنهاد هوشمند</button>
-        <span class="muted" style="font-size:11px;margin-inline-start:auto">اگر خالی بگذاری، یک آزمون جامع هفتگی ساده چیده می‌شود.</span>
+    </section>
+    <!-- ═══════════ قدم ۱: دربارهٔ تو ═══════════ -->
+    <section class="view" id="view-step-1">
+      <div class="pagehead">
+        <div class="stepno">۱</div>
+        <div class="tt">
+          <h1>دربارهٔ تو</h1>
+          <p>پایه، رشته و دو تاریخ مهم. همین‌ها ستون کل برنامه‌اند.</p>
+        </div>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>۲.۵) ساعت شروع مطالعهٔ هر روز <span class="muted" style="font-size:11px;font-weight:400">(برنامه از این ساعت به بعد چیده می‌شود)</span></h2>
-      <div class="grid g4" id="startTimes"></div>
-    </div>
-
-    <div class="card">
-      <h2>۴.۵) روزهای خارج از برنامه <span class="muted" style="font-size:11px;font-weight:400">(سفر، بیماری، مهمانی — برنامه خودش را بازچینش می‌کند)</span></h2>
-      <p class="muted" style="margin-top:0;font-size:11.5px">«تعطیل کامل» = آن روز هیچ بلوکی چیده نمی‌شود و کارها به روزهای بعد می‌روند. «روز سبک» = فقط نیمی از بار عادی.</p>
-      <div id="offRows"></div>
-      <button class="btn ghost small" id="addOff" style="margin-top:8px">+ افزودن روز خارج از برنامه</button>
-    </div>
-
-    <div class="card">
-      <h2>۳) کلاس‌های آنلاین هفتگی <span class="muted" style="font-size:11px;font-weight:400">(رویداد ثابت — برنامه دور این‌ها چیده می‌شود)</span></h2>
-      <p class="muted" style="margin-top:0">هر کلاس را با روز و ساعت وارد کن. بعد از هر کلاس، برنامه خودش یک بلوک «تثبیت کلاس» می‌گذارد.</p>
-      <div id="classRows"></div>
-      <button class="btn ghost small" id="addClass" style="margin-top:8px">+ افزودن کلاس</button>
-    </div>
-
-    <div class="card">
-      <h2>۴) آزمون‌های آزمایشی <span class="muted" style="font-size:11px;font-weight:400">(تاریخ‌دار — ۳ روز آخر قبل از هر آزمون خودکار «فقط مرور» می‌شود)</span></h2>
-      <p class="muted" style="margin-top:0">با ثبت آزمون‌ها، سه روز آخر قبل از هر آزمون خودکار «فقط مرور» می‌شود و روز بعد از آزمون بلوک «تحلیل خطا» می‌گیرد.</p>
-      <div id="examRows"></div>
-      <button class="btn ghost small" id="addExam" style="margin-top:8px">+ افزودن آزمون</button>
-    </div>
-
-    <div class="card">
-      <h2>۵) دروس اختصاصی و ضرایب <span class="muted" style="font-size:11px;font-weight:400">(ارزیابی فصل‌به‌فصل در بخش ۶)</span></h2>
-      <p class="muted" style="margin-top:0">«تسلط» را صادقانه بگذار (۰ = هیچ، ۱۰۰ = مطمئنم). درصد آزمون آخر اختیاری است و برنامه را دقیق‌تر می‌کند.</p>
-      <table id="subjects"></table>
-      <div class="row" style="margin-top:10px">
-        <button class="btn ghost small" id="resetSubjects">بازگردانی دروس پیش‌فرض گروه</button>
-        <span class="muted" style="font-size:11px">ضرایب پیش‌فرض‌اند؛ اگر رشتهٔ هدف تو زیرگروه خاصی دارد، عدد را عوض کن.</span>
+      <div class="card">
+        <h2>مشخصات پایه</h2>
+        <p class="lead">نام فقط برای شخصی‌سازی متن‌های برنامه است.</p>
+        <div class="grid g3">
+          <div><label>نام</label><input id="name" placeholder="مثلاً آرمان" /></div>
+          <div><label>پایه</label>
+            <select id="grade">
+              <option>دهم</option><option>یازدهم</option><option selected>دوازدهم</option><option>فارغ‌التحصیل</option>
+            </select>
+          </div>
+          <div><label>گروه آزمایشی</label>
+            <select id="field">
+              <option value="tajrobi" selected>علوم تجربی</option>
+              <option value="riazi">علوم ریاضی</option>
+              <option value="ensani">علوم انسانی</option>
+              <option value="zaban">زبان‌های خارجی</option>
+              <option value="honar">هنر</option>
+            </select>
+          </div>
+          <div><label>تیپ زیستی (چه وقتی سرت بهتر کار می‌کند؟)</label>
+            <select id="chronotype">
+              <option value="morning">صبح‌زی — صبح‌ها بهترم</option>
+              <option value="neutral" selected>متعادل</option>
+              <option value="evening">شب‌زی — شب‌ها بهترم</option>
+            </select>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="card" id="assessCard">
-      <h2>۶) ارزیابی فصل به فصل <span class="muted" style="font-size:11px;font-weight:400">— مهم‌ترین بخش: چه فصل‌هایی را خوانده‌ای و چقدر مسلطی؟</span></h2>
-      <p class="muted" style="margin:0 0 10px;font-size:11.5px">
-        روی هر درس کلیک کن تا فهرست فصل‌های کتابش باز شود. برای هر فصل «خوانده‌ام» را تیک بزن و درصد تسلطت را وارد کن
-        (۰ = هیچ، ۱۰۰ = کامل). برنامه بر همین اساس ساخته می‌شود: فصل تیک‌نخورده ← <b>یادگیری از صفر</b>،
-        تسلط زیر ۴۵٪ ← <b>جبران و بازآموزی</b>، بین ۴۵ تا ۷۵٪ ← <b>ارتقا با تست هدفمند</b>، بالای ۷۵٪ ← <b>فقط مرور فاصله‌دار</b>.
-      </p>
-      <div id="assessment"></div>
-    </div>
+      <div class="card">
+        <h2>تاریخ‌ها <span class="tag">شمسی</span></h2>
+        <p class="lead">همهٔ تاریخ‌ها در این برنامه شمسی است؛ روی فیلد کلیک کن تا تقویم باز شود.</p>
+        <div class="grid g2">
+          <div><label>تاریخ شروع</label><input id="startDate" data-jdate placeholder="۱۴۰۵/۰۸/۰۷" /></div>
+          <div>
+            <label>تاریخ آزمون هدف (کنکور)</label>
+            <input id="examDate" data-jdate placeholder="۱۴۰۶/۰۴/۱۱" />
+            <select id="examDatePreset" style="margin-top:6px">
+              <option value="">— انتخاب سریع تاریخ کنکور ۱۴۰۶ —</option>
+              <option value="2027-07-02">۱۱ تیر ۱۴۰۶ (پیش‌فرض کنونی)</option>
+              <option value="2027-06-25">۴ تیر ۱۴۰۶</option>
+              <option value="2027-07-09">۱۸ تیر ۱۴۰۶</option>
+            </select>
+          </div>
+        </div>
+        <div class="hintline">تاریخ رسمی کنکور ۱۴۰۶ هنوز اعلام نشده؛ محاسبات روی همین تاریخ بسته می‌شود و با تغییر آن، همه‌چیز خودکار جابه‌جا می‌شود.</div>
+      </div>
 
-    <div class="card">
-      <h2>۷) دروس عمومی <span class="muted" style="font-size:11px;font-weight:400">(فارسی، عربی، دین و زندگی، زبان انگلیسی)</span></h2>
-      <p class="muted" style="margin-top:0">
-        فصل‌بندی بر اساس کتاب درسی رسمی است (فارسی: ۸ فصل · دینی: ۱۲/۱۲/۱۰ درس · عربی: ۸/۷/۴ درس ·
-        انگلیسی: ۴ درس · سلامت و بهداشت: ۱۴ درس و هویت اجتماعی: ۱۰ درس در پایهٔ دوازدهم).
-        هر پایه‌ای را لازم داری همان را تیک بزن؛ عمومی‌ها هم مثل دروس اختصاصی سهم زمانی و مرور فاصله‌دار می‌گیرند.
-        اسم درس یا تعداد درس‌ها با کتاب مدرسه‌ات فرق داشت؟ همین‌جا عوضش کن.
-      </p>
-      <div class="row" style="margin-bottom:10px;align-items:center">
-        <span class="muted" style="font-size:11.5px;font-weight:600">پایه‌هایی که عمومی‌هایش را می‌خواهی:</span>
-        <div class="row" id="generalGrades" style="gap:6px"></div>
-        <span class="muted" style="font-size:11px">(می‌توانی فقط دوازدهم را انتخاب کنی)</span>
+      <div class="stepfoot">
+        <span class="tips">همه‌چیز خودکار ذخیره می‌شود</span>
+        <div class="row">
+          <button class="btn" data-goto="home">خانه</button>
+          <button class="btn primary" data-next="2">بعدی: زمان‌های من <span class="ar">‹</span></button>
+        </div>
       </div>
-      <div class="row" style="margin-bottom:8px">
-        <button class="btn ghost small" id="toggleGeneral">همه / هیچ</button>
-        <button class="btn ghost small" id="resetGeneral">بازگردانی عمومی‌های پایه‌های انتخابی</button>
-        <span class="muted" style="font-size:11px">اگر مدرسه‌ات عمومی‌ها را جدا امتحان می‌گیرد، ضریبشان را بالاتر ببر.</span>
-      </div>
-      <table id="general"></table>
-    </div>
+    </section>
 
-    <div class="card" id="deadlineCard">
-      <h2>۸) مهلت‌های کلی — «این کتاب را تا این تاریخ تمام کن»</h2>
-      <p class="muted" style="margin-top:0;font-size:11.5px">
-        مدل اولِ مهلت‌بندی: کل یک کتاب (مثلاً همهٔ فصل‌های زیست) تا یک تاریخ مشخص خوانده <b>و به تثبیت</b> برسد.
-        موتور برنامه، سهم آن درس را خودکار بالا می‌برد تا مهلت محقق شود؛ اگر ساعت‌ها کافی نباشد، صریح می‌گوید چه‌قدر کم است.
-      </p>
-      <div id="bookDeadlineRows"></div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn ghost small" id="addBookDeadline">+ افزودن مهلت کتابی</button>
-        <button class="btn ghost small" id="suggestBookDeadlines">پیشنهاد هوشمند (همه تا پایان اسفند)</button>
+    <!-- ═══════════ قدم ۲: زمان‌های تو ═══════════ -->
+    <section class="view" id="view-step-2">
+      <div class="pagehead">
+        <div class="stepno">۲</div>
+        <div class="tt">
+          <h1>زمان‌های تو</h1>
+          <p>چند ساعت در روز واقعاً می‌توانی بخوانی و از چه ساعتی شروع می‌کنی.</p>
+        </div>
       </div>
-    </div>
 
-    <div class="card" id="shortDeadlineCard">
-      <h2>۹) مهلت‌های کوتاه — آزمون تک‌درس و آزمون جامع</h2>
-      <p class="muted" style="margin-top:0;font-size:11.5px">
-        مدل دومِ مهلت‌بندی: آزمون‌های تک‌درس (مثلاً «فصل ۲ زیست») و آزمون‌های جامع.
-        دو روز آخر قبل از هر آزمون، موتور خودش بلوک «آماده‌سازی مهلت» از همان محدوده می‌چیند.
-      </p>
-      <div id="shortDeadlineRows"></div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn ghost small" id="addShortDeadline">+ افزودن آزمون تک‌درس / جامع</button>
+      <div class="card">
+        <h2>ساعت مطالعهٔ هر روز</h2>
+        <p class="lead">ساعت واقعی، نه آرزو. برنامه دقیقاً روی همین اعداد چیده می‌شود — تا ۱۲ ساعت در روز هم پشتیبانی می‌شود.</p>
+        <div class="grid" id="availability" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px"></div>
       </div>
-    </div>
 
-    <div class="card" id="finalsCard">
-      <h2>۱۰) سوابق تحصیلی (امتحانات نهایی) — ۶۰٪ نمرهٔ ۱۴۰۶</h2>
-      <p class="muted" style="margin-top:0;font-size:11.5px">
-        سوابق ۶۰٪ نمرهٔ کنکور ۱۴۰۶ است: دوازدهم ۴۳٪ و یازدهم ۱۷٪. نمرهٔ فعلی و هدف هر درس را بنویس؛
-        اگر نمره‌ای ثبت نشود، موتور <b>فرض ۱۲</b> می‌گذارد و در گزارش اعلام می‌کند. برنامه از همین امروز
-        هفته‌ای یک جلسهٔ سوابق می‌چیند و در بازهٔ خرداد، بخش اصلی روز را به نهایی می‌دهد.
-      </p>
-      <div class="grid g4">
-        <div><label>لایهٔ سوابق در برنامه</label>
-          <select id="finalsEnabled"><option value="1" selected>فعال</option><option value="0">غیرفعال</option></select></div>
-        <div><label>پایهٔ امتحانات</label>
-          <select id="finalsGrade"><option value="دوازدهم" selected>دوازدهم</option><option value="یازدهم">یازدهم</option></select></div>
-        <div><label>شروع بازهٔ نهایی (شمسی)</label><input id="finalsStart" data-jdate placeholder="۱۴۰۶/۰۲/۳۰" /></div>
-        <div><label>پایان بازهٔ نهایی (شمسی)</label><input id="finalsEnd" data-jdate placeholder="۱۴۰۶/۰۴/۰۴" /></div>
+      <div class="card">
+        <h2>ساعت شروع مطالعهٔ هر روز</h2>
+        <p class="lead">برنامه از این ساعت به بعد چیده می‌شود (بعد از مدرسه/کلاس).</p>
+        <div class="grid" id="startTimes" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px"></div>
       </div>
-      <div class="grid g4" style="margin-top:8px">
-        <div><label>جلسهٔ هفتگی سوابق در طول سال</label>
-          <select id="finalsSpread"><option value="1" selected>بله — هر هفته یک جلسه</option><option value="0">نه — فقط خرداد</option></select></div>
-        <div><label>طول جلسهٔ هفتگی (دقیقه)</label>
-          <select id="finalsSpreadMinutes"><option value="30">۳۰</option><option value="45" selected>۴۵</option><option value="60">۶۰</option><option value="90">۹۰</option></select></div>
-        <div><label>&nbsp;</label><button class="btn ghost small" id="finalsDefaults">بازگردانی درس‌های این پایه</button></div>
-      </div>
-      <table id="finalsTable" class="chap" style="margin-top:10px"></table>
-    </div>
 
-    <div class="card">
-      <div class="row end">
-        <span class="muted" style="margin-inline-end:auto;font-size:11.5px">خروجی: برنامهٔ روزانه + مرورهای فاصله‌دار + آزمون جامع + دفتر خطا</span>
-        <button class="btn primary" id="build">ساخت برنامهٔ من</button>
+      <div class="card">
+        <h2>خواب و ساختار بلوک‌ها</h2>
+        <div class="grid g4">
+          <div><label>ساعت خواب</label><input id="bedtime" type="time" value="23:30" /></div>
+          <div><label>ساعت بیداری</label><input id="wake" type="time" value="07:00" /></div>
+          <div><label>روز استراحت هفتگی</label>
+            <select id="restDay">
+              <option value="5" selected>پنجشنبه</option>
+              <option value="6">جمعه</option>
+              <option value="7">بدون روز استراحت</option>
+            </select>
+          </div>
+          <div><label>طول هر بلوک (دقیقه)</label>
+            <select id="blockMinutes"><option value="25">۲۵</option><option value="45" selected>۴۵</option><option value="50">۵۰</option><option value="90">۹۰</option></select>
+          </div>
+          <div><label>استراحت بین بلوک‌ها (دقیقه)</label>
+            <select id="breakMinutes"><option value="5">۵</option><option value="10" selected>۱۰</option><option value="15">۱۵</option></select>
+          </div>
+        </div>
       </div>
-    </div>
-  </section>
+
+      <div class="stepfoot">
+        <span class="tips">راهنما: بیشتر از توانت ننویس؛ هشدار کمبود را خود برنامه می‌دهد</span>
+        <div class="row">
+          <button class="btn" data-back="1"><span class="ar">›</span> قبلی</button>
+          <button class="btn primary" data-next="3">بعدی: کلاس‌ها <span class="ar">‹</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ قدم ۳: کلاس‌ها و رویدادها ═══════════ -->
+    <section class="view" id="view-step-3">
+      <div class="pagehead">
+        <div class="stepno">۳</div>
+        <div class="tt">
+          <h1>کلاس‌ها و رویدادها</h1>
+          <p>هر چیزی که ساعتش ثابت است: کلاس، آزمون، سفر. برنامه دور این‌ها چیده می‌شود.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>کلاس‌های آنلاین / حضوری <span class="tag">هفتگی</span></h2>
+        <p class="lead">بعد از هر کلاس، برنامه خودش یک بلوک «تثبیت کلاس» می‌گذارد.</p>
+        <div id="classRows"></div>
+        <button class="btn ghost small" id="addClass" style="margin-top:8px">+ افزودن کلاس</button>
+      </div>
+
+      <div class="card">
+        <h2>آزمون‌های آزمایشی تاریخ‌دار <span class="tag">اختیاری</span></h2>
+        <p class="lead">۳ روز آخر قبل از هر آزمون خودکار «فقط مرور» می‌شود و روز بعد بلوک «تحلیل خطا» می‌گیرد.</p>
+        <div id="examRows"></div>
+        <button class="btn ghost small" id="addExam" style="margin-top:8px">+ افزودن آزمون</button>
+      </div>
+
+      <div class="card">
+        <h2>روزهای خارج از برنامه <span class="tag">اختیاری</span></h2>
+        <p class="lead">«تعطیل کامل» = آن روز هیچ بلوکی چیده نمی‌شود و کارها به روزهای بعد می‌روند. «روز سبک» = فقط نیمی از بار عادی.</p>
+        <div id="offRows"></div>
+        <button class="btn ghost small" id="addOff" style="margin-top:8px">+ افزودن روز خارج از برنامه</button>
+      </div>
+
+      <div class="stepfoot">
+        <span class="tips">این قدم اختیاری است</span>
+        <div class="row">
+          <button class="btn" data-back="2"><span class="ar">›</span> قبلی</button>
+          <button class="btn primary" data-next="4">بعدی: دروس و تسلط <span class="ar">‹</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ قدم ۴: دروس و تسلط ═══════════ -->
+    <section class="view" id="view-step-4">
+      <div class="pagehead">
+        <div class="stepno">۴</div>
+        <div class="tt">
+          <h1>دروس و تسلط</h1>
+          <p>مهم‌ترین قدم: چه فصل‌هایی را خوانده‌ای و چقدر مسلطی.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>دروس اختصاصی و ضرایب</h2>
+        <p class="lead">«تسلط» را صادقانه بگذار (۰ = هیچ، ۱۰۰ = مطمئنم). درصد آزمون آخر اختیاری است و برنامه را دقیق‌تر می‌کند.</p>
+        <table id="subjects"></table>
+        <div class="row" style="margin-top:10px">
+          <button class="btn ghost small" id="resetSubjects">بازگردانی دروس پیش‌فرض گروه</button>
+          <span class="muted" style="font-size:11px">ضرایب پیش‌فرض‌اند؛ اگر رشتهٔ هدف تو زیرگروه خاصی دارد، عدد را عوض کن.</span>
+        </div>
+      </div>
+
+      <div class="card" id="assessCard">
+        <h2>ارزیابی فصل به فصل <span class="tag">قلب برنامه</span></h2>
+        <p class="lead">
+          روی هر درس کلیک کن تا فهرست فصل‌های کتابش باز شود. برای هر فصل «خوانده‌ام» را تیک بزن و درصد تسلطت را وارد کن.
+          فصل تیک‌نخورده <span class="ar">‹</span> <b>یادگیری از صفر</b>، تسلط زیر ۴۵٪ <span class="ar">‹</span> <b>جبران و بازآموزی</b>،
+          ۴۵ تا ۷۵٪ <span class="ar">‹</span> <b>ارتقا با تست هدفمند</b>، بالای ۷۵٪ <span class="ar">‹</span> <b>فقط مرور فاصله‌دار</b>.
+        </p>
+        <div id="assessment"></div>
+      </div>
+
+      <div class="card">
+        <h2>دروس عمومی</h2>
+        <p class="lead">
+          فصل‌بندی بر اساس کتاب درسی رسمی است (فارسی: ۸ فصل · دینی: ۱۲/۱۲/۱۰ درس · عربی: ۸/۷/۴ درس ·
+          انگلیسی: ۴ درس · سلامت و بهداشت: ۱۴ درس و هویت اجتماعی: ۱۰ درس در پایهٔ دوازدهم).
+        </p>
+        <div class="row" style="margin-bottom:10px;align-items:center">
+          <span class="muted" style="font-size:11.5px;font-weight:600">پایه‌هایی که عمومی‌هایش را می‌خواهی:</span>
+          <div class="row" id="generalGrades" style="gap:6px"></div>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn ghost small" id="toggleGeneral">همه / هیچ</button>
+          <button class="btn ghost small" id="resetGeneral">بازگردانی عمومی‌های پایه‌های انتخابی</button>
+        </div>
+        <table id="general"></table>
+      </div>
+
+      <div class="stepfoot">
+        <span class="tips">هر فصل فقط یک‌بار ارزیابی می‌شود</span>
+        <div class="row">
+          <button class="btn" data-back="3"><span class="ar">›</span> قبلی</button>
+          <button class="btn primary" data-next="5">بعدی: سوابق تحصیلی <span class="ar">‹</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ قدم ۵: سوابق تحصیلی ═══════════ -->
+    <section class="view" id="view-step-5">
+      <div class="pagehead">
+        <div class="stepno">۵</div>
+        <div class="tt">
+          <h1>سوابق تحصیلی (نهایی)</h1>
+          <p>۶۰٪ نمرهٔ ۱۴۰۶ از همین‌جا می‌آید — دوازدهم ۴۳٪ و یازدهم ۱۷٪.</p>
+        </div>
+      </div>
+
+      <div class="card" id="finalsCard">
+        <h2>نمرات و بازهٔ خرداد</h2>
+        <p class="lead">
+          نمرهٔ فعلی و هدف هر درس را بنویس؛ اگر نمره‌ای ثبت نشود، موتور <b>فرض ۱۲</b> می‌گذارد و در گزارش اعلام می‌کند.
+          برنامه از همین امروز هفته‌ای یک جلسهٔ سوابق می‌چیند و در بازهٔ خرداد، بخش اصلی روز را به نهایی می‌دهد.
+        </p>
+        <div class="grid g4">
+          <div><label>لایهٔ سوابق در برنامه</label>
+            <select id="finalsEnabled"><option value="1" selected>فعال</option><option value="0">غیرفعال</option></select></div>
+          <div><label>پایهٔ امتحانات</label>
+            <select id="finalsGrade"><option value="دوازدهم" selected>دوازدهم</option><option value="یازدهم">یازدهم</option></select></div>
+          <div><label>شروع بازهٔ نهایی (شمسی)</label><input id="finalsStart" data-jdate placeholder="۱۴۰۶/۰۲/۳۰" /></div>
+          <div><label>پایان بازهٔ نهایی (شمسی)</label><input id="finalsEnd" data-jdate placeholder="۱۴۰۶/۰۴/۰۴" /></div>
+          <div><label>جلسهٔ هفتگی سوابق در طول سال</label>
+            <select id="finalsSpread"><option value="1" selected>بله — هر هفته یک جلسه</option><option value="0">نه — فقط خرداد</option></select></div>
+          <div><label>طول جلسهٔ هفتگی (دقیقه)</label>
+            <select id="finalsSpreadMinutes"><option value="30">۳۰</option><option value="45" selected>۴۵</option><option value="60">۶۰</option><option value="90">۹۰</option></select></div>
+          <div><label>&nbsp;</label><button class="btn ghost small" id="finalsDefaults">بازگردانی درس‌های این پایه</button></div>
+        </div>
+        <table id="finalsTable" class="chap" style="margin-top:10px"></table>
+      </div>
+
+      <div class="stepfoot">
+        <span class="tips">نمرهٔ ۲۰ هدف، بهترین حالت است</span>
+        <div class="row">
+          <button class="btn" data-back="4"><span class="ar">›</span> قبلی</button>
+          <button class="btn primary" data-next="6">بعدی: مهلت‌ها <span class="ar">‹</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ قدم ۶: مهلت‌ها و آزمون‌ها ═══════════ -->
+    <section class="view" id="view-step-6">
+      <div class="pagehead">
+        <div class="stepno">۶</div>
+        <div class="tt">
+          <h1>مهلت‌ها و آزمون‌ها</h1>
+          <p>اگر تاریخ مشخصی داری اینجا بنویس؛ اگر نه، رد کن — برنامه خودش مسیر پیش‌فرض را می‌چیند.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>آزمون‌های دوره‌ای <span class="tag">هر روز هفته</span></h2>
+        <p class="lead">
+          هر آزمونی که واقعاً می‌دهی را بنویس — مثلاً «زیستاز» و «آلفا» هر دو پنجشنبهٔ فرد.
+          موتور روز آزمون را بلوک ثابت می‌چیند، روزهای قبلش را سبک می‌کند و بلوک «تحلیل آزمون» را بلافاصله بعدش می‌گذارد.
+        </p>
+        <div class="grid g4" style="margin-bottom:10px">
+          <div><label>وضعیت آزمون‌های دوره‌ای</label>
+            <select id="weeklyMock"><option value="1" selected>فعال</option><option value="0">غیرفعال</option></select>
+          </div>
+        </div>
+        <div id="mockRows"></div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn small" id="addMock">+ افزودن آزمون دوره‌ای</button>
+          <button class="btn ghost small" id="suggestMocks">پیشنهاد هوشمند</button>
+          <span class="muted" style="font-size:11px;margin-inline-start:auto">اگر خالی بگذاری، یک آزمون جامع هفتگی ساده چیده می‌شود.</span>
+        </div>
+      </div>
+
+      <div class="card" id="deadlineCard">
+        <details class="adv">
+          <summary>
+            <span class="adv-t">مهلت‌های کلی کتاب</span>
+            <span class="adv-s">«این کتاب را تا این تاریخ تمام کن» — <span id="bookDeadlineCount">۰</span> مهلت</span>
+          </summary>
+          <p class="lead" style="margin-top:10px">
+            کل یک کتاب (مثلاً همهٔ فصل‌های زیست) تا یک تاریخ مشخص خوانده <b>و به تثبیت</b> برسد.
+            موتور سهم آن درس را خودکار بالا می‌برد؛ اگر ساعت‌ها کافی نباشد، صریح می‌گوید چه‌قدر کم است.
+          </p>
+          <div id="bookDeadlineRows"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn ghost small" id="addBookDeadline">+ افزودن مهلت کتابی</button>
+            <button class="btn ghost small" id="suggestBookDeadlines">پیشنهاد هوشمند (همه تا پایان اسفند)</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="card" id="shortDeadlineCard">
+        <details class="adv">
+          <summary>
+            <span class="adv-t">مهلت‌های کوتاه (آزمون تک‌درس / جامع)</span>
+            <span class="adv-s"><span id="shortDeadlineCount">۰</span> مهلت ثبت‌شده</span>
+          </summary>
+          <p class="lead" style="margin-top:10px">دو روز آخر قبل از هر آزمون، موتور خودش بلوک «آماده‌سازی مهلت» از همان محدوده می‌چیند.</p>
+          <div id="shortDeadlineRows"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn ghost small" id="addShortDeadline">+ افزودن آزمون تک‌درس / جامع</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="card" style="background:linear-gradient(135deg,#f7f8ff,#eef4ff);border-color:var(--brand-line)">
+        <div class="row between">
+          <div>
+            <h2 style="margin-bottom:2px">همه‌چیز آماده است؟</h2>
+            <div class="muted">با یک کلیک برنامهٔ کامل روزبه‌روز ساخته می‌شود.</div>
+          </div>
+          <button class="btn primary lg" id="build">ساخت برنامهٔ من</button>
+        </div>
+      </div>
+
+      <div class="stepfoot">
+        <span class="tips">بعد از ساخت، می‌توانی هر وقت اطلاعات را عوض کنی و دوباره بسازی</span>
+        <div class="row">
+          <button class="btn" data-back="5"><span class="ar">›</span> قبلی</button>
+          <button class="btn" data-goto="home">خانه</button>
+        </div>
+      </div>
+    </section>
 
   <!-- ═══════════ برنامه ═══════════ -->
+    <!-- ═══════════ برنامه ═══════════ -->
   <section class="view" id="view-plan">
+    <div class="pagehead">
+      <div class="stepno"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></div>
+      <div class="tt"><h1>برنامهٔ من</h1><p>روزبه‌روز، قابل تیک‌زدن و قابل بازچینش</p></div>
+    </div>
     <div id="planEmpty" class="empty">
       هنوز برنامه‌ای ساخته نشده.<br />
       برو به تب «تنظیمات»، اطلاعاتت را وارد کن و «ساخت برنامهٔ من» را بزن.
     </div>
     <div id="planBody" style="display:none">
-      <div class="grid g4" id="stats"></div>
-      <div class="card" style="margin-top:12px">
+      <div class="grid g3" id="stats"></div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="row" style="margin-bottom:10px">
+          <h2 style="margin:0">برنامهٔ روزانه</h2>
+          <div class="row" style="margin-inline-start:auto">
+            <button class="btn ghost small" id="todayBtn">امروز</button>
+            <button class="btn ghost small" id="prevWeek">هفتهٔ قبل</button>
+            <span id="weekLabel" class="muted" style="font-size:12px"></span>
+            <button class="btn ghost small" id="nextWeek">هفتهٔ بعد</button>
+          </div>
+        </div>
+        <div class="days" id="dayPills"></div>
+        <div id="dayView"></div>
+      </div>
+
+      <div class="card">
         <h2>مشاور: آمادگی و نقشهٔ جبران</h2>
         <div class="grid g4" id="coachStats" style="margin-bottom:10px"></div>
         <div id="coachVerdict" style="font-size:12px;margin-bottom:10px"></div>
@@ -431,18 +829,6 @@
       <div class="card">
         <h2>توزیع زمان بر اساس درس</h2>
         <div id="subjectBars"></div>
-      </div>
-      <div class="card">
-        <div class="row" style="margin-bottom:10px">
-          <h2 style="margin:0">برنامهٔ روزانه</h2>
-          <div class="row" style="margin-inline-start:auto">
-            <button class="btn ghost small" id="prevWeek">هفتهٔ قبل</button>
-            <span id="weekLabel" class="muted" style="font-size:12px"></span>
-            <button class="btn ghost small" id="nextWeek">هفتهٔ بعد</button>
-          </div>
-        </div>
-        <div class="days" id="dayPills"></div>
-        <div id="dayView"></div>
       </div>
       <div class="card">
         <h2>خروجی و بازتنظیم</h2>
@@ -475,10 +861,23 @@
 
   <!-- ═══════════ گزارش ═══════════ -->
   <section class="view" id="view-report">
+    <div class="pagehead">
+      <div class="stepno"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg></div>
+      <div class="tt"><h1>گزارش و آنالیز</h1><p>کتاب‌به‌کتاب، فصل‌به‌فصل، ظرفیت تست و سوابق</p></div>
+    </div>
     <div id="reportEmpty" class="empty">
       هنوز برنامه‌ای ساخته نشده.<br />اول در تب «تنظیمات» برنامه را بساز؛ بعد این‌جا کتاب‌به‌کتاب و فصل‌به‌فصل می‌بینی.
     </div>
     <div id="reportBody" style="display:none">
+      <div class="jumprow" id="reportJump">
+        <button class="jump" data-jump="capacityCard">ظرفیت ساعت</button>
+        <button class="jump" data-jump="testCapacityCard">ظرفیت تست</button>
+        <button class="jump" data-jump="mocksCard">آزمون‌ها</button>
+        <button class="jump" data-jump="deadlinesCard">مهلت‌ها</button>
+        <button class="jump" data-jump="finalsReportCard">سوابق</button>
+        <button class="jump" data-jump="bookCard">کتاب‌به‌کتاب</button>
+        <button class="jump" data-jump="chapterCard">فصل‌به‌فصل</button>
+      </div>
       <div class="grid g4" id="reportStats"></div>
 
       <div class="card" id="capacityCard" style="margin-top:12px">
@@ -486,7 +885,7 @@
         <div id="capacityBox"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="testCapacityCard">
         <h2>ظرفیت تست هر درس (استاندارد)</h2>
         <p class="muted" style="margin-top:0;font-size:11.5px">
           «لازم» از حجم واقعی فصل‌ها می‌آید (مفهومی ~۵۵ تست، محاسباتی ~۴۵ تست به ازای هر فصل × ضریب سختی)،
@@ -495,12 +894,12 @@
         <div id="testCapacityTable" class="tablewrap"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="mocksCard">
         <h2>آزمون‌های دوره‌ای</h2>
         <div id="mocksReport"></div>
       </div>
 
-      <div class="card" style="margin-top:12px">
+      <div class="card" id="deadlinesCard">
         <h2>مهلت‌ها — آیا به تاریخ‌ها می‌رسی؟</h2>
         <p class="muted" style="margin-top:0;font-size:11.5px">مدل کتابی (کل کتاب تا یک تاریخ) و مدل کوتاه (آزمون تک‌درس/جامع). وضعیت بر پایهٔ همین برنامه محاسبه می‌شود، نه حدس.</p>
         <h3>مهلت‌های کتابی</h3>
@@ -514,12 +913,12 @@
         <div id="finalsReport"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="bookCard">
         <h2>کتاب‌به‌کتاب</h2>
         <div id="bookTable" class="tablewrap"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="chapterCard">
         <h2>فصل‌به‌فصل — مسیر، باقی‌مانده و پیشرفت</h2>
         <div class="row" style="margin-bottom:8px">
           <select id="reportBook" style="max-width:220px"></select>
@@ -548,6 +947,10 @@
 
   <!-- ═══════════ علم ═══════════ -->
   <section class="view sci" id="view-science">
+    <div class="pagehead">
+      <div class="stepno"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.2L4.8 18A2.2 2.2 0 0 0 6.7 21.4h10.6A2.2 2.2 0 0 0 19.2 18L14 9.2V3"/><path d="M7.5 15h9"/></svg></div>
+      <div class="tt"><h1>علمِ پشت برنامه</h1><p>هر قاعده‌ای که در برنامه‌ات می‌بینی، از یک یافتهٔ پژوهشی می‌آید</p></div>
+    </div>
     <div class="card">
       <h2>این برنامه از کجا می‌آید؟</h2>
       <p>هر بلوکی که می‌بینی از یک یافتهٔ پژوهشی می‌آید، نه از سلیقه. خلاصهٔ قواعد و پشتوانه‌شان:</p>
@@ -578,13 +981,38 @@
       </p>
     </div>
   </section>
-</main>
-
+  </main>
+</div>
 <style>
-  .dyn-row{display:grid;gap:8px;align-items:end;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+  /* چیپ‌های پرش در گزارش */
+  .jumprow{display:flex; gap:7px; flex-wrap:wrap; margin:0 0 14px; position:sticky; top:0; z-index:5;
+    padding:8px 0; background:linear-gradient(#f4f6fb 70%,rgba(244,246,251,0))}
+  .jump{border:1px solid var(--line3); background:#fff; color:var(--fg2); border-radius:999px;
+    padding:6px 13px; font:inherit; font-size:11.5px; font-weight:600; cursor:pointer; box-shadow:var(--sh-1)}
+  .jump:hover{border-color:var(--brand-line); color:var(--brand); background:var(--brand-soft)}
+  .jump.on{background:var(--brand); border-color:var(--brand); color:#fff}
+  /* بخش‌های پیشرفتهٔ تاشو */
+  .adv > summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .adv > summary::-webkit-details-marker{display:none}
+  .adv > summary::after{content:'▾'; margin-inline-start:auto; color:var(--faint); font-size:12px; transition:transform .15s}
+  .adv[open] > summary::after{transform:rotate(180deg)}
+  .adv .adv-t{font-size:15px; font-weight:700; color:var(--fg)}
+  .adv .adv-s{font-size:11.5px; color:var(--muted)}
+  .dyn-row{display:grid;gap:8px;align-items:end;background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);padding:10px 12px;margin-bottom:8px}
   .dyn-row.class{grid-template-columns:1.4fr 1fr .8fr .8fr auto}
-  .dyn-row.exam{grid-template-columns:1.3fr 1fr .8fr .8fr 1.3fr auto}
-  .dyn-row.mock{grid-template-columns:1.25fr .85fr .85fr .9fr .8fr 1.1fr auto}
+  .dyn-row.exam{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+  .dyn-row.exam > div:nth-child(4){grid-column:1}
+  .dyn-row.exam > div:nth-child(5){grid-column:2 / span 2}
+  .dyn-row.exam > .del{grid-column:4; grid-row:2}
+  /* آزمون دوره‌ای: دو خط — خط اول عنوان/روز/تکرار، خط دوم ساعت/مدت/دروس */
+  .dyn-row.mock{grid-template-columns:repeat(4,minmax(0,1fr)) auto}
+  .dyn-row.mock > .mock-subjects{grid-column:1 / span 2; grid-row:2}
+  .dyn-row.mock > .mock-del{grid-column:5; grid-row:2; justify-self:start; align-self:end}
+  @media(max-width:900px){
+    .dyn-row.mock{grid-template-columns:1fr 1fr}
+    .dyn-row.mock > .mock-subjects{grid-column:1 / span 2}
+    .dyn-row.mock > .mock-del{grid-column:1; grid-row:auto}
+  }
   /* ---- نوار به‌روزرسانی ---- */
   .ver-chip{display:inline-flex;align-items:center;gap:6px;margin-inline-start:auto;background:var(--panel2);border:1px solid var(--line);
     border-radius:999px;padding:5px 12px;font-size:12px;color:#334155;cursor:pointer;white-space:nowrap}
@@ -610,11 +1038,14 @@
   .kpi span{display:block;font-size:11px;color:var(--muted);line-height:1.5}
   .dyn-row.mock select[multiple]{height:64px}
   .dyn-row dlbook,.dyn-row.dlbook{grid-template-columns:1fr 1fr 1.1fr auto}
-  .dyn-row.dlexam{grid-template-columns:1.2fr .8fr .7fr .7fr 1fr 1fr auto}
+  .dyn-row.dlexam{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+  .dyn-row.dlexam > div:nth-child(5){grid-column:2 / span 2}
+  .dyn-row.dlexam > .del{grid-column:4; grid-row:2}
   .dyn-row.off{grid-template-columns:1fr 1fr 1.4fr auto}
   .dyn-row .del{background:#fff;border:1px solid #f5c2c2;color:#dc2626;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
   .dyn-row .del:hover{background:#fef2f2}
-  .dyn-row select[multiple]{height:70px}
+  .dyn-row select[multiple]{height:76px; font-size:11.5px; padding:6px}
+  .dyn-row .del{background:#fff;border:1px solid #f5c2c2;color:var(--danger);border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
   @media(max-width:900px){.dyn-row.class,.dyn-row.exam,.dyn-row.mock,.dyn-row.dlbook,.dyn-row.dlexam,.dyn-row.off{grid-template-columns:1fr 1fr}}
   .grade-chip{
     border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:99px;
@@ -628,6 +1059,7 @@
   .evt b{font-weight:600}
   .evt .t{margin-inline-start:auto;color:var(--muted);font-size:11px}
 </style>
+
 <div class="toast" id="toast"></div>
 <script src="jalali.js"></script>
 <script src="engine.js"></script>
