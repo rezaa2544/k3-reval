@@ -25,15 +25,44 @@
     --sh-3:0 18px 44px -28px rgba(16,25,45,.45);
     --side:246px;
   }
+  /* ── فونت‌های همراهِ برنامه (بدون نیاز به اینترنت) ──
+     Vazirmatn برای متن (خوانایی بالا) و Estedad برای تیترها، اعداد و ساعت‌ها */
+  @font-face{font-family:'Vazirmatn';src:url('fonts/Vazirmatn-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:block}
+  @font-face{font-family:'Vazirmatn';src:url('fonts/Vazirmatn-Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:block}
+  @font-face{font-family:'Vazirmatn';src:url('fonts/Vazirmatn-SemiBold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:block}
+  @font-face{font-family:'Vazirmatn';src:url('fonts/Vazirmatn-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:block}
+  @font-face{font-family:'Estedad';src:url('fonts/Estedad-var.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:block}
+
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
   body{
-    font-family:"Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--fg);
-    display:flex; flex-direction:column; overflow:hidden; font-size:13px; line-height:1.7;
-    -webkit-font-smoothing:antialiased;
+    font-family:'Vazirmatn','Estedad','Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--fg);
+    display:flex; flex-direction:column; overflow:hidden; font-size:13px; line-height:1.75;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    font-feature-settings:"ss01" 0,"kern" 1;
   }
-  h1,h2,h3,h4{margin:0; font-weight:700; letter-spacing:-.1px}
-  h1{font-size:19px} h2{font-size:15px} h3{font-size:13px}
+  h1,h2,h3,h4{margin:0; font-weight:800; letter-spacing:0; font-family:'Estedad','Vazirmatn',sans-serif}
+  h1{font-size:20px} h2{font-size:15.5px} h3{font-size:13.5px}
+
+  /* ── اعداد و ساعت: یکدست، جدولی و خوانا ── */
+  .tt,.time,.tr,.big,.stat b,.num,.tmrstat,.daynum,.gauge b,.tm{
+    font-family:'Estedad','Vazirmatn',sans-serif;
+    font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+    letter-spacing:.2px;
+  }
+  /* بازهٔ ساعت: «۰۹:۰۰ تا ۰۹:۴۵» */
+  .tr{display:inline-flex; align-items:baseline; gap:4px; direction:rtl}
+  .tr .tt{font-weight:800; font-size:12.5px; color:var(--fg)}
+  .tr .to{font-weight:500; font-size:11.5px; color:var(--muted); opacity:.75}
+  .tr .sep{font-size:10px; color:var(--muted); opacity:.75; margin:0 4px; font-weight:600; font-family:'Vazirmatn',sans-serif}
+  .time .tr{margin-bottom:1px}
+  /* نسخهٔ فشرده (کارت‌های آمار): «۰۹:۰۰–۱۳:۳۹» */
+  .tr.short{gap:1px}
+  .tr.short .tt{font-size:15px; font-weight:700}
+  .tr.short .to{font-size:13.5px; font-weight:600; color:var(--fg); opacity:.8}
+  .tr.short .sep{font-size:13px; opacity:.5}
+  .stat b .tr{display:inline-flex}
+  .time small{font-family:'Vazirmatn',sans-serif}
   p{margin:0 0 8px}
   a{color:var(--brand); text-decoration:none}
   code{background:var(--panel3); border-radius:6px; padding:1px 6px; font-size:11.5px}
@@ -252,15 +281,89 @@
   .day-pill.active{border-color:var(--brand-line); background:var(--brand-soft); color:#3730a3; font-weight:700}
   .day-pill small{display:block; font-size:10px; color:var(--muted); margin-top:2px}
   .day-pill .xp-day{font-size:10.5px; color:#4338ca; font-weight:600; margin-top:3px}
+  /* ══════════ بلوک‌ها: کادر سفید، رنگ فقط داخلِ کادر و ملایم ══════════
+     سبز  = تمام‌شده (با تیک)   ·   آبی   = در حال اجرا و زنده
+     زرد   = رزرو بعدی           ·   قرمز  = در صف، هنوز شروع نشده */
   .block{
-    display:grid; grid-template-columns:92px minmax(0,1fr) auto; gap:12px; align-items:start;
-    background:var(--panel2); border:1px solid var(--line2); border-radius:var(--r); padding:11px 13px; margin-bottom:8px;
+    display:grid; grid-template-columns:112px minmax(0,1fr) auto; gap:12px; align-items:start;
+    background:#fff; border:1px solid var(--line2); border-radius:14px; padding:12px 14px; margin-bottom:9px;
+    position:relative; overflow:hidden;
+    transition:box-shadow .18s, border-color .18s;
   }
-  .block .time{font-size:12px; color:#3730a3; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
-  .block .time small{display:block; color:var(--muted); font-weight:400; margin-top:3px}
+  .block::before{content:''; position:absolute; inset-block:0; inset-inline-start:0; width:4px; background:var(--tint, #e2e8f0)}
+  .block .time{font-size:12px; color:#1f2a44; font-weight:700; white-space:nowrap}
+  .block .time small{display:block; color:var(--muted); font-weight:400; margin-top:3px; font-size:10.5px}
   .block .t{font-size:12.5px; font-weight:700; margin-bottom:3px}
+  .block .t .chap{font-size:11px; font-weight:600; color:var(--muted); margin-inline-start:4px}
   .block .c{font-size:11.5px; color:var(--muted); line-height:1.85}
   .block .tech{font-size:10.5px; color:#2563eb; margin-top:4px}
+
+  /* ── در حال اجرا: آبی و زنده ── */
+  .block.live{--tint:#2563eb; border-color:#bfdbfe; background:#fff;
+    box-shadow:0 0 0 3px rgba(37,99,235,.10), 0 12px 26px -22px rgba(37,99,235,.7)}
+  .block.live .inner, .block.live .time{color:#1d4ed8}
+  .block.live .t::after{
+    content:''; display:inline-block; width:7px; height:7px; margin-inline-start:7px; border-radius:50%;
+    background:#2563eb; box-shadow:0 0 0 0 rgba(37,99,235,.6); animation:pulseDot 1.5s infinite; vertical-align:middle;
+  }
+  @keyframes pulseDot{0%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}70%{box-shadow:0 0 0 10px rgba(37,99,235,0)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
+
+  /* ── رزرو بعدی: زرد ── */
+  .block.next{--tint:#f59e0b; border-color:#fde68a; background:#fff; box-shadow:0 0 0 3px rgba(245,158,11,.08)}
+  .block.next .time{color:#b45309}
+
+  /* ── در صف و شروع‌نشده: قرمز ملایم ── */
+  .block.queued{--tint:#f87171; border-color:#fecaca}
+
+  /* ── منتظر پاسخ ── */
+  .block.needans{--tint:#ea580c; border-color:#fed7aa; background:#fff; box-shadow:0 0 0 3px rgba(234,88,12,.10)}
+
+  /* ── تمام‌شده: سبز + تیک ── */
+  .block.isdone{--tint:#10b981; border-color:#a7f3d0; background:#fff}
+  .block.isdone .t{color:#065f46}
+  .block.isdone .time{color:#047857}
+  .block.isdone .goals{opacity:.75}
+  .doneTick{
+    position:absolute; top:10px; inset-inline-end:10px; width:22px; height:22px; border-radius:50%;
+    background:#10b981; color:#fff; display:inline-flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 14px -8px rgba(16,185,129,.9);
+  }
+
+  /* ── نشان اهمیت فصل: درصد از کل کتاب + رتبهٔ اهمیت در کتاب ── */
+  .imp{
+    display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+    padding:2px 9px; border-radius:999px; border:1px solid #e2e8f0; background:#f8fafc; color:#334155;
+    white-space:nowrap; cursor:help; font-variant-numeric:tabular-nums;
+  }
+  .imp b{font-weight:800}
+  .imp .impsep{opacity:.45; margin:0 1px}
+  .imp .dots{letter-spacing:1px; font-size:8px}
+  .imp .dots i{font-style:normal; opacity:.28}
+  .imp-hot{border-color:#fecaca; background:#fef2f2; color:#b91c1c}
+  .imp-hot b{color:#991b1b}
+  .imp-mid{border-color:#c7d2fe; background:#eef2ff; color:#4338ca}
+  .imp1,.imp2,.imp3,.imp4,.imp5{border-color:#e2e8f0; background:#f8fafc; color:#475569}
+  .imp4{border-color:#fed7aa; background:#fff7ed; color:#c2410c}
+  .imp5{border-color:#fecaca; background:#fef2f2; color:#b91c1c; font-weight:700}
+
+  /* نوار و وضعیت تایمر، هم‌رنگ وضعیت بلوک (ملایم) */
+  .tmr{margin-top:8px; background:#f8fafc; border:1px solid var(--line2); border-radius:10px; padding:7px 9px}
+  .block.live .tmr{background:#f1f6ff; border-color:#dbeafe}
+  .block.next .tmr{background:#fffaeb; border-color:#fde68a}
+  .block.isdone .tmr{background:#f0fdf6; border-color:#bbf7d0}
+  .block.queued .tmr{background:#fff7f7; border-color:#fee2e2}
+  .block.live .tmrbar i{background:linear-gradient(90deg,#2563eb,#60a5fa)}
+  .block.next .tmrbar i{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+  .block.isdone .tmrbar i{background:linear-gradient(90deg,#10b981,#34d399)}
+
+  /* ── اهداف بلوک: «این بلوک از تو چه می‌خواهد؟» ── */
+  .goals{grid-column:1 / -1; margin-top:2px; background:var(--panel3); border:1px solid var(--line2); border-radius:10px; padding:8px 11px}
+  .goals .goal-h{font-size:11px; font-weight:800; color:#334155; margin-bottom:3px}
+  .goals ul{margin:0; padding-inline-start:16px}
+  .goals li{font-size:11px; color:#475569; line-height:1.95}
+  .goals li::marker{color:#94a3b8}
+  .goals .goal-how{margin-top:5px; padding-top:5px; border-top:1px dashed var(--line2); font-size:10.5px; color:#64748b}
+
   details{font-size:11px; color:var(--muted); margin-top:6px}
   summary{cursor:pointer; color:var(--brand)}
   .chk{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted)}
@@ -345,12 +448,49 @@
   ::-webkit-scrollbar-track{background:transparent}
 
   /* ---------- ریسپانسیو: بدون نوار کنار ---------- */
+  /* ---------- دکمهٔ منو برای عرض کم ---------- */
+  #navToggle{
+    display:none; position:fixed; inset-inline-end:14px; bottom:14px; z-index:40;
+    width:52px; height:52px; border-radius:16px; border:0; cursor:pointer;
+    background:linear-gradient(135deg,var(--brand),var(--sky)); color:#fff;
+    box-shadow:0 14px 30px -14px rgba(79,70,229,.9); align-items:center; justify-content:center;
+  }
+  #navToggle svg{width:22px;height:22px}
+  #navBackdrop{display:none; position:fixed; inset:0; z-index:29; background:rgba(15,23,42,.35)}
+
   @media(max-width:820px){
     aside{position:fixed; inset-inline-start:0; top:0; height:100%; z-index:30; transform:translateX(-100%);
-      transition:transform .2s; box-shadow:var(--sh-3)}
+      transition:transform .2s; box-shadow:var(--sh-3); width:min(84vw,280px); flex-basis:auto}
     aside.open{transform:none}
     main{padding:14px}
+    #navToggle{display:flex}
+    #navBackdrop.show{display:block}
+    .block{grid-template-columns:1fr !important}
+    .block .time{display:flex; align-items:baseline; gap:6px}
+    .block .time small{display:inline}
+    .row>.btn.lg{width:100%}
+    #homeTodayStats{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+    .modal-card{padding:16px 16px 14px; border-radius:16px}
+    h1{font-size:17px}
+    .grid{grid-template-columns:1fr !important}
+    .stat b{font-size:18px}
   }
+
+  /* ── انتخاب ساعت: دو منوی کشویی «ساعت : دقیقه» ── */
+  .tpick{display:inline-flex; align-items:center; gap:3px; direction:ltr}
+  .tpick-s{
+    font:inherit; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;
+    font-family:'Estedad','Vazirmatn',sans-serif;
+    border:1px solid var(--line3); border-radius:10px; background:#fff; color:var(--fg);
+    padding:7px 6px; min-width:62px; text-align:center; cursor:pointer;
+    appearance:none; -webkit-appearance:none;
+    background-image:linear-gradient(45deg,transparent 50%,#94a3b8 50%),linear-gradient(135deg,#94a3b8 50%,transparent 50%);
+    background-position:calc(100% - 13px) 52%, calc(100% - 8px) 52%;
+    background-size:5px 5px, 5px 5px; background-repeat:no-repeat;
+  }
+  .tpick-s:hover{border-color:var(--brand-line); background-color:var(--panel3)}
+  .tpick-s:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(79,70,229,.14)}
+  .tpick-c{font-weight:800; font-size:14px; color:var(--muted); margin:0 1px}
 
   /* ورودی ساعت (متنی، ۲۴ ساعته، رقم فارسی) */
   .tin{direction:ltr; text-align:center; letter-spacing:.5px; font-variant-numeric:tabular-nums}
@@ -449,6 +589,11 @@
   </div>
 </div>
 
+<button id="navToggle" aria-label="منو">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+</button>
+<div id="navBackdrop"></div>
+
 <div class="app">
   <!-- ═══════════ نوار کنار ═══════════ -->
   <aside id="sideNav">
@@ -496,51 +641,40 @@
           <h2 style="margin:0" data-help="startDay">شروع روز</h2>
           <span class="chip" id="homeDayState" style="margin-inline-start:auto">ساعت پیش‌فرض بیداری: —</span>
         </div>
-        <p class="lead">
-          ساعت بیداری فقط یک پیش‌فرض است. امروز اگر ۷ یا ۱۱ بیدار شدی، ساعت واقعی را بزن:
-          فقط برنامهٔ <b>همین روز</b> از همان ساعت بازچیده می‌شود و کلاس‌ها، وعده‌های غذایی و آزمون‌ها
-          دقیقاً سر جای خودشان می‌مانند.
+        <p class="lead" style="margin-bottom:10px">
+          وقتی بیدار شدی و آمادهٔ درس‌خواندن بودی، همین <b>یک دکمه</b> را بزن: برنامه از همان لحظه بازچیده می‌شود و
+          <b>اولین تسک خودکار شروع</b> می‌شود. کلاس‌ها، وعده‌های غذایی و آزمون‌ها سر جای خودشان می‌مانند.
         </p>
-        <div class="row" style="align-items:flex-end; gap:8px">
+        <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap">
+          <button class="btn primary lg" id="startDayBtn">☀ بیدار شدم — شروع روز</button>
+          <span style="margin-inline-start:auto"></span>
+          <button class="btn ghost small" id="startDayAdjust">ساعت را خودم می‌زنم</button>
+          <button class="btn ghost small" id="closeDayBtn" title="بستن امروز و انتقال کارهای جامانده به روزهای بعد">بستن روز</button>
+        </div>
+        <div class="row" id="startDayExact" style="display:none;margin-top:10px;gap:8px;align-items:flex-end">
           <div style="min-width:130px"><label>ساعت واقعی شروع امروز</label>
             <input id="startDayTime" class="tin" value="۰۷:۰۰" placeholder="۰۷:۰۰" inputmode="numeric" autocomplete="off" /></div>
-          <button class="btn primary" id="startDayBtn">شروع روز از این ساعت</button>
-          <button class="btn ghost small" id="resetDayBtn">بازگشت به ساعت پیش‌فرض</button>
-          <button class="btn ghost small" id="closeDayBtn">بستن روز و انتقال جامانده‌ها</button>
+          <button class="btn small" id="startDayAt">شروع از این ساعت</button>
         </div>
         <div id="dayStateNote" class="muted" style="font-size:11.5px;margin-top:8px"></div>
       </div>
 
       <div class="card" id="emergencyCard" style="display:none">
-        <h2 style="margin-top:0" data-help="emergency">آیتم‌های اضطراری</h2>
-        <p class="lead">
-          یک فصل یا موضوع که «حتماً باید» انجام شود را این‌جا اضافه کن. برنامه خودش می‌پرسد کِی:
-          <b>امروز با ساعتی که می‌نویسی</b> یا <b>این هفته در اولین فرصت</b> — و بقیهٔ برنامه را دور آن بازمی‌چیند
-          (ساعت کلاس‌ها دست نمی‌خورد).
-        </p>
-        <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
-          <div><label>درس</label><select id="emSubject"></select></div>
-          <div><label>فصل / موضوع</label><select id="emChapter"></select></div>
-          <div><label>کِی؟</label>
-            <select id="emScope">
-              <option value="today">امروز — با ساعت مشخص</option>
-              <option value="week">این هفته — اولین فرصت</option>
-            </select>
-          </div>
-          <div><label>ساعت (برای «امروز»)</label>
-            <input id="emTime" class="tin" value="۱۷:۰۰" placeholder="۱۷:۰۰" inputmode="numeric" autocomplete="off" /></div>
-          <div><label>مدت (دقیقه)</label>
-            <input id="emMinutes" class="tin num" value="۶۰" inputmode="numeric" autocomplete="off" /></div>
-          <div style="display:flex;align-items:flex-end">
-            <button class="btn primary" id="emAdd">افزودن و بازچینی برنامه</button>
-          </div>
+        <div class="row" style="margin-bottom:6px">
+          <h2 style="margin:0" data-help="emergency">آیتم‌های اضطراری</h2>
+          <button class="btn primary small" id="emAdd" style="margin-inline-start:auto">+ ثبت آیتم اضطراری</button>
         </div>
-        <div id="emList" style="margin-top:10px"></div>
+        <p class="lead" style="margin-bottom:8px">
+          یک فصل یا موضوع که «حتماً باید» انجام شود. با زدن دکمه، فرم کوتاه باز می‌شود:
+          کدام فصل، و کِی — <b>امروز با ساعت مشخص</b> یا <b>این هفته در اولین فرصت</b>.
+          برنامه بقیهٔ روز را دور آن بازمی‌چیند و ساعت کلاس‌ها دست نمی‌خورد.
+        </p>
+        <div id="emList"></div>
       </div>
 
       <div class="card" id="homeTodayCard" style="display:none">
         <div class="row" style="margin-bottom:10px">
-          <h2 style="margin:0">برنامهٔ امروز <span class="tag" id="homeTodayDate"></span></h2>
+          <h2 style="margin:0"><span id="homeTodayTitle">برنامهٔ امروز</span> <span class="tag" id="homeTodayDate"></span></h2>
           <div class="row" style="margin-inline-start:auto">
             <button class="btn ghost small" data-goto="plan">برنامهٔ کامل</button>
           </div>
@@ -1268,7 +1402,65 @@
   .ci-mid{background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe}
   .ci-low{background:#f8fafc; color:#64748b; border-color:#e2e8f0}
   .chk{display:inline-flex; align-items:center; gap:6px; font-size:11.5px}
+
+  /* ══════════ v2.6: منوی شناور، آلارم صوتی، اتمام فصل ══════════ */
+  .btn.lg{font-size:14px; padding:12px 20px}
+  .modal{position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
+    background:rgba(15,23,42,.42); backdrop-filter:blur(2px); padding:18px}
+  .modal.show{display:flex}
+  .modal-card{background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.28);
+    width:min(560px,100%); padding:20px 22px; max-height:88vh; overflow:auto}
+  .modal-card h3{margin:0 0 10px; font-size:15px}
+  .modal-card label{font-size:11.5px; color:#475569; display:block; margin-bottom:4px}
+  .modal-note{background:var(--panel2); border:1px solid var(--line2); border-radius:10px;
+    padding:10px 12px; font-size:12px; line-height:1.9; margin-bottom:10px}
+  .modal-err{font-size:11.5px; color:#b91c1c}
+  #alarmBar{display:none}
+  .alarmflash{animation:alarmflash 1s ease-in-out infinite}
+  @keyframes alarmflash{0%,100%{background:#fff1f2}50%{background:#ffe4e6}}
+  .tmr.overtime{background:#fff7ed; border-color:#fed7aa}
+  .tmr.awaiting{background:#fef2f2; border-color:#fecaca}
+  .tmrstat.wait{background:#fef2f2; color:#b91c1c}
+
+  .tmrstat.over{background:#fff7ed; color:#c2410c}
+  .btn.danger{background:#fef2f2; border-color:#fecaca; color:#b91c1c}
+  .btn.danger:hover{background:#fee2e2; border-color:#fca5a5}
 </style>
+
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <h3 id="modalTitle">—</h3>
+    <div id="modalBody"></div>
+    <div class="row end" style="gap:8px;margin-top:14px">
+      <button class="btn primary" id="modalOk">تأیید</button>
+      <button class="btn ghost" id="modalCancel">انصراف</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="emModal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <h3>ثبت آیتم اضطراری</h3>
+    <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+      <div><label>درس</label><select id="emSubject"></select></div>
+      <div><label>فصل / موضوع</label><select id="emChapter"></select></div>
+      <div><label>کِی؟</label>
+        <select id="emScope">
+          <option value="today">امروز — با ساعت مشخص</option>
+          <option value="week">این هفته — اولین فرصت</option>
+        </select>
+      </div>
+      <div><label>ساعت (برای «امروز»)</label>
+        <input id="emTime" class="tin" value="۱۷:۰۰" placeholder="۱۷:۰۰" inputmode="numeric" autocomplete="off" /></div>
+      <div><label>مدت (دقیقه)</label>
+        <input id="emMinutes" class="tin num" value="۶۰" inputmode="numeric" autocomplete="off" /></div>
+    </div>
+    <div class="row end" style="gap:8px;margin-top:14px">
+      <button class="btn primary" id="emSubmit">ثبت و بازچینی برنامه</button>
+      <button class="btn ghost" id="emCancel">انصراف</button>
+    </div>
+  </div>
+</div>
 
 <div id="helpTip"></div>
 <div class="toast" id="toast"></div>

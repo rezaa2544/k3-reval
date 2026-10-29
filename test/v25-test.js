@@ -149,9 +149,11 @@ const plan = engine.createPlan(baseCfg());
   eq(s.status, 'done', 'وقتی مجموع به مدت برنامه‌ریزی‌شده رسید، بلوک «تمام‌شده» است');
   eq(s.pauses, 2, 'دو بار توقف ثبت شده است');
 
+  /* از ۲.۶ به بعد، رسیدن به زمان برنامه‌ریزی‌شده «منتظر پاسخ» می‌دهد (نه بستن خودکار) */
   let s2 = DP.start(DP.newSession(block), 0);
   s2 = DP.tick(s2, 46 * 60000);
-  eq(s2.status, 'done', 'بلوکِ در حال اجرا بعد از رسیدن به زمان، خودکار تمام می‌شود');
+  eq(s2.status, 'awaiting', 'رسیدن به زمان برنامه‌ریزی‌شده ⇒ «منتظر پاسخ» می‌شود');
+  eq(DP.answerAway(s2, 47 * 60000).status, 'done', 'با پاسخ «تمام شد» بلوک بسته می‌شود');
 }
 
 /* ═══ ۶) انتقال جامانده‌ها (بازچینی هوشمند) ═══ */
@@ -312,9 +314,9 @@ const plan = engine.createPlan(baseCfg());
 /* ═══ ۱۱) نسخه ═══ */
 {
   const pkg = JSON.parse(read('package.json'));
-  eq(pkg.version, '2.5.0', 'نسخهٔ بسته ۲.۵.۰ است');
+  eq(pkg.version, '2.6.0', 'نسخهٔ بسته ۲.۶.۰ است');
   const eng = read('src/planner/engine.js');
-  ok(/version: '2\.5\.0'/.test(eng), 'نسخهٔ موتور ۲.۵.۰ است');
+  ok(/version: '2\.6\.0'/.test(eng), 'نسخهٔ موتور ۲.۶.۰ است');
 }
 
 console.log('\n✅ ' + n + ' تست نسخهٔ ۲.۵ (شروع روز · توقف/ادامه · اضطراری · اهمیت فصل · آمادگی جدا) پاس شد');

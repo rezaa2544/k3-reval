@@ -128,6 +128,62 @@
       'placeholder="' + timeFa(def || '00:00') + '" inputmode="numeric" autocomplete="off" />';
   }
 
+  /* ---------- انتخاب ساعت به‌صورت منوی کشویی استاندارد ---------- */
+
+  const HOURS24 = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const MIN_STEPS = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+
+  function splitHM(v) {
+    const m = String(v == null ? '' : v)
+      .replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)))
+      .replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
+    const parts = m.split(':');
+    if (parts.length < 2) return { h: '07', m: '00' };
+    const h = Math.max(0, Math.min(23, parseInt(parts[0], 10) || 0));
+    const mi = Math.max(0, Math.min(59, parseInt(parts[1], 10) || 0));
+    return { h: String(h).padStart(2, '0'), m: String(mi).padStart(2, '0') };
+  }
+
+  /**
+   * هر ورودی ساعت (`input.tin` با مقدار HH:MM) را به دو منوی کشویی «ساعت : دقیقه» تبدیل می‌کند.
+   * خودِ input مخفی می‌ماند تا همهٔ کدهای قبلی که el.value را می‌خوانند بی‌تغییر کار کنند.
+   */
+  function upgradeTimeInputs(root) {
+    const scope = root || document;
+    const list = scope.querySelectorAll ? scope.querySelectorAll('input.tin:not([data-tp])') : [];
+    list.forEach((inp) => {
+      const isTime = /^\s*\d{1,2}:\d{2}\s*$/.test(
+        String(inp.value || '').replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)))) ||
+        Boolean(inp.dataset.start);
+      if (!isTime) return;
+      inp.dataset.tp = '1';
+      const { h, m } = splitHM(inp.value);
+      const wrap = document.createElement('span');
+      wrap.className = 'tpick';
+      const mins = MIN_STEPS.indexOf(m) === -1 ? MIN_STEPS.concat([m]).sort() : MIN_STEPS;
+      wrap.innerHTML =
+        '<select class="tpick-s" aria-label="ساعت" data-role="h">' +
+          HOURS24.map((x) => '<option value="' + x + '"' + (x === h ? ' selected' : '') + '>' + x + '</option>').join('') +
+        '</select><span class="tpick-c">:</span>' +
+        '<select class="tpick-s" aria-label="دقیقه" data-role="m">' +
+          mins.map((x) => '<option value="' + x + '"' + (x === m ? ' selected' : '') + '>' + x + '</option>').join('') +
+        '</select>';
+      inp.style.display = 'none';
+      inp.parentNode.insertBefore(wrap, inp);
+      const selH = wrap.querySelector('[data-role="h"]');
+      const selM = wrap.querySelector('[data-role="m"]');
+      const sync = () => {
+        inp.value = selH.value + ':' + selM.value;
+        inp.classList.remove('bad');
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      selH.addEventListener('change', sync);
+      selM.addEventListener('change', sync);
+      sync();
+    });
+  }
+
   function faNum(n) {
     // گرد کردن به یک رقم اعشار تا اعداد اعشاریِ شناور (مثل ۲۷٫۳۴۹۹۹۹) نمایش داده نشوند
     const num = Number(n);
@@ -140,6 +196,246 @@
   /* جداسازی جهت‌نویسی برای بازه‌های زمانی/تاریخ در متن راست‌به‌چپ */
   function bidi(txt) {
     return '<span dir="ltr" style="unicode-bidi:isolate">' + String(txt) + '</span>';
+  }
+
+  /**
+   * «این بلوک دقیقاً چه می‌خواهد؟» — انتظارهای روشن از پایان همین تایم،
+   * به‌همراه نام صریح مبحثی که باید خوانده یا مرور شود.
+   */
+  function blockGoals(block) {
+    const kind = block.kind;
+    const m = chapterMetaOf(block);
+    const chapTitle = m
+      ? ('فصل ' + faNum(m.bookNo) + ' کتاب ' + m.grade + (m.name ? ' — ' + m.name : ''))
+      : String(block.topic || '').replace(/\s*—\s*تست هدفمند\s*$/, '');
+    const tests = Number(block.practiceCount) || 0;
+    const out = [];
+    if (kind === 'warmup' || kind === 'review' || kind === 'cumreview' || kind === 'carryreview') {
+      out.push('مرور روی: ' + (m ? chapTitle : String(block.topic || 'مبحث دیروز').replace(/\s*—\s*تست هدفمند\s*$/, '')));
+      out.push('بازیابی از حافظه: مفاهیم اصلی را بدون نگاه به کتاب بنویس، بعد با کتاب چک کن.');
+      out.push('هر چیزی که یادت نیامد را علامت بزن تا در مرور بعدی اول همان را ببینی.');
+    } else if (kind === 'practice' || kind === 'boost') {
+      out.push('مبحث: ' + (m ? chapTitle : (block.topic || '')));
+      out.push('هدف: ' + (tests ? faNum(tests) + ' تست هدفمند' : 'تست هدفمند') + ' از همین مبحث، با زمان‌سنج.');
+      out.push('در پایان باید بگویی هر غلط «چرا» غلط شد: مفهوم، بی‌دقتی یا کمبود وقت.');
+    } else if (kind === 'reteach' || kind === 'classfix' || kind === 'carry') {
+      out.push('مبحث: ' + (m ? chapTitle : (block.topic || '')));
+      out.push('هدف: بستن حفره‌های همین مبحث — از مفاهیمی که غلط زدی شروع کن.');
+      out.push('در پایان باید بتوانی همان سؤال‌ها را درست و با توضیح حل کنی.');
+    } else if (kind === 'finalprep' || kind === 'deadlinecheck') {
+      out.push('مبحث: ' + (m ? chapTitle : (block.topic || '')));
+      out.push('هدف: پوشش بارم‌محورِ همین فصل برای امتحان نهایی (متن کتاب + نمونه‌سؤال).');
+      out.push('در پایان باید سؤال‌های نهایی همین فصل را در زمان استاندارد بزنی.');
+    } else if (kind === 'mock' || kind === 'analysis') {
+      out.push('هدف: سنجش واقعی در شرایط آزمون، بدون توقف.');
+      out.push('در پایان، تحلیل خطاها مهم‌تر از نمره است: دسته‌بندی خطا + یک اقدام برای هر دسته.');
+      return out;
+    } else {
+      out.push('این فصل: ' + (m ? chapTitle : String(block.topic || '').replace(/\s*—\s*تست هدفمند\s*$/, '')));
+      out.push('در پایان این تایم باید بتوانی مفاهیم اصلی همین فصل را با جملهٔ خودت توضیح دهی و ۳ سؤال منتخب را بدون کتاب جواب دهی.');
+      out.push('یک نقشهٔ ذهنی از سرفصل‌های فصل بکش و جای هر مفهوم را روی آن پیدا کن.');
+    }
+    return out;
+  }
+
+  /** نمایش اهداف داخل کارت بلوک */
+  function goalsHtml(block) {
+    const g = blockGoals(block);
+    if (!g.length) return '';
+    const how = KIND_HOW[block.kind] || '';
+    return '<div class="goals"><div class="goal-h">این بلوک از تو چه می‌خواهد؟</div><ul>' +
+      g.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+      (how ? '<div class="goal-how">' + esc(how) + '</div>' : '') + '</div>';
+  }
+
+  /** خط «این فصل چیست»: شمارهٔ فصل + نام + پایه */
+  function chapterLine(block) {
+    const m = chapterMetaOf(block);
+    if (!m) return '';
+    return '<span class="chap">فصل ' + faNum(m.bookNo) + ' از کتاب ' + esc(m.grade) +
+      (m.name ? ' · ' + esc(m.name) : '') + '</span>';
+  }
+
+  /* ---------- نمایش ساعت: همیشه دورقمی، با اعداد فارسی و فونتِ جدولی ---------- */
+
+  function padHM(v) {
+    const raw = String(v == null ? '' : v).trim();
+    if (!raw) return '';
+    /* ساعت همیشه با رقم لاتین و دورقمی: 09:00 */
+    const m = raw.replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)))
+      .replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)));
+    const parts = m.split(':');
+    if (parts.length < 2) return m;
+    const hh = String(Math.max(0, Math.min(23, parseInt(parts[0], 10) || 0))).padStart(2, '0');
+    const mm = String(Math.max(0, Math.min(59, parseInt(parts[1], 10) || 0))).padStart(2, '0');
+    return hh + ':' + mm;
+  }
+
+  /** نسخهٔ فشرده برای کارت‌های آمار: «۰۹:۰۰–۱۳:۳۹» */
+  function timeRangeShort(a, b) {
+    if (!a && !b) return '—';
+    if (!b) return '<span class="tr short"><span class="tt" dir="ltr">' + padHM(a) + '</span></span>';
+    return '<span class="tr short"><span class="tt" dir="ltr">' + padHM(a) + '</span>' +
+      '<span class="sep">–</span><span class="to" dir="ltr">' + padHM(b) + '</span></span>';
+  }
+
+  /** «۰۹:۰۰ تا ۰۹:۴۵» — خوانا و درست‌جهت */
+  function timeRange(a, b) {
+    if (!a && !b) return '—';
+    if (!b) return '<span class="tr"><span class="tt" dir="ltr">' + padHM(a) + '</span></span>';
+    return '<span class="tr"><span class="tt" dir="ltr">' + padHM(a) + '</span>' +
+      '<span class="sep">تا</span><span class="to" dir="ltr">' + padHM(b) + '</span></span>';
+  }
+
+  /** «یک ساعت و ۳۰ دقیقه» برای بازه‌های طولانی */
+  function durationFa(min) {
+    const m = Math.max(0, Math.round(Number(min) || 0));
+    if (m < 60) return faNum(m) + ' دقیقه';
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    return faNum(h) + ' ساعت' + (r ? ' و ' + faNum(r) + ' دقیقه' : '');
+  }
+
+  /* ---------- اهمیت فصل: یادآوری همیشگی سطح اهمیت مبحث ---------- */
+
+  const IMP_WORDS = { 5: 'بحرانی', 4: 'خیلی مهم', 3: 'مهم', 2: 'کم‌اهمیت', 1: 'حاشیه‌ای' };
+
+  /* روش اجرای هر نوع بلوک (زیرخط اهداف، برای شفافیت بیشتر) */
+  const KIND_HOW = {
+    learn: 'روش: مطالعهٔ فعال + نت‌برداری پرسشی، و ۵ دقیقهٔ آخر بازیابی بدون کتاب.',
+    reteach: 'روش: از غلط‌های ثبت‌شده شروع کن، هر مفهوم را با مثال خودت بازگو کن.',
+    practice: 'روش: تست زمان‌دار، بعد تحلیل خطا و ثبت در دفتر اشتباهات.',
+    boost: 'روش: تمرین هدفمند روی ضعیف‌ترین بخش همین فصل.',
+    review: 'روش: بازیابی فعال (بدون کتاب) → چک کردن → علامت‌زدن مبهم‌ها.',
+    warmup: 'روش: مرور کوتاه و فعال؛ هدف یادگیری تازه نیست، تثبیت است.',
+    cumreview: 'روش: مرور تجمعی از فصل‌های قدیمی‌تر با تست ترکیبی.',
+    carryreview: 'روش: مرور کار جامانده + بازیابی سریع.',
+    carry: 'روش: ادامهٔ کار نیمه‌تمام از همان جایی که ماند.',
+    finalprep: 'روش: بارم‌محور بخوان: متن کتاب، سپس نمونه‌سؤال نهایی همان فصل.',
+    deadlinecheck: 'روش: چک‌لیست مهلت + رفع آخرین حفره‌ها.',
+    classfix: 'روش: هم‌گام‌شدن با کلاس؛ ابتدا نکات کلاس، بعد تمرین.',
+    mock: 'روش: شرایط واقعی آزمون؛ بدون توقف و بدون کتاب.',
+    analysis: 'روش: دسته‌بندی خطاها و نوشتن یک اقدام مشخص برای هر دسته.',
+  };
+
+  /** شمارهٔ فصل را از شناسهٔ مبحث («bio.c18») درمی‌آورد */
+  function chapterNoOf(block) {
+    if (!block) return 0;
+    if (Number(block.chapterNo)) return Number(block.chapterNo);
+    const id = String(block.topicId || '');
+    const m = id.match(/\.c(\d+)\s*$/);
+    return m ? Number(m[1]) : 0;
+  }
+
+  /** اطلاعات اهمیت فصل از دادهٔ پژوهشی؛ اگر نبود، null */
+  function chapterInfoOf(block) {
+    if (!block || !cw || typeof cw.chapterInfo !== 'function') return null;
+    const n = chapterNoOf(block);
+    if (!n) return null;
+    try { return cw.chapterInfo(block.subjectId, n); } catch (e) { return null; }
+  }
+
+  /** فهرست فصل‌های یک درس از منابع برنامه (نام کتاب + پایه + تعداد فصل) */
+  function subjectMeta(subjectId) {
+    let fromCfg = null;
+    const subs = (state.config && state.config.subjects) || [];
+    fromCfg = subs.find((x) => x && x.id === subjectId) || null;
+    let fromPreset = null;
+    try {
+      const field = (state.config && state.config.student && state.config.student.field) || 'tajrobi';
+      fromPreset = presets.subjectsFor(field).find((x) => x && x.id === subjectId) || null;
+    } catch (e) { /* بی‌صدا */ }
+    if (fromCfg && fromPreset) {
+      /* نام‌های فصل و پایهٔ هر فصل فقط در دادهٔ پیش‌فرض هست؛ با تنظیمات کاربر ادغام می‌شود */
+      return Object.assign({}, fromPreset, fromCfg, {
+        chapterShort: fromPreset.chapterShort, chapterGrades: fromPreset.chapterGrades,
+        topicNames: fromPreset.topicNames, chapters: fromCfg.chapters || fromPreset.chapters,
+      });
+    }
+    return fromCfg || fromPreset || null;
+  }
+
+  /**
+   * همهٔ چیزی که برای «این فصل چیست و چقدر مهم است» لازم است:
+   * شمارهٔ فصل، نام مبحث، پایه، تعداد کل فصل‌های کتاب، درصد از کل سؤال‌های کتاب،
+   * رتبهٔ اهمیت در همان کتاب، تعداد سؤال کنکور و سختی.
+   */
+  function chapterMetaOf(block) {
+    if (!block) return null;
+    const no = chapterNoOf(block);
+    if (!no) return null;
+    const info = chapterInfoOf(block);
+    const sm = subjectMeta(block.subjectId);
+    const total = sm ? (Number(sm.chapters) || (sm.topicNames ? sm.topicNames.length : 0)) : 0;
+    const name = (sm && sm.chapterShort && sm.chapterShort[no - 1]) ||
+      (block.topic ? String(block.topic).split('·').pop().trim() : '');
+    let grade = (sm && sm.chapterGrades && sm.chapterGrades[no - 1]) || '';
+    if (!grade && block.topic) {
+      const g = String(block.topic).match(/^\s*(دهم|یازدهم|دوازدهم)/);
+      if (g) grade = g[1];
+    }
+    /* رتبهٔ اهمیت: بر اساس تعداد سؤال واقعی همان فصل در کنکور */
+    let rank = 0;
+    let ranked = 0;
+    const k = cw && cw.konkur ? cw.konkur(block.subjectId) : null;
+    if (k && k.chapters && k.chapters[no - 1]) {
+      const mine = k.chapters[no - 1].q;
+      const qs = k.chapters.map((c) => c.q);
+      const sorted = qs.slice().sort((a, b) => b - a);
+      rank = sorted.indexOf(mine) + 1;
+      ranked = qs.length;
+    }
+    /* شمارهٔ فصل در کتابِ همان پایه (همان چیزی که دانش‌آموز در کتاب می‌بیند) */
+    let bookNo = no;
+    if (sm && sm.chapterGrades && sm.chapterGrades[no - 1]) {
+      const g = sm.chapterGrades[no - 1];
+      let before = 0;
+      for (let i = 0; i < no - 1; i += 1) if (sm.chapterGrades[i] === g) before += 1;
+      bookNo = before + 1;
+    }
+    let bookTotal = 0;
+    if (sm && sm.chapterGrades) {
+      const g = sm.chapterGrades[no - 1];
+      bookTotal = sm.chapterGrades.filter((x) => x === g).length;
+    }
+    return {
+      no, total, bookNo, bookTotal, name, grade, rank, ranked,
+      sharePct: info ? info.sharePct : 0,
+      q: info ? info.q : 0,
+      imp: info ? info.imp : 0,
+      diff: info ? info.diff : 0,
+      subjectName: block.subjectName || (sm && sm.name) || '',
+    };
+  }
+
+  /**
+   * نشان اهمیت فصل — بر پایهٔ «درصد از کل کتاب» و «رتبهٔ اهمیت در همان کتاب»،
+   * نه یک عدد کلی: «۹٫۶٪ از کتاب زیست · رتبهٔ ۳ از ۲۴»
+   */
+  function chapterBadge(block, opts) {
+    const m = chapterMetaOf(block);
+    const o = opts || {};
+    if (!m) {
+      if (!block || !block.importance) return '';
+      const imp = Math.max(1, Math.min(5, Math.round(Number(block.importance) || 3)));
+      return '<span class="imp imp' + imp + '" data-help="imp">اهمیت ' + faNum(imp) + ' از ۵</span>';
+    }
+    const strong = m.sharePct >= 6 || (m.rank && m.rank <= Math.max(3, Math.round(m.ranked * 0.2)));
+    const cls = 'imp ' + (strong ? 'imp-hot' : 'imp-mid');
+    const title = m.subjectName + ' · فصل ' + faNum(m.bookNo) + ' از ' + faNum(m.bookTotal) + ' کتاب ' + m.grade +
+      (m.name ? ' — ' + m.name : '') +
+      '\nسهم از سؤال‌های این درس در کنکور: ' + faNum(m.sharePct) + '٪ از کل کتاب' +
+      '\nرتبهٔ اهمیت در کتاب: ' + faNum(m.rank) + ' از ' + faNum(m.ranked) +
+      '\nتعداد سؤال کنکور: ≈' + faNum(Math.round(m.q)) +
+      '\nسختی: ' + faNum(m.diff) + ' از ۵' +
+      '\nمنبع: بودجه‌بندی کنکور ۱۴۰۲–۱۴۰۴';
+    if (o.short) {
+      return '<span class="' + cls + '" title="' + esc(title) + '" data-help="imp">' +
+        faNum(m.sharePct) + '٪ · رتبهٔ ' + faNum(m.rank) + '</span>';
+    }
+    return '<span class="' + cls + '" title="' + esc(title) + '" data-help="imp">' +
+      '<b>' + faNum(m.sharePct) + '٪</b> از کتاب ' + esc(m.subjectName) +
+      ' <span class="impsep">·</span> رتبهٔ ' + faNum(m.rank) + ' از ' + faNum(m.ranked) + '</span>';
   }
 
   /* ---------------- تاریخ شمسی ---------------- */
@@ -543,6 +839,38 @@
 
   const NAVS = () => Array.from(document.querySelectorAll('.nav[data-view]'));
 
+  /* ---------- ارتقای خودکار همهٔ ورودی‌های ساعت ---------- */
+  let tpTimer = null;
+  function scheduleTimeUpgrade() {
+    clearTimeout(tpTimer);
+    tpTimer = setTimeout(() => { try { upgradeTimeInputs(document); } catch (e) { /* بی‌صدا */ } }, 60);
+  }
+  try {
+    const mo = new MutationObserver(() => scheduleTimeUpgrade());
+    document.addEventListener('DOMContentLoaded', () => {
+      upgradeTimeInputs(document);
+      mo.observe(document.body, { childList: true, subtree: true });
+    });
+    if (document.readyState !== 'loading') { upgradeTimeInputs(document); mo.observe(document.body, { childList: true, subtree: true }); }
+  } catch (e) { /* بی‌صدا */ }
+
+  /* ---------- منوی موبایل ---------- */
+  function closeNav() {
+    const a = document.querySelector('aside');
+    if (a) a.classList.remove('open');
+    const b = $('navBackdrop');
+    if (b) b.classList.remove('show');
+  }
+  if ($('navToggle')) $('navToggle').addEventListener('click', () => {
+    const a = document.querySelector('aside');
+    if (!a) return;
+    const open = !a.classList.contains('open');
+    a.classList.toggle('open', open);
+    const b = $('navBackdrop');
+    if (b) b.classList.toggle('show', open);
+  });
+  if ($('navBackdrop')) $('navBackdrop').addEventListener('click', closeNav);
+
   function gotoView(name) {
     const nav = NAVS().find((n) => n.dataset.view === name);
     if (!nav) return;
@@ -669,6 +997,7 @@
       elapsed: DP.elapsedMinutes(s, nowMs()),
       remain: DP.remainingMinutes(s, nowMs()),
       pct: DP.progressPct(s, nowMs()),
+      over: DP.overtimeMinutes(s, nowMs()),
       label: DP.statusFa(s),
     };
   }
@@ -679,36 +1008,287 @@
     const v = sessionView(day, idx, block);
     const key = day.date + '#' + idx;
     const st = v.s.status;
+    const over = Boolean(v.s.overtime);
     const btns = [];
-    if (st === 'idle') btns.push('<button class="btn small" data-tmr="start" data-key="' + key + '">▶ شروع</button>');
+    if (st === 'idle') {
+      btns.push('<button class="btn small" data-tmr="start" data-key="' + key + '">▶ شروع</button>');
+      btns.push('<button class="btn ghost small" data-tmr="close" data-key="' + key + '">✓ پایان فصل</button>');
+    }
     if (st === 'running') {
       btns.push('<button class="btn small warn" data-tmr="pause" data-key="' + key + '">⏸ مکس (توقف)</button>');
-      btns.push('<button class="btn ghost small" data-tmr="finish" data-key="' + key + '">پایان کار</button>');
+      btns.push('<button class="btn ghost small" data-tmr="close" data-key="' + key + '">✓ پایان فصل</button>');
     }
     if (st === 'paused') {
       btns.push('<button class="btn small primary" data-tmr="resume" data-key="' + key + '">▶ ادامه</button>');
-      btns.push('<button class="btn ghost small" data-tmr="finish" data-key="' + key + '">پایان کار</button>');
+      btns.push('<button class="btn ghost small" data-tmr="close" data-key="' + key + '">✓ پایان فصل</button>');
+    }
+    if (st === 'awaiting') {
+      btns.push('<button class="btn small primary" data-tmr="awaitYes" data-key="' + key + '">هنوز می‌خوانم</button>');
+      btns.push('<button class="btn ghost small" data-tmr="awaitNo" data-key="' + key + '">تمام شد</button>');
     }
     if (st === 'done') btns.push('<button class="btn ghost small" data-tmr="reset" data-key="' + key + '">از نو</button>');
-    return '<div class="tmr" data-tmrbox="' + key + '">' +
-      '<div class="tmrbar"><i style="width:' + v.pct + '%"></i></div>' +
+
+    const cls = 'tmr' + (over ? ' overtime' : '') + (st === 'awaiting' ? ' awaiting' : '');
+    const statCls = st === 'running' ? (over ? ' over' : ' on')
+      : st === 'done' ? ' done' : st === 'awaiting' ? ' wait' : '';
+    const extra = st === 'paused' ? ' · ' + faNum(v.remain) + ' دقیقه مانده'
+      : st === 'awaiting' ? ' · زمان برنامه‌ریزی‌شده پر شد'
+        : (over && v.over > 0) ? ' · ' + faNum(v.over) + ' دقیقه اضافه‌کاری' : '';
+    return '<div class="' + cls + '" data-tmrbox="' + key + '">' +
+      '<div class="tmrbar"><i data-tmrbar style="width:' + v.pct + '%"></i></div>' +
       '<div class="row" style="gap:6px;align-items:center;margin-top:5px">' +
-        '<span class="tmrstat' + (st === 'running' ? ' on' : st === 'done' ? ' done' : '') + '">' + esc(v.label) + '</span>' +
-        '<span class="muted" style="font-size:11px">' + faNum(v.elapsed) + ' از ' + faNum(v.s.plannedMinutes) + ' دقیقه' +
-          (st === 'paused' ? ' · ' + faNum(v.remain) + ' دقیقه مانده' : '') + '</span>' +
+        '<span class="tmrstat' + statCls + '" data-tmrstat>' + esc(v.label) + '</span>' +
+        '<span class="muted" style="font-size:11px" data-tmrtxt>' +
+          faNum(v.elapsed) + ' از ' + faNum(v.s.plannedMinutes) + ' دقیقه' + extra + '</span>' +
         '<span style="margin-inline-start:auto"></span>' + btns.join('') +
       '</div></div>';
+  }
+
+  /**
+   * کلاس‌های وضعیت هر بلوک:
+   *  live  → تایمر همین بلوک در حال کار است (سبز، زنده)
+   *  next  → بلوکِ رزروِ بعدی (زرد)
+   *  isdone→ انجام‌شده
+   */
+  function blockStateClass(day, idx) {
+    const key = day.date + '#' + idx;
+    const st = (state.sessions || {})[key];
+    const status = st ? st.status : 'idle';
+    const out = ['block'];
+    if (status === 'done' || state.done[key]) out.push('isdone');
+    else if (status === 'running' || status === 'paused') out.push('live');
+    else if (status === 'awaiting') out.push('needans');
+    else if (nextBlockKey(day) === key) out.push('next');
+    else out.push('queued');
+    if (DP && DP.isPinned && DP.isPinned(day.blocks[idx])) out.push('pinned');
+    return out.join(' ');
+  }
+
+  /** تیک سبز گوشهٔ بلوکِ تمام‌شده */
+  function doneTick(day, idx) {
+    const key = day.date + '#' + idx;
+    const st = (state.sessions || {})[key];
+    const done = (st && st.status === 'done') || state.done[key];
+    if (!done) return '';
+    return '<span class="doneTick" title="این بلوک کامل شد"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" ' +
+      'stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg></span>';
+  }
+
+  /** کلید بلوک رزروِ بعدی: اولین بلوکی که نه تمام شده و نه در حال اجراست */
+  function nextBlockKey(day) {
+    if (!day) return null;
+    const blocks = day.blocks || [];
+    let afterRunning = -1;
+    for (let i = 0; i < blocks.length; i += 1) {
+      const st = (state.sessions || {})[day.date + '#' + i];
+      if (st && (st.status === 'running' || st.status === 'paused' || st.status === 'awaiting')) afterRunning = i;
+    }
+    const okIdx = (i) => {
+      const b = blocks[i];
+      if (!b || b.kind === 'routine') return false;
+      const st = (state.sessions || {})[day.date + '#' + i];
+      if (st && (st.status === 'done' || st.status === 'running')) return false;
+      if (state.done[day.date + '#' + i]) return false;
+      return true;
+    };
+    for (let i = afterRunning + 1; i < blocks.length; i += 1) if (okIdx(i)) return day.date + '#' + i;
+    for (let i = 0; i < blocks.length; i += 1) if (okIdx(i)) return day.date + '#' + i;
+    return null;
+  }
+
+  /** فقط متن/نوار تایمر را تازه می‌کند (بدون ساخت دوبارهٔ دکمه‌ها) */
+  function refreshTimerBox(day, block, idx) {
+    const key = day.date + '#' + idx;
+    const box = document.querySelector('[data-tmrbox="' + key + '"]');
+    if (!box) return;
+    const v = sessionView(day, idx, block);
+    const bar = box.querySelector('[data-tmrbar]');
+    if (bar) bar.style.width = v.pct + '%';
+    const stat = box.querySelector('[data-tmrstat]');
+    if (stat) {
+      const over = Boolean(v.s.overtime);
+      stat.textContent = v.label;
+      stat.className = 'tmrstat' + (v.s.status === 'running' ? (over ? ' over' : ' on')
+        : v.s.status === 'done' ? ' done' : v.s.status === 'awaiting' ? ' wait' : '');
+    }
+    const txt = box.querySelector('[data-tmrtxt]');
+    if (txt) {
+      const extra = v.s.status === 'paused' ? ' · ' + faNum(v.remain) + ' دقیقه مانده'
+        : v.s.status === 'awaiting' ? ' · زمان برنامه‌ریزی‌شده پر شد'
+          : (v.over > 0 ? ' · ' + faNum(v.over) + ' دقیقه اضافه‌کاری' : '');
+      txt.textContent = faNum(v.elapsed) + ' از ' + faNum(v.s.plannedMinutes) + ' دقیقه' + extra;
+    }
+    box.classList.toggle('overtime', Boolean(v.s.overtime));
+    box.classList.toggle('awaiting', v.s.status === 'awaiting');
+  }
+
+  /* ---------------- آلارم صوتی پایان زمان برنامه‌ریزی‌شده ---------------- */
+
+  let audioCtx = null;
+  function alarmBeep(times) {
+    const n = times == null ? 3 : times;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+      for (let i = 0; i < n; i += 1) {
+        const t0 = audioCtx.currentTime + i * 0.55;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, t0);
+        osc.frequency.setValueAtTime(660, t0 + 0.18);
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(0.28, t0 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(t0); osc.stop(t0 + 0.36);
+      }
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /* ---------------- منوی شناور (تأیید / پرسش) ---------------- */
+
+  let modalResolve = null;
+  function openModal(opts) {
+    const box = $('modal');
+    if (!box) return Promise.resolve(false);
+    const o = opts || {};
+    $('modalTitle').textContent = o.title || '';
+    $('modalBody').innerHTML = o.body || '';
+    const ok = $('modalOk');
+    const cancel = $('modalCancel');
+    ok.textContent = o.okText || 'تأیید';
+    cancel.textContent = o.cancelText || 'انصراف';
+    ok.className = 'btn ' + (o.danger ? 'danger' : 'primary');
+    cancel.style.display = o.hideCancel ? 'none' : '';
+    box.classList.add('show');
+    box.setAttribute('aria-hidden', 'false');
+    return new Promise((resolve) => {
+      modalResolve = (val) => {
+        box.classList.remove('show');
+        box.setAttribute('aria-hidden', 'true');
+        modalResolve = null;
+        resolve(val);
+      };
+      ok.onclick = () => modalResolve(true);
+      cancel.onclick = () => modalResolve(false);
+    });
+  }
+  function closeModal(val) { if (modalResolve) modalResolve(Boolean(val)); }
+
+  /* دکمهٔ پایان فصل: تأیید می‌گیرد، بعد بلوک را «تمام‌شده» می‌کند */
+  async function closeChapter(key) {
+    if (!DP || !state.plan) return;
+    const f = findBlock(state.plan, key);
+    if (!f.block) return;
+    const cur = sessionOf(f.day, f.idx, f.block);
+    const done = DP.elapsedMinutes(cur, nowMs());
+    const planned = cur.plannedMinutes;
+    const body = '<div class="modal-note">' +
+      '<b>' + esc(f.block.subjectName || '') + ' · ' + esc(f.block.topic || '') + '</b><br>' +
+      'زمان این بلوک: ' + faNum(planned) + ' دقیقه · تا حالا: ' + faNum(done) + ' دقیقه' +
+      (done < planned ? '<br><span class="modal-err">' + faNum(planned - done) + ' دقیقه از زمان برنامه‌ریزی‌شده باقی مانده است.</span>' : '') +
+      '</div><div style="font-size:12.5px">آیا مطمئنی این بخش را تمام کردی؟ بعد از تأیید، این فصل «تمام‌شده» ثبت می‌شود.</div>';
+    const yes = await openModal({ title: 'پایان فصل — تأیید', body: body, okText: 'بله، تمام شد', cancelText: 'نه، ادامه می‌دهم' });
+    if (!yes) return;
+    const next = DP.closeConfirmed(cur, nowMs());
+    sessions()[key] = next;
+    state.done[key] = true;
+    persist();
+    try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+    try { if ($('dayView') && state.selectedDay != null) renderDay(state.selectedDay); } catch (e) { /* بی‌صدا */ }
+    toast('فصل «' + (f.block.topic || '') + '» تمام‌شده ثبت شد ✓');
+  }
+
+  /* وقتی زمان برنامه‌ریزی‌شده پر شد: آلارم + پرسش «هنوز مشغولم؟» */
+  async function askOvertime(key) {
+    if (!DP || !state.plan) return;
+    const f = findBlock(state.plan, key);
+    if (!f.block) return;
+    const cur = sessionOf(f.day, f.idx, f.block);
+    if (cur.status !== 'awaiting' || cur.awaitAsked) return;
+    sessions()[key] = Object.assign({}, cur, { awaitAsked: true });
+    alarmBeep(3);
+    const yes = await openModal({
+      title: '⏰ زمان برنامه‌ریزی‌شدهٔ این فصل تمام شد',
+      body: '<div class="modal-note"><b>' + esc(f.block.subjectName || '') + ' · ' + esc(f.block.topic || '') + '</b><br>' +
+        'زمانی که موتور برای این فصل لازم دیده بود: ' + faNum(cur.plannedMinutes) + ' دقیقه — پر شد.<br>' +
+        'اگر هنوز مشغول همین بخشی، بگو تا تایمر ادامه پیدا کند و خودش بعداً بسته شود.</div>' +
+        '<div style="font-size:12.5px">هنوز مشغول درس‌خواندنِ همین بخش هستی؟</div>',
+      okText: 'بله، هنوز می‌خوانم',
+      cancelText: 'نه، تمام شد',
+    });
+    if (yes) {
+      sessions()[key] = DP.answerStillStudying(sessions()[key], nowMs());
+      toast('تایمر ادامه پیدا کرد — هر وقت تمام شد «پایان فصل» را بزن.');
+    } else {
+      sessions()[key] = DP.answerAway(sessions()[key], nowMs());
+      state.done[key] = true;
+      toast('این فصل با زمان برنامه‌ریزی‌شده بسته شد.');
+    }
+    persist();
+    try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+    try { if ($('dayView') && state.selectedDay != null) renderDay(state.selectedDay); } catch (e) { /* بی‌صدا */ }
+  }
+
+  /* وقتی کاربر به برنامه برگشت و بلوکِ منتظر جواب داشتیم: بپرس در این مدت می‌خواند یا نه */
+  async function askUnattended() {
+    if (!DP) return;
+    const pend = awaitingSessions();
+    if (!pend.length) return;
+    const key = pend[0].key;
+    const f = pend[0];
+    const cur = sessions()[key];
+    const waitedMin = Math.max(1, Math.round((nowMs() - (cur.awaitSince || nowMs())) / 60000));
+    const yes = await openModal({
+      title: 'به برنامه برگشتی — یک سؤال',
+      body: '<div class="modal-note"><b>' + esc(f.block.subjectName || '') + ' · ' + esc(f.block.topic || '') + '</b><br>' +
+        'تایمر از ' + faNum(waitedMin) + ' دقیقه پیش منتظر جواب ماند (زمان برنامه‌ریزی‌شده پر شده بود).<br>' +
+        'در این مدت مشغول همین درس بودی یا برنامه را رها کردی و رفتی؟</div>',
+      okText: 'بله، درس می‌خواندم',
+      cancelText: 'نه، رفته بودم',
+    });
+    if (yes) {
+      sessions()[key] = DP.answerStillStudying(sessions()[key], nowMs());
+      toast('این ' + faNum(Math.min(waitedMin, DP.MAX_CREDIT_MIN)) + ' دقیقه به زمان مطالعه اضافه شد.');
+    } else {
+      sessions()[key] = DP.answerAway(sessions()[key], nowMs());
+      state.done[key] = true;
+      toast('زمانِ نبودنت حساب نشد. بقیهٔ کارهای امروز را می‌توانی با «بستن روز» جبران کنی.');
+    }
+    persist();
+    try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+  }
+
+  /** بلوک‌هایی که «منتظر پاسخ»اند */
+  function awaitingSessions() {
+    const out = [];
+    const plan = state.plan;
+    if (!plan) return out;
+    Object.keys(state.sessions || {}).forEach((key) => {
+      const s = state.sessions[key];
+      if (!s || s.status !== 'awaiting') return;
+      const f = findBlock(plan, key);
+      if (f.block) out.push({ key: key, block: f.block, session: s });
+    });
+    return out;
   }
 
   function applyTimerAction(key, action) {
     if (!DP || !state.plan) return;
     const f = findBlock(state.plan, key);
     if (!f.block) return;
+    if (action === 'close') { closeChapter(key); return; }
     const cur = sessionOf(f.day, f.idx, f.block);
     let next = cur;
     if (action === 'start') next = DP.start(cur, nowMs());
     else if (action === 'pause') next = DP.pause(cur, nowMs());
     else if (action === 'resume') next = DP.resume(cur, nowMs());
+    else if (action === 'awaitYes') next = DP.answerStillStudying(cur, nowMs());
+    else if (action === 'awaitNo') next = DP.answerAway(cur, nowMs());
     else if (action === 'finish') next = DP.finish(cur, nowMs());
     else if (action === 'reset') next = DP.newSession(f.block);
     sessions()[key] = next;
@@ -718,8 +1298,16 @@
     try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
     try { renderDayStartUI(); } catch (e) { /* بی‌صدا */ }
     try { if ($('dayView') && state.selectedDay != null) renderDay(state.selectedDay); } catch (e) { /* بی‌صدا */ }
+    if (action === 'start' || action === 'resume') {
+      const info = chapterInfoOf(f.block);
+      const imp = info ? Math.max(1, Math.min(5, Math.round(info.imp))) : 0;
+      toast((action === 'resume' ? 'ادامهٔ ' : 'شروع شد: ') + (f.block.subjectName || '') +
+        (imp ? ' · اهمیت فصل ' + faNum(imp) + ' از ۵' + (info.q ? ' · ≈' + faNum(Math.round(info.q)) + ' سؤال کنکور' : '') : ''));
+    }
     if (action === 'pause') toast('تایمر متوقف شد — هر وقت خواستی «ادامه» را بزن.');
     if (action === 'resume') toast('ادامهٔ همان بلوک — زمان قبلی حفظ شده است.');
+    if (action === 'awaitYes') toast('تایمر ادامه پیدا کرد.');
+    if (action === 'awaitNo') toast('بلوک با زمان برنامه‌ریزی‌شده بسته شد.');
   }
 
   document.addEventListener('click', (ev) => {
@@ -729,7 +1317,164 @@
     applyTimerAction(b.dataset.key, b.dataset.tmr);
   });
 
-  /* ---------- شروع روز ---------- */
+  /* ---------------- حلقهٔ یک‌ثانیه‌ای تایمرها ---------------- */
+
+  let lastTickAt = 0;
+  function tickTimers() {
+    const plan = state.plan;
+    if (!plan) return;
+    const t = todayIso();
+    const day = findDay(plan, t);
+    if (!day) return;
+    const now = nowMs();
+    const keys = Object.keys(state.sessions || {});
+    let needRerender = false;
+    keys.forEach((key) => {
+      if (key.indexOf(day.date + '#') !== 0) return;
+      const idx = Number(key.split('#')[1]);
+      const block = (day.blocks || [])[idx];
+      if (!block) return;
+      let s = state.sessions[key];
+      if (!s) return;
+      /* وقتِ تمام‌شدنِ زمان برنامه‌ریزی‌شده */
+      if (s.status === 'running' && DP && DP.plannedReached(s, now)) {
+        state.sessions[key] = DP.toAwaiting(s, now);
+        needRerender = true;
+        alarmBeep(3);
+        askOvertime(key);
+        return;
+      }
+      if (s.status === 'running' || s.status === 'paused' || s.status === 'awaiting') {
+        refreshTimerBox(day, block, idx);
+      }
+    });
+    if (needRerender) {
+      try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+    }
+    /* هر ۳۰ ثانیه یک‌بار ذخیره، تا با بستن ناگهانی چیزی از دست نرود */
+    if (now - lastTickAt > 30000) {
+      lastTickAt = now;
+      try { persist(); } catch (e) { /* بی‌صدا */ }
+    }
+  }
+  setInterval(() => { try { tickTimers(); } catch (e) { /* بی‌صدا */ } }, 1000);
+
+  /* قلاب تست خودکار رابط کاربری (در UI دیده نمی‌شود) */
+  try {
+    window.__revalTest = {
+      sessions: () => state.sessions,
+      plan: () => state.plan,
+      awaiting: awaitingSessions,
+      tick: tickTimers,
+      reconcile: reconcileSessions,
+      askOvertime: askOvertime,
+      askUnattended: askUnattended,
+      renderHomeToday: renderHomeToday,
+      /* شروع را به عقب می‌برد تا تایمر از سقف برنامه‌ریزی‌شده بگذرد */
+      rewind: (key, minutesAgo) => {
+        const st = state.sessions[key];
+        if (!st) return false;
+        state.sessions[key] = Object.assign({}, st, {
+          status: 'running', since: nowMs() - minutesAgo * 60000, accumMs: 0, awaitSince: null, awaitAsked: false,
+        });
+        return true;
+      },
+      /* شبیه‌سازی: آلارم در نبودِ کاربر اجرا شده و او جواب نداده */
+      silentAwaiting: (key) => {
+        const st = state.sessions[key];
+        if (!st) return false;
+        state.sessions[key] = Object.assign({}, DP.toAwaiting(st, nowMs()), { awaitAsked: true });
+        return true;
+      },
+      /* نمای «برنامهٔ من» را روی امروز باز می‌کند (برای اسکرین‌شات) */
+      openToday: () => {
+        const plan = state.plan;
+        if (!plan) return false;
+        const t = todayIso();
+        let idx = plan.days.findIndex((d) => d.date === t);
+        if (idx < 0) idx = 0;
+        state.week = Math.floor(idx / 7);
+        state.selectedDay = idx;
+        renderWeek();
+        return true;
+      },
+      firstKey: () => {
+        const t = todayIso();
+        const day = findDay(state.plan, t);
+        if (!day) return null;
+        const i = firstTaskIndex(day);
+        return (i == null || i < 0) ? null : day.date + '#' + i;
+      },
+    };
+  } catch (e) { /* بی‌صدا */ }
+
+  /**
+   * آشتی‌سازی وضعیت تایمرها هنگام باز شدن برنامه:
+   * اگر برنامه بسته بوده و تایمر «در حال اجرا» مانده، زمان تا سقف برنامه‌ریزی‌شده حساب می‌شود
+   * و بلوک وارد «منتظر پاسخ» می‌شود تا در اولین فعالیت کاربر از او بپرسیم.
+   */
+  function reconcileSessions() {
+    if (!DP || !state.plan) return;
+    const now = nowMs();
+    Object.keys(state.sessions || {}).forEach((key) => {
+      const s = state.sessions[key];
+      if (!s || s.status !== 'running') return;
+      const f = findBlock(state.plan, key);
+      if (!f.block) return;
+      const planned = DP.newSession(f.block).plannedMinutes || s.plannedMinutes || 0;
+      const elapsed = DP.elapsedMinutes(s, now);
+      if (elapsed <= planned) return;
+      state.sessions[key] = Object.assign({}, s, {
+        status: 'awaiting',
+        accumMs: Math.min(planned, elapsed) * 60000,
+        since: null,
+        awaitSince: now,
+        awaitAsked: false,
+        plannedMinutes: planned || s.plannedMinutes,
+      });
+    });
+  }
+
+  /* اولین فعالیت کاربر بعد از بازگشت: اگر بلوکی منتظر جواب است، بپرس */
+  let activityArmed = true;
+  function onUserActivity() {
+    if (!activityArmed) return;
+    const pend = awaitingSessions();
+    if (!pend.length) return;
+    const s = sessions()[pend[0].key] || {};
+    if (s && s.awaitAsked) return;
+    activityArmed = false;
+    setTimeout(() => { activityArmed = true; }, 8000);
+    askUnattended();
+  }
+  ['pointerdown', 'keydown'].forEach((evt) => document.addEventListener(evt, onUserActivity, true));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) onUserActivity();
+  });
+  window.addEventListener('focus', onUserActivity);
+
+  /* ---------- شروع روز (یک دکمه) ---------- */
+
+  function nowHM() {
+    const d = new Date();
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  /** اولین تسک قابل‌اجرای امروز (بلوک درسی که نه تمام شده و نه ثابت است) */
+  function firstTaskIndex(day) {
+    if (!day) return -1;
+    const blocks = day.blocks || [];
+    for (let i = 0; i < blocks.length; i += 1) {
+      const b = blocks[i];
+      if (!b || b.kind === 'routine' || b.kind === 'exam') continue;
+      if (DP && DP.isPinned(b) && b.kind !== 'emergency') continue;
+      const key = day.date + '#' + i;
+      const st = (state.sessions || {})[key];
+      if (st && st.status === 'done') continue;
+      return i;
+    }
+    return -1;
+  }
 
   function renderDayStartUI() {
     const card = $('homeDayCard');
@@ -744,21 +1489,22 @@
         (ov ? ' · امروز از ' + faNum(ov) + ' شروع شده' : '');
     }
     const inp = $('startDayTime');
-    if (inp && document.activeElement !== inp) {
-      inp.value = faNum(ov || state.wakeTime || '۰۷:۰۰');
-    }
+    if (inp && document.activeElement !== inp) inp.value = faNum(ov || state.wakeTime || '۰۷:۰۰');
     const note = $('dayStateNote');
     const day = findDay(plan, t);
     if (note) {
       if (!day) {
         note.textContent = 'امروز خارج از بازهٔ برنامه است. با «ساخت برنامه» بازه را به‌روز کن.';
       } else if (ov) {
-        const n = (day.blocks || []).filter((b) => b.kind !== 'routine').length;
-        note.innerHTML = '✓ امروز از ساعت <b>' + faNum(ov) + '</b> شروع شد و برنامهٔ همین روز بازچیده شد (' +
-          faNum(n) + ' بلوک). کلاس‌ها، روال‌های ثابت و آزمون‌ها جابه‌جا نشدند. ' +
-          'دکمهٔ «بستن روز» کارهای نیمه‌کاره را با اولویت به روزهای بعد منتقل می‌کند.';
+        const idx = firstTaskIndex(day);
+        const nxt = idx >= 0 ? day.blocks[idx] : null;
+        note.innerHTML = '✓ امروز از ساعت <b>' + faNum(ov) + '</b> شروع شد و برنامهٔ همین روز بازچیده شد. ' +
+          (nxt ? 'تسک جاری: <b>' + esc(nxt.subjectName) + ' · ' + esc(nxt.topic) + '</b> (ساعت ' + faNum(nxt.start) + ').'
+            : (day.rest ? 'امروز روز استراحت است؛ تسکی برای شروع نمانده.'
+              : 'همهٔ تسک‌های امروز انجام شده‌اند؛ چیزی برای شروع نمانده.')) +
+          ' کلاس‌ها، روال ثابت و آزمون‌ها جابه‌جا نشدند.';
       } else {
-        note.textContent = 'امروز هنوز با ساعت پیش‌فرض شروع شده است. اگر دیرتر بیدار شدی، ساعت واقعی را بنویس و دکمه را بزن.';
+        note.textContent = '';
       }
     }
   }
@@ -792,16 +1538,50 @@
     }
   }
 
-  if ($('startDayBtn')) $('startDayBtn').addEventListener('click', () => {
+  /**
+   * «بیدار شدم — شروع روز»: ساعت واقعی همین لحظه، بازچینی فقط امروز،
+   * و بعد شروع خودکار اولین تسک.
+   */
+  function startDayNow(atTime) {
     if (!state.plan) return toast('اول برنامه را بساز.');
     const t = todayIso();
-    const want = normTime(($('startDayTime') && $('startDayTime').value) || '') || state.wakeTime || '07:00';
+    const v = normTime(atTime || nowHM()) || nowHM();
     state.dayStarts = state.dayStarts || {};
-    state.dayStarts[t] = want;
-    const today = findDay(state.plan, t);
-    const pinnedCount = today ? (today.blocks || []).filter((b) => DP && DP.isPinned(b)).length : 0;
-    rebuildWith((cfg) => { if (cfg.startDate > t) cfg.startDate = t; },
-      'روز از ساعت ' + faNum(want) + ' بازچیده شد ✓ (' + faNum(pinnedCount) + ' رویداد ثابت سر جایش ماند)');
+    state.dayStarts[t] = v;
+    const ok = rebuildWith((cfg) => {
+      if (cfg.startDate > t) cfg.startDate = t;
+      /* ساعت مطالعهٔ امروز = از همین حالا تا پایان پنجرهٔ آزاد */
+      cfg.dayStarts = Object.assign({}, cfg.dayStarts, { [t]: v });
+    }, null);
+    if (!ok) return;
+    const day = findDay(state.plan, t);
+    if (!day) return toast('امروز در بازهٔ برنامه نیست.');
+    const idx = firstTaskIndex(day);
+    if (idx < 0) return toast('روز از ساعت ' + faNum(v) + ' چیده شد؛ تسک بازی نمانده است.');
+    const block = day.blocks[idx];
+    const key = day.date + '#' + idx;
+    const cur = sessionOf(day, idx, block);
+    sessions()[key] = DP ? DP.start(cur, nowMs()) : cur;
+    persist();
+    try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+    try { renderDayStartUI(); } catch (e) { /* بی‌صدا */ }
+    toast('روز از ساعت ' + faNum(v) + ' شروع شد — «' + (block.subjectName || '') + '» شروع شد ✓');
+    return true;
+  }
+
+  if ($('startDayBtn')) $('startDayBtn').addEventListener('click', () => {
+    startDayNow(nowHM());
+  });
+
+  if ($('startDayAdjust')) $('startDayAdjust').addEventListener('click', () => {
+    const row = $('startDayExact');
+    if (!row) return;
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+    if (row.style.display !== 'none' && $('startDayTime')) { $('startDayTime').focus(); $('startDayTime').select && $('startDayTime').select(); }
+  });
+
+  if ($('startDayAt')) $('startDayAt').addEventListener('click', () => {
+    startDayNow(normTime(($('startDayTime') && $('startDayTime').value) || '') || nowHM());
   });
 
   if ($('resetDayBtn')) $('resetDayBtn').addEventListener('click', () => {
@@ -820,14 +1600,15 @@
     if (!unf.length) return toast('کار جامانده‌ای امروز نیست — عالی.');
     const carry = DP ? DP.toCarryOver(unf) : [];
     if (!carry.length) return toast('چیزی برای انتقال نیست.');
-    /* بلوک‌های منتقل‌شده دیگر «کار امروز» نیستند */
     unf.forEach((x) => { if (state.sessions) delete state.sessions[x.key]; });
     rebuildWith((cfg) => {
       cfg.carryOver = (cfg.carryOver || []).concat(carry);
       if (cfg.startDate > t) cfg.startDate = t;
     }, faNum(carry.length) + ' کار جامانده با اولویت به روزهای بعد منتقل شد ✓');
-    $('dayStateNote').textContent = faNum(carry.length) + ' کار جامانده (مجموع ' +
-      faNum(Math.round(carry.reduce((a, c) => a + c.minutes, 0) / 60 * 10) / 10) + ' ساعت) به روزهای بعد منتقل شد.';
+    if ($('dayStateNote')) {
+      $('dayStateNote').textContent = faNum(carry.length) + ' کار جامانده (مجموع ' +
+        faNum(Math.round(carry.reduce((a, c) => a + c.minutes, 0) / 60 * 10) / 10) + ' ساعت) به روزهای بعد منتقل شد.';
+    }
   });
 
   /* ---------- آیتم‌های اضطراری ---------- */
@@ -849,21 +1630,12 @@
     if (!state.plan) { card.style.display = 'none'; return; }
     card.style.display = 'block';
 
-    const sel = $('emSubject');
-    if (sel) {
-      const subs = emergencySubjects();
-      const prev = sel.value;
-      sel.innerHTML = subs.map((s) => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
-      if (prev && subs.some((s) => s.id === prev)) sel.value = prev;
-    }
-    renderEmergencyChapters();
-
     const box = $('emList');
     if (!box) return;
     const items = state.emergency || [];
     if (!items.length) {
-      box.innerHTML = '<div class="muted" style="font-size:11.5px">هنوز آیتم اضطراری اضافه نکرده‌ای. ' +
-        'هر موضوعی که «باید» انجام شود را این‌جا اضافه کن تا برنامه دور آن بازچینی شود.</div>';
+      box.innerHTML = '<div class="muted" style="font-size:11.5px">هنوز آیتمی ثبت نشده. ' +
+        'روی «+ ثبت آیتم اضطراری» بزن تا فرم باز شود.</div>';
       return;
     }
     const placed = {};
@@ -875,7 +1647,7 @@
         '<div class="body"><div class="ttl">' + esc(e.title || (e.subjectName || 'آیتم اضطراری')) +
         (e.scope === 'week' ? ' · این هفته (اولین فرصت)' : ' · امروز ' + faNum(e.time || '')) + '</div>' +
         '<div class="det">' + (p
-          ? 'چیده شد: ' + faNum(J ? J.fmt(p.date) : p.date) + ' · ساعت ' + faNum(p.start) + '–' + faNum(p.end) +
+          ? 'چیده شد: ' + faNum(J ? J.fmt(p.date) : p.date) + ' · ساعت ' + padHM(p.start) + ' تا ' + padHM(p.end) +
             ' (' + faNum(p.minutes) + ' دقیقه)'
           : 'هنوز در برنامه جا نگرفته — یا بازهٔ برنامهٔ فعلی تمام شده، یا آن روز جای کافی نبود.') + '</div></div>' +
         '<button class="btn ghost small" data-em-del="' + esc(e.id) + '">حذف</button></div>';
@@ -906,16 +1678,42 @@
 
   if ($('emSubject')) $('emSubject').addEventListener('change', renderEmergencyChapters);
 
-  if ($('emAdd')) $('emAdd').addEventListener('click', () => {
+  function openEmergencyModal() {
     if (!state.plan) return toast('اول برنامه را بساز.');
+    const sel = $('emSubject');
+    if (sel) {
+      const subs = emergencySubjects();
+      sel.innerHTML = subs.map((s) => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
+    }
+    renderEmergencyChapters();
+    const t = $('emTime');
+    if (t) t.value = padHM(nowHM());
+    const box = $('emModal');
+    if (box) { box.classList.add('show'); box.setAttribute('aria-hidden', 'false'); }
+    if (sel && sel.focus) sel.focus();
+  }
+  function closeEmergencyModal() {
+    const box = $('emModal');
+    if (box) { box.classList.remove('show'); box.setAttribute('aria-hidden', 'true'); }
+  }
+
+  if ($('emAdd')) $('emAdd').addEventListener('click', openEmergencyModal);
+  if ($('emCancel')) $('emCancel').addEventListener('click', closeEmergencyModal);
+  if ($('emModal')) $('emModal').addEventListener('click', (ev) => {
+    if (ev.target === $('emModal')) closeEmergencyModal();
+  });
+
+  function submitEmergency() {
+    if (!state.plan) { closeEmergencyModal(); return toast('اول برنامه را بساز.'); }
     const sid = ($('emSubject') && $('emSubject').value) || '';
     const chapter = ($('emChapter') && $('emChapter').value) || '';
     const scope = ($('emScope') && $('emScope').value) === 'week' ? 'week' : 'today';
-    const time = normTime(($('emTime') && $('emTime').value) || '') || '17:00';
+    const time = normTime(($('emTime') && $('emTime').value) || '') || nowHM();
     const minutes = clampNum(Number(numVal($('emMinutes'))) || 60, 20, 300);
     if (!sid) return toast('اول یک درس انتخاب کن.');
     const sub = emergencySubjects().find((s) => s.id === sid);
-    const stat = (state.plan.summary.chapterStats || []).find((c) => c.subjectId === sid && String(c.chapter) === String(chapter));
+    const stat = (state.plan.summary.chapterStats || [])
+      .find((c) => c.subjectId === sid && String(c.chapter) === String(chapter));
     const t = todayIso();
     const title = (sub ? sub.name : 'درس') + (stat ? ' · ' + stat.label : '');
     state.emergency = (state.emergency || []).concat([{
@@ -929,9 +1727,12 @@
       minutes: minutes,
       done: false,
     }]);
+    closeEmergencyModal();
     rebuildWith((cfg) => { if (cfg.startDate > t) cfg.startDate = t; },
-      'آیتم اضطراری اضافه شد و برنامه دور آن بازچینی شد ✓');
-  });
+      'آیتم اضطراری ثبت شد و برنامه دور آن بازچینی شد ✓');
+  }
+
+  if ($('emSubmit')) $('emSubmit').addEventListener('click', submitEmergency);
 
   /* ---------- آمادگی جدا: کنکور در برابر نهایی ---------- */
 
@@ -1180,9 +1981,13 @@
 
     const restDay = blocks.length === 0 && (d.isRestDay || d.isOff || !(d.blocks || []).length);
     const list = $('homeTodayList');
+    /* عنوان و برچسب تاریخ: «امروز» فقط یک‌بار نوشته می‌شود */
+    if ($('homeTodayTitle')) {
+      $('homeTodayTitle').textContent = isToday ? 'برنامهٔ امروز' : 'برنامهٔ نزدیک‌ترین روز';
+    }
     if ($('homeTodayDate')) {
-      $('homeTodayDate').textContent = (isToday ? 'امروز · ' : '') + jDateFull(d.date) + ' · ' + d.weekday +
-        (restDay ? ' · روز استراحت' : '');
+      $('homeTodayDate').textContent = jDateFull(d.date) + ' · ' + d.weekday +
+        (restDay ? ' · روز استراحت' : '') + (isToday ? '' : ' (نه امروز)');
     }
     if ($('homeTodayStats')) {
       /* روز استراحت: به‌جای «۰ ساعت» که نگران‌کننده است، پیام روشن بده */
@@ -1211,7 +2016,7 @@
         { v: hoursFa(mins) + ' ساعت', l: 'مدت مطالعهٔ این روز' },
         { v: faNum(blocks.length), l: 'بلوک کاری' },
         { v: faNum(tests), l: 'تست هدف' },
-        { v: blocks.length ? bidi(faNum(String(Math.floor(firstStart / 60)).padStart(2, '0') + ':' + String(firstStart % 60).padStart(2, '0')) + '–' + faNum(String(Math.floor(lastEnd / 60)).padStart(2, '0') + ':' + String(lastEnd % 60).padStart(2, '0'))) : '—', l: 'بازهٔ مطالعه' },
+        { v: blocks.length ? timeRangeShort(String(Math.floor(firstStart / 60)).padStart(2, '0') + ':' + String(firstStart % 60).padStart(2, '0'), String(Math.floor(lastEnd / 60)).padStart(2, '0') + ':' + String(lastEnd % 60).padStart(2, '0')) : '—', l: 'بازهٔ مطالعه' },
       ].map((i) => '<div class="stat"><b>' + i.v + '</b><span>' + i.l + '</span></div>').join('');
     }
 
@@ -1219,17 +2024,22 @@
     if (list) {
       const evts = (d.events || []).map((e) =>
         '<div class="evt' + (e.type === 'exam' ? ' exam' : '') + '"><span>' + (e.type === 'exam' ? '📝' : '📌') + '</span>' +
-        '<b>' + esc(e.title) + '</b><span class="t">' + bidi(faNum(e.start) + '–' + faNum(e.end)) + '</span></div>').join('');
-      const items = blocks.slice(0, 6).map((b) => {
+        '<b>' + esc(e.title) + '</b><span class="t">' + timeRange(e.start, e.end) + '</span></div>').join('');
+      const items = blocks.slice(0, 8).map((b) => {
         const bi = (d.blocks || []).indexOf(b);
-        return '<div class="block" style="grid-template-columns:86px 1fr"><div class="time">' +
-          bidi(faNum(b.start) + '–' + faNum(b.end)) + '<small>' + faNum(b.minutes || 0) + ' دقیقه</small></div>' +
-          '<div><div class="t">' + esc(b.subjectName) + ' <span class="muted" style="font-size:11px">· ' + esc(b.topic) + '</span></div>' +
-          '<div class="tech">' + esc(faNum(b.kindLabel || '')) + '</div>' +
-          timerHtml(d, b, bi) + '</div></div>';
+        return '<div class="' + blockStateClass(d, bi) + '" style="grid-template-columns:112px 1fr">' +
+          doneTick(d, bi) +
+          '<div class="time">' + timeRange(b.start, b.end) + '<small>' + durationFa(b.minutes || 0) + '</small></div>' +
+          '<div><div class="t">' + esc(b.subjectName) +
+            (b.kind === 'routine' ? '' : ' ' + chapterLine(b)) + '</div>' +
+          '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:3px">' +
+            '<span class="tech">' + esc(faNum(b.kindLabel || '')) + '</span>' + chapterBadge(b) +
+          '</div>' +
+          timerHtml(d, b, bi) + '</div>' +
+          (b.kind === 'routine' ? '' : goalsHtml(b)) + '</div>';
       }).join('');
-      const more = blocks.length > 6
-        ? '<div class="muted" style="font-size:11px;margin-top:6px">و ' + faNum(blocks.length - 6) + ' بلوک دیگر — در «برنامهٔ من» ببین.</div>'
+      const more = blocks.length > 8
+        ? '<div class="muted" style="font-size:11px;margin-top:6px">و ' + faNum(blocks.length - 8) + ' بلوک دیگر — در «برنامهٔ من» ببین.</div>'
         : '';
       list.innerHTML = evts + items + more || '<div class="muted" style="font-size:12px">این روز بلوکی ندارد (استراحت یا تعطیل).</div>';
     }
@@ -1293,6 +2103,10 @@
      راهنمای هر فیلد (ⓘ) — برای کسی که مفهوم بخش‌ها را نمی‌داند
      ══════════════════════════════════════════════════════════════════ */
   const HELP = {
+    /* — اهمیت فصل (نشان کنار هر بلوک) — */
+    imp: { t: 'سطح اهمیت این فصل', d: 'عدد اهمیت از بودجه‌بندی واقعی کنکور می‌آید: تعداد سؤال‌های همان فصل در کنکور، سختی و اهمیت نسبی‌اش. ' +
+      'فصل ۵ از ۵ (بحرانی) بیشترین زمان یادگیری، مرور و تست را می‌گیرد؛ فصل ۱ از ۵ کمترین. ' +
+      'نقطه‌های پُر یعنی اهمیت بالاتر. با نگه‌داشتن نشانگر روی نشان، سهم دقیق فصل از سؤال‌های درس و سختی‌اش را می‌بینی.' },
     /* — قدم ۱ — */
     name: { t: 'نام', d: 'فقط برای اینکه برنامه به اسم خودت ساخته شود. هر چیزی بنویسی اشکالی ندارد.' },
     grade: { t: 'پایهٔ تحصیلی', d: 'پایه‌ای که امسال در آن درس می‌خوانی. اگر امسال دوازدهمی، «دوازدهم» را انتخاب کن؛ کنکور ۱۴۰۶ برای دوازدهمی‌های امسال است.' },
@@ -2695,7 +3509,7 @@
     const head = '<div class="card" style="margin-bottom:10px;background:var(--panel2)">' +
       '<div class="row" style="justify-content:space-between">' +
       '<div><b style="font-size:13.5px">' + esc(jDateFull(d.date)) + '</b>' +
-      '<div class="muted" style="font-size:11.5px;margin-top:3px">' + faNum(d.plannedMinutes) + ' دقیقه' +
+      '<div class="muted" style="font-size:11.5px;margin-top:3px">' + durationFa(d.plannedMinutes) +
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
       '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') + '</div>';
 
@@ -2704,23 +3518,24 @@
       '<span>' + (e.type === 'exam' ? '📝' : '📌') + '</span>' +
       '<b>' + esc(e.title) + '</b>' +
       (e.subjectName ? '<span class="muted">· ' + esc(e.subjectName) + '</span>' : '') +
-      '<span class="t">' + bidi(faNum(e.start) + '–' + faNum(e.end)) + (e.type === 'exam' ? ' · آزمون' : ' · کلاس') + '</span>' +
+      '<span class="t">' + timeRange(e.start, e.end) + (e.type === 'exam' ? ' · آزمون' : ' · کلاس') + '</span>' +
       '</div>').join('');
 
     const blocks = d.blocks.map((b, i) => {
       const key = d.date + '#' + i;
       const done = state.done[key] ? 'checked' : '';
-      return '<div class="block">' +
-        '<div class="time">' + bidi(faNum(b.start) + '–' + faNum(b.end)) + '<small>' + faNum(b.minutes) + ' دقیقه</small></div>' +
-        '<div><div class="t">' + esc(b.subjectName) + ' <span class="muted" style="font-size:11px">· ' + esc(b.topic) + '</span></div>' +
-        '<div class="c">' + esc(faNum(b.content)) + (b.retrievalTail ? ' <b style="color:#4f46e5">+' + faNum(b.retrievalTail) + ' دقیقه بازیابی</b>' : '') + '</div>' +
-        '<div class="tech">' + esc(faNum(b.technique)) + '</div>' +
+      return '<div class="' + blockStateClass(d, i) + '">' + doneTick(d, i) +
+        '<div class="time">' + timeRange(b.start, b.end) + '<small>' + durationFa(b.minutes) + '</small></div>' +
+        '<div><div class="t">' + esc(b.subjectName) + (b.kind === 'routine' ? '' : ' ' + chapterLine(b)) + '</div>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;margin:2px 0 4px">' + chapterBadge(b) + '</div>' +
+        (b.kind === 'routine' ? '<div class="c">' + esc(b.content) + '</div>' : '') +
         (b.ifThen ? '<details><summary>جملهٔ اجرا (if-then)</summary>' + esc(b.ifThen) + '</details>' : '') +
         (b.why ? '<details><summary>چرا این کار؟</summary>' + esc(b.why) + '</details>' : '') +
         '</div>' +
         '<div><span class="badge ' + (KIND_CLASS[b.kind] || '') + '">' + esc(b.kindLabel) + '</span>' +
         '<div class="chk" style="margin-top:8px"><input type="checkbox" data-done="' + key + '" ' + done + ' /> انجام شد</div>' +
         timerHtml(d, b, i) + '</div>' +
+        (b.kind === 'routine' ? '' : goalsHtml(b)) +
         '</div>';
     }).join('');
 
@@ -3299,7 +4114,18 @@
   }
   restore().then(() => {
     try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }
+    try { reconcileSessions(); } catch (e) { /* بی‌صدا */ }
     try { renderHome(); } catch (e) { /* بی‌صدا */ }
+  });
+
+  /* بستن منوها با Esc یا کلیک بیرون */
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if ($('emModal') && $('emModal').classList.contains('show')) { closeEmergencyModal(); return; }
+    if ($('modal') && $('modal').classList.contains('show')) closeModal(false);
+  });
+  if ($('modal')) $('modal').addEventListener('click', (ev) => {
+    if (ev.target === $('modal')) closeModal(false);
   });
 
   /* با هر تغییر در فرم، نمای خانه و تیک‌های نوار کنار تازه می‌شوند */

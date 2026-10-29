@@ -41,8 +41,8 @@
    * plannedMinutes: مدت برنامه‌ریزی‌شده · accumMs: زمان جمع‌شده · since: لحظهٔ شروع آخرین اجرا
    */
   function newSession(block) {
-    const planned = Number(block && block.minutes) ||
-      Math.max(0, (hmToMin(block && block.end) || 0) - (hmToMin(block && block.start) || 0));
+    const planned = Math.round(Number(block && block.minutes) ||
+      Math.max(0, (hmToMin(block && block.end) || 0) - (hmToMin(block && block.start) || 0)));
     return {
       plannedMinutes: planned,
       accumMs: 0,
@@ -98,18 +98,94 @@
     const acc = (s.accumMs || 0) + (s.status === 'running' && s.since != null ? Math.max(0, t - s.since) : 0);
     return Object.assign({}, s, { accumMs: acc, since: null, status: 'done', finishedAt: t });
   }
-  /** یک قدم کامل: idle→running، running→paused، paused→running، هر سه→done در صورت اتمام */
+  /**
+   * یک قدم کامل: idle→running، running→paused/awaiting.
+   * وقتی زمان برنامه‌ریزی‌شده پر شد، بلوک «تمام‌شده» اعلام نمی‌شود؛
+   * وارد حالت «منتظر پاسخ» می‌شود تا از کاربر بپرسیم هنوز مشغول است یا نه.
+   */
   function tick(s, nowMs) {
     if (!s) return s;
-    if (s.status === 'running' && remainingMinutes(s, nowMs) <= 0) return finish(s, nowMs);
+    /* اگر کاربر گفته «هنوز می‌خوانم»، دیگر پرسش تکرار نمی‌شود؛ تا «پایان فصل» ادامه می‌دهد */
+    if (s.overtime) return s;
+    if (s.status === 'running' && remainingMinutes(s, nowMs) <= 0) return toAwaiting(s, nowMs);
     return s;
+  }
+
+  /** حداکثر زمانی که می‌توانیم به‌عنوان «درس می‌خواندم» به حساب بیاوریم (دقیقه) */
+  const MAX_CREDIT_MIN = 120;
+
+  /** زمان برنامه‌ریزی‌شده پر شده؟ */
+  function plannedReached(s, nowMs) {
+    if (!s || s.overtime) return false;
+    return elapsedMs(s, nowMs) / MIN >= (s.plannedMinutes || 0) - 0.01;
+  }
+
+  /** چند دقیقه بیشتر از برنامه خوانده شده (اضافه‌کاری) */
+  function overtimeMinutes(s, nowMs) {
+    if (!s) return 0;
+    return Math.max(0, Math.round(elapsedMs(s, nowMs) / MIN - (s.plannedMinutes || 0)));
+  }
+
+  /**
+   * رسیدن به پایان زمان برنامه‌ریزی‌شده: تایمر «قفل» می‌شود و منتظر پاسخ کاربر می‌مانیم.
+   * ضبط زمان متوقف می‌شود تا اگر کاربر رفته بود، زمانِ نبودنش به حساب نیاید.
+   */
+  function toAwaiting(s, nowMs) {
+    const t = T(nowMs);
+    const raw = (s.accumMs || 0) + (s.status === 'running' && s.since != null ? Math.max(0, t - s.since) : 0);
+    /* زمان تا سقفِ برنامه‌ریزی‌شده حساب می‌شود؛ اضافه‌اش فقط با تأیید کاربر می‌نشیند */
+    const cap = (s.plannedMinutes || 0) * MIN;
+    const acc = cap > 0 ? Math.min(raw, cap) : raw;
+    return Object.assign({}, s, {
+      status: 'awaiting', accumMs: acc, since: null,
+      awaitSince: t, awaitAsked: false,
+    });
+  }
+
+  /**
+   * پاسخ «بله، هنوز مشغولم»: زمانِ انتظار (تا سقف ۲ ساعت) به زمان مطالعه اضافه می‌شود
+   * و تایمر ادامه پیدا می‌کند تا خودش بسته شود.
+   */
+  function answerStillStudying(s, nowMs) {
+    const t = T(nowMs);
+    const span = clamp(t - (s.awaitSince == null ? t : s.awaitSince), 0, MAX_CREDIT_MIN * MIN);
+    return Object.assign({}, s, {
+      status: 'running', since: t, awaitSince: null,
+      accumMs: Math.max(0, (s.accumMs || 0) + span),
+      overtime: true, overtimeCreditedMs: (s.overtimeCreditedMs || 0) + span,
+    });
+  }
+
+  /**
+   * پاسخ «نه، رفته بودم»: زمانِ انتظار دور ریخته می‌شود، تایمر متوقف می‌ماند
+   * و بلوک به‌عنوان «تمام‌شده با زمان برنامه‌ریزی‌شده» بسته می‌شود (بقیه‌اش جامانده می‌شود).
+   */
+  function answerAway(s, nowMs) {
+    const t = T(nowMs);
+    const span = Math.max(0, t - (s.awaitSince == null ? t : s.awaitSince));
+    return Object.assign({}, s, {
+      status: 'done', since: null, awaitSince: null, finishedAt: t,
+      missedMs: (s.missedMs || 0) + span, awayAnswered: true,
+    });
+  }
+
+  /** بستن دستی بلوک با تأیید کاربر («پایان» → «مطمئنی؟» → بله) */
+  function closeConfirmed(s, nowMs) {
+    const t = T(nowMs);
+    const acc = (s.accumMs || 0) + (s.status === 'running' && s.since != null ? Math.max(0, t - s.since) : 0);
+    return Object.assign({}, s, {
+      status: 'done', since: null, awaitSince: null, finishedAt: t,
+      accumMs: acc, confirmed: true,
+      earlyClose: acc / MIN < (s.plannedMinutes || 0) - 0.01,
+    });
   }
 
   function statusFa(s) {
     if (!s) return '—';
-    if (s.status === 'running') return 'در حال اجرا';
+    if (s.status === 'running') return (s.overtime ? 'در حال اجرا (اضافه‌کاری)' : 'در حال اجرا');
     if (s.status === 'paused') return 'متوقف (مکس)';
-    if (s.status === 'done') return 'تمام‌شده';
+    if (s.status === 'awaiting') return 'منتظر پاسخ تو';
+    if (s.status === 'done') return (s.earlyClose ? 'تمام‌شده (پیش از پایان زمان)' : 'تمام‌شده');
     return 'شروع نشده';
   }
 
@@ -326,6 +402,8 @@
   return {
     hmToMin, minToHM, FA,
     newSession, start, pause, resume, finish, tick,
+    plannedReached, overtimeMinutes, toAwaiting, answerStillStudying, answerAway, closeConfirmed,
+    MAX_CREDIT_MIN,
     elapsedMs, elapsedMinutes, remainingMinutes, progressPct, statusFa,
     isPinned, relayout, priorityOf, sortSpill, unfinished, toCarryOver, dayProgress,
     FIXED_KINDS, KIND_PRIORITY,

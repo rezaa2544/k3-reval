@@ -1,13 +1,15 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "مشاور هوشمند روال — برنامه‌ریز کنکور و نهایی: شروع روز واقعی، تایمر توقف/ادامه، آیتم اضطراری، اهمیت واقعی فصل‌ها و آمادگی جدا برای کنکور و نهایی",
   "main": "src/bootstrap.js",
   "author": "Reval Desktop",
   "license": "MIT",
   "private": true,
   "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
     "jsdom": "^29.1.1"
   }
 }
