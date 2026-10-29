@@ -50,13 +50,13 @@ app.whenReady().then(async () => {
       openAccount: () => window.__calls.push('openAccount'),
       applyAutoLogin: () => window.__calls.push('applyAutoLogin'),
       goHome: () => window.__calls.push('goHome'),
-      version: () => '1.4.0'
+      version: () => '1.5.0'
     }; true;`);
 
   const gate = gateTpl.replace(/__REVAL_CONFIG__/g, JSON.stringify({
     hasCredentials: true, credentials: { identifier: '09120000000', password: 'secret123' },
   }));
-  const toolbar = toolbarTpl.replace(/__REVAL_VERSION__/g, JSON.stringify('1.4.0'));
+  const toolbar = toolbarTpl.replace(/__REVAL_VERSION__/g, JSON.stringify('1.5.0'));
 
   await win.webContents.executeJavaScript(toolbar, true);
   await win.webContents.executeJavaScript(gate, true);

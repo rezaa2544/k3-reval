@@ -63,6 +63,55 @@
     },
   };
 
+  /* ------------------------------------------------------------------ */
+  /* دروس عمومی — فصل‌بندی بر اساس کتاب‌های درسی رسمی                    */
+  /* (فارسی ۸ فصل، عربی دهم ۸ / یازدهم ۷ / دوازدهم ۴ درس،               */
+  /*  دین و زندگی ۱۲ / ۱۲ / ۱۰ درس، زبان انگلیسی ۴ درس)                  */
+  /* ------------------------------------------------------------------ */
+
+  const FARSI_FASL = ['ادبیات تعلیمی', 'ادبیات پایداری', 'ادبیات غنایی', 'ادبیات سفر و زندگی',
+    'ادبیات انقلاب اسلامی', 'ادبیات حماسی', 'ادبیات داستانی', 'ادبیات جهان'];
+
+  function faBook(grade, n) {
+    return {
+      id: 'fa' + n, name: 'فارسی ' + String(n).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]),
+      weight: 3, chapters: 8, topicLabel: 'فصل', topicNames: FARSI_FASL.slice(),
+      type: 'conceptual', difficulty: 2, mastery: 50, general: true, grade,
+    };
+  }
+  function book(id, name, chapters, opts, grade) {
+    return Object.assign({ id, name, weight: 2, chapters, topicLabel: 'درس', type: 'conceptual', difficulty: 2, mastery: 45, general: true, grade }, opts || {});
+  }
+
+  const GENERAL = {
+    'دهم': [
+      faBook('دهم', 1),
+      book('ar1', 'عربی ۱', 8, { weight: 2, difficulty: 2, mastery: 40 }, 'دهم'),
+      book('di1', 'دین و زندگی ۱', 12, { weight: 3, type: 'memorization', difficulty: 1, mastery: 55 }, 'دهم'),
+      book('en1', 'زبان انگلیسی ۱', 4, { weight: 2, mastery: 50 }, 'دهم'),
+    ],
+    'یازدهم': [
+      faBook('یازدهم', 2),
+      book('ar2', 'عربی ۲', 7, { weight: 2, mastery: 40 }, 'یازدهم'),
+      book('di2', 'دین و زندگی ۲', 12, { weight: 3, type: 'memorization', difficulty: 1, mastery: 50 }, 'یازدهم'),
+      book('en2', 'زبان انگلیسی ۲', 4, { weight: 2, mastery: 50 }, 'یازدهم'),
+    ],
+    'دوازدهم': [
+      faBook('دوازدهم', 3),
+      book('ar3', 'عربی ۳', 4, { weight: 2, mastery: 40 }, 'دوازدهم'),
+      book('di3', 'دین و زندگی ۳', 10, { weight: 3, type: 'memorization', difficulty: 1, mastery: 50 }, 'دوازدهم'),
+      book('en3', 'زبان انگلیسی ۳', 4, { weight: 2, mastery: 50 }, 'دوازدهم'),
+    ],
+  };
+  GENERAL['فارغ‌التحصیل'] = GENERAL['دوازدهم'];
+
+  function generalFor(grade) {
+    const list = GENERAL[grade] || GENERAL['دوازدهم'];
+    return list.map((s) => Object.assign({}, s, {
+      masteredChapters: 0, include: true, examPercent: null, topicNames: s.topicNames ? s.topicNames.slice() : null,
+    }));
+  }
+
   function subjectsFor(field) {
     const f = FIELDS[field] || FIELDS.tajrobi;
     return f.subjects.map((s) => Object.assign({}, s, { masteredChapters: 0, include: true, examPercent: null }));
@@ -75,5 +124,5 @@
     return year + '-04-05';
   }
 
-  return { FIELDS, subjectsFor, defaultExamDate };
+  return { FIELDS, GENERAL, subjectsFor, generalFor, defaultExamDate };
 });

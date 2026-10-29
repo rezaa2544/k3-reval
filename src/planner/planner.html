@@ -6,20 +6,23 @@
 <title>مشاور هوشمند روال</title>
 <style>
   :root{
-    --bg:#0a0f1a; --panel:#101827; --panel2:#0d1522; --line:rgba(255,255,255,.09);
-    --fg:#e9eefb; --muted:#93a4bd; --brand:#6366f1; --brand2:#0ea5e9; --ok:#34d399;
-    --warn:#fbbf24; --danger:#f87171; --learn:#6366f1; --review:#0ea5e9; --practice:#14b8a6;
-    --mock:#f59e0b; --analysis:#a855f7; --warmup:#22d3ee;
+    --bg:#f6f8fc; --panel:#ffffff; --panel2:#f8fafc; --line:#e3e9f2; --line2:#eef2f8;
+    --fg:#16233a; --muted:#64748b; --brand:#4f46e5; --brand2:#0ea5e9; --ok:#059669;
+    --warn:#b45309; --danger:#dc2626; --learn:#4f46e5; --review:#0284c7; --practice:#0d9488;
+    --mock:#d97706; --analysis:#7c3aed; --warmup:#0891b2;
+    --field:#ffffff; --fieldline:#dbe3ef;
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
   body{
-    font-family:"Segoe UI",Tahoma,sans-serif;background:radial-gradient(120% 100% at 80% 0%,#16213f 0%,var(--bg) 55%,#060a12 100%);
+    font-family:"Segoe UI",Tahoma,sans-serif;
+    background:radial-gradient(120% 100% at 80% 0%,#ffffff 0%,#f4f7fd 45%,#eef3fb 100%);
     color:var(--fg);display:flex;flex-direction:column;overflow:hidden;
   }
   header{
     display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);
-    background:rgba(10,15,26,.72);backdrop-filter:blur(8px);-webkit-app-region:drag;
+    background:rgba(255,255,255,.92);backdrop-filter:blur(8px);-webkit-app-region:drag;
+    box-shadow:0 1px 0 rgba(15,23,42,.04);
   }
   header img{width:34px;height:34px;border-radius:9px}
   header h1{font-size:15px;margin:0}
@@ -29,14 +32,14 @@
     border:1px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;
     padding:7px 13px;border-radius:9px;cursor:pointer
   }
-  .tab:hover{background:rgba(255,255,255,.05);color:var(--fg)}
+  .tab:hover{background:#eef2f9;color:var(--fg)}
   .tab.active{background:linear-gradient(135deg,rgba(99,102,241,.9),rgba(14,165,233,.9));color:#fff}
   main{flex:1;overflow:auto;padding:16px 18px 26px}
   .view{display:none;max-width:1080px;margin:0 auto}
   .view.active{display:block}
   h2{font-size:15px;margin:0 0 10px}
-  h3{font-size:13px;margin:18px 0 8px;color:#c7d2fe}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+  h3{font-size:13px;margin:18px 0 8px;color:#3730a3}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -18px rgba(15,23,42,.18)}
   .grid{display:grid;gap:10px}
   .g2{grid-template-columns:1fr 1fr}
   .g3{grid-template-columns:repeat(3,1fr)}
@@ -44,19 +47,19 @@
   @media(max-width:760px){.g3,.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
   label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
   input,select{
-    width:100%;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:#0b1320;
+    width:100%;padding:9px 11px;border-radius:10px;border:1px solid var(--fieldline);background:var(--field);
     color:var(--fg);font:inherit;font-size:12.5px;outline:none
   }
-  input:focus,select:focus{border-color:rgba(99,102,241,.8);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+  input:focus,select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
   input[type=checkbox]{width:auto}
   .btn{
     font:inherit;font-size:12.5px;font-weight:600;border:0;border-radius:11px;padding:10px 18px;cursor:pointer;
-    background:#1b2437;color:#dbeafe;transition:transform .1s,filter .15s
+    background:#eef2f9;color:#31415e;border:1px solid var(--line);transition:transform .1s,filter .15s
   }
   .btn:hover{filter:brightness(1.12)}
   .btn:active{transform:translateY(1px)}
-  .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;box-shadow:0 10px 22px rgba(79,70,229,.25)}
-  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border:0;box-shadow:0 10px 22px rgba(79,70,229,.22)}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--muted)}
   .btn.small{padding:7px 12px;font-size:11.5px;font-weight:500}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .row.end{justify-content:flex-end}
@@ -68,57 +71,58 @@
   .stat{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px}
   .stat b{display:block;font-size:19px;margin-bottom:3px}
   .stat span{font-size:11px;color:var(--muted)}
-  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px}
+  .bar{height:8px;border-radius:99px;background:#e8edf5;overflow:hidden;margin-top:6px}
   .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
   .badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;font-weight:600}
-  .b-learn{background:rgba(99,102,241,.18);color:#a5b4fc}
-  .b-review{background:rgba(14,165,233,.18);color:#7dd3fc}
-  .b-practice{background:rgba(20,184,166,.18);color:#5eead4}
-  .b-mock{background:rgba(245,158,11,.18);color:#fcd34d}
-  .b-analysis{background:rgba(168,85,247,.18);color:#d8b4fe}
-  .b-warmup{background:rgba(34,211,238,.18);color:#67e8f9}
+  .b-learn{background:#eef0ff;color:#4338ca}
+  .b-review{background:#e6f4fd;color:#0369a1}
+  .b-practice{background:#e5f7f5;color:#0f766e}
+  .b-mock{background:#fdf1e0;color:#b45309}
+  .b-analysis{background:#f3ebff;color:#6d28d9}
+  .b-warmup{background:#e4f6fb;color:#0e7490}
   .notes{margin:0;padding-inline-start:16px;font-size:12.5px;line-height:2}
   .notes li{margin-bottom:4px}
-  .warn{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;border-radius:12px;padding:10px 13px;font-size:12px;line-height:1.9}
+  .warn{background:#fffaeb;border:1px solid #f6d78b;color:#92400e;border-radius:12px;padding:10px 13px;font-size:12px;line-height:1.9}
   .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
   .day-pill{
-    flex:0 0 auto;border:1px solid var(--line);background:#0d1522;color:var(--muted);border-radius:11px;
+    flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:11px;
     padding:8px 11px;font:inherit;font-size:11.5px;cursor:pointer;text-align:center;min-width:74px
   }
-  .day-pill.active{border-color:rgba(99,102,241,.75);background:rgba(99,102,241,.16);color:#c7d2fe}
+  .day-pill.active{border-color:rgba(79,70,229,.55);background:#eef0ff;color:#3730a3;font-weight:600}
   .day-pill small{display:block;font-size:10px;color:var(--muted);margin-top:2px}
   .block{
-    display:grid;grid-template-columns:78px 1fr auto;gap:10px;align-items:start;
+    display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:start;
     background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px
   }
-  .block .time{font-size:12px;color:#c7d2fe;font-weight:600;font-variant-numeric:tabular-nums}
+  .block .time{font-size:12px;color:#3730a3;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .block .time [dir=ltr]{display:inline-block}
   .block .time small{display:block;color:var(--muted);font-weight:400;margin-top:3px}
   .block .t{font-size:13px;font-weight:600;margin-bottom:3px}
   .block .c{font-size:11.5px;color:var(--muted);line-height:1.85}
-  .block .tech{font-size:10.5px;color:#93c5fd;margin-top:4px}
+  .block .tech{font-size:10.5px;color:#2563eb;margin-top:4px}
   details{font-size:11px;color:var(--muted);margin-top:6px}
-  summary{cursor:pointer;color:#a5b4fc}
+  summary{cursor:pointer;color:#4f46e5}
   .chk{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
-  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sp .8s linear infinite}
+  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sp .8s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
-  .kbd{font:11px Consolas,monospace;background:#0b1320;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
-  .sci h4{font-size:12.5px;margin:14px 0 6px;color:#c7d2fe}
-  .sci p,.sci li{font-size:12px;line-height:2;color:#c2cee2}
+  .kbd{font:11px Consolas,monospace;background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .sci h4{font-size:12.5px;margin:14px 0 6px;color:#3730a3}
+  .sci p,.sci li{font-size:12px;line-height:2;color:#3b4a63}
   .sci table{font-size:11.5px}
   .toast{
     position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
-    background:#111c2f;border:1px solid var(--line);color:var(--fg);padding:10px 18px;border-radius:12px;
-    font-size:12.5px;transition:.25s;z-index:99;box-shadow:0 18px 40px rgba(0,0,0,.4)
+    background:#16233a;border:1px solid #16233a;color:#f8fafc;padding:10px 18px;border-radius:12px;
+    font-size:12.5px;transition:.25s;z-index:99;box-shadow:0 18px 40px rgba(15,23,42,.28)
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 10px;line-height:2}
   ::-webkit-scrollbar{width:10px;height:10px}
-  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
 </style>
 </head>
 <body>
 <header>
-  <img src="../assets/icon.png" alt="" />
+  <img src="../../assets/icon.png" alt="" />
   <div>
     <h1>مشاور هوشمند روال</h1>
     <div class="sub">برنامه‌ریزی خودکار بر پایهٔ علم یادگیری — نه حدس</div>
@@ -213,6 +217,21 @@
     </div>
 
     <div class="card">
+      <h2>۶) دروس عمومی <span class="muted" style="font-size:11px;font-weight:400">(فارسی، عربی، دین و زندگی، زبان انگلیسی)</span></h2>
+      <p class="muted" style="margin-top:0">
+        فصل‌بندی بر اساس کتاب درسی همان پایه‌ای است که انتخاب کرده‌ای (فارسی: ۸ فصل · دینی: ۱۲/۱۲/۱۰ درس ·
+        عربی: ۸/۷/۴ درس · انگلیسی: ۴ درس). عمومی‌ها هم مثل دروس اختصاصی سهم زمانی و مرور فاصله‌دار می‌گیرند.
+        اسم درس یا تعداد درس‌ها با کتاب مدرسه‌ات فرق داشت؟ همین‌جا عوضش کن.
+      </p>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn ghost small" id="toggleGeneral">همه / هیچ</button>
+        <button class="btn ghost small" id="resetGeneral">بازگردانی عمومی‌های این پایه</button>
+        <span class="muted" style="font-size:11px">اگر مدرسه‌ات عمومی‌ها را جدا امتحان می‌گیرد، ضریبشان را بالاتر ببر.</span>
+      </div>
+      <table id="general"></table>
+    </div>
+
+    <div class="card">
       <div class="row end">
         <span class="muted" style="margin-inline-end:auto;font-size:11.5px">خروجی: برنامهٔ روزانه + مرورهای فاصله‌دار + آزمون جامع + دفتر خطا</span>
         <button class="btn primary" id="build">ساخت برنامهٔ من</button>
@@ -286,6 +305,7 @@
           <tr><td>۳ روز آخر قبل از هر آزمون آزمایشی: بدون مبحث جدید، فقط مرور مباحث همان آزمون؛ روز قبل سبک و با خواب زودتر</td><td>تثبیت حافظه نیازمند زمان و خواب است؛ یادگیری جدید در این پنجره فقط تداخل می‌سازد (Rasch &amp; Born 2013)</td></tr>
           <tr><td>بلافاصله بعد از آزمون، بلوک «تحلیل خطا» (دسته‌بندی: بی‌دقتی / نبود مفهوم / کمبود سرعت)</td><td>اثر آزمون وقتی مؤثر است که بازخورد داشته باشد؛ تحلیل خطا، خودتنظیمی می‌سازد</td></tr>
           <tr><td>مطالعه فقط در «بازه‌های آزاد واقعی» بین کلاس‌ها چیده می‌شود + ۱۰ دقیقه فاصله بعد از کلاس</td><td>توجه پس از جلسهٔ طولانی تحلیل می‌رود؛ فاصلهٔ کوتاه، کیفیت بلوک بعدی را بالا می‌برد (بار شناختی)</td></tr>
+          <tr><td>دروس عمومی هم در چرخهٔ روزانه سهم دارند (ضریب×فاصله از تسلط) و مرور فاصله‌دار می‌گیرند</td><td>همان قواعد اثبات‌شدهٔ بالا برای همهٔ دروس برقرارند؛ عمومی‌ها معمولاً حفظی‌ترند، پس بلوک‌های کوتاه‌تر و بازیابی مکرر می‌گیرند</td></tr>
           <tr><td>هر تسک جملهٔ «اگر ساعت … شد، آنگاه …» دارد</td><td>نیت‌های اجرایی — Gollwitzer &amp; Sheeran 2006 (d ≈ 0.65)</td></tr>
         </tbody>
       </table>
@@ -301,12 +321,12 @@
   .dyn-row{display:grid;gap:8px;align-items:end;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
   .dyn-row.class{grid-template-columns:1.4fr 1fr .8fr .8fr auto}
   .dyn-row.exam{grid-template-columns:1.3fr 1fr .8fr .8fr 1.3fr auto}
-  .dyn-row .del{background:transparent;border:1px solid rgba(248,113,113,.35);color:#f87171;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
-  .dyn-row .del:hover{background:rgba(248,113,113,.12)}
+  .dyn-row .del{background:#fff;border:1px solid #f5c2c2;color:#dc2626;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
+  .dyn-row .del:hover{background:#fef2f2}
   .dyn-row select[multiple]{height:70px}
   @media(max-width:820px){.dyn-row.class,.dyn-row.exam{grid-template-columns:1fr 1fr}}
-  .evt{display:flex;gap:8px;align-items:center;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);border-radius:11px;padding:8px 12px;margin-bottom:8px;font-size:12px}
-  .evt.exam{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.4)}
+  .evt{display:flex;gap:8px;align-items:center;background:#eef0ff;border:1px solid #d6d9ff;border-radius:11px;padding:8px 12px;margin-bottom:8px;font-size:12px}
+  .evt.exam{background:#fff7ed;border-color:#fed7aa}
   .evt b{font-weight:600}
   .evt .t{margin-inline-start:auto;color:var(--muted);font-size:11px}
 </style>

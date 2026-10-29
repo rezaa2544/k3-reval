@@ -1,1 +1,1 @@
-b5061a7cd544e41e66289e8c9cae0c5537d548d01bb47037df4f304123ed77ab  dist/Reval-Setup-1.4.1.exe
+e7986b847adc51c9f6ece3828dc801f03f2f44f3605d1afbb9398711cea3b5b7  Reval-Setup-1.5.0.exe

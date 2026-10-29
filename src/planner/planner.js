@@ -24,6 +24,7 @@
     selectedDay: null,
     scores: {},
     done: {},
+    general: null,
   };
 
   /* ---------------- ابزار ---------------- */
@@ -37,9 +38,17 @@
   }
 
   function faNum(n) {
-    return String(n)
+    // گرد کردن به یک رقم اعشار تا اعداد اعشاریِ شناور (مثل ۲۷٫۳۴۹۹۹۹) نمایش داده نشوند
+    const num = Number(n);
+    const val = isFinite(num) ? Math.round(num * 10) / 10 : n;
+    return String(val)
       .replace(/\./g, '٫')
       .replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+  }
+
+  /* جداسازی جهت‌نویسی برای بازه‌های زمانی/تاریخ در متن راست‌به‌چپ */
+  function bidi(txt) {
+    return '<span dir="ltr" style="unicode-bidi:isolate">' + String(txt) + '</span>';
   }
 
   function weekOf(plan, dayIndex) {
@@ -76,7 +85,7 @@
       .map((t) => '<option value="' + t + '"' + (s.type === t ? ' selected' : '') + '>' + types[t] + '</option>')
       .join('');
     return '' +
-      '<tr data-row="' + index + '">' +
+      '<tr data-row="' + index + '" data-id="' + esc(s.id) + '">' +
       '<td><input data-f="name" value="' + esc(s.name) + '" /></td>' +
       '<td><input data-f="weight" type="number" min="0.5" max="20" step="0.5" value="' + s.weight + '" style="width:64px" /></td>' +
       '<td><input data-f="chapters" type="number" min="1" max="40" value="' + s.chapters + '" style="width:64px" /></td>' +
@@ -102,10 +111,61 @@
       '<tbody>' + subjects.map(subjectRow).join('') + '</tbody>';
   }
 
+  /* ---------------- دروس عمومی ---------------- */
+
+  function renderGeneral(list) {
+    const rows = (list && list.length ? list : presets.generalFor($('grade').value || 'دوازدهم'))
+      .map((s) => Object.assign({}, s, { include: s.include !== false }));
+    state.general = rows;
+    const table = $('general');
+    if (!table) return;
+    table.innerHTML = '' +
+      '<thead><tr><th>درس</th><th>ضریب</th><th>تعداد درس/فصل</th><th>خوانده‌شده</th><th>تسلط٪</th><th>در برنامه</th></tr></thead>' +
+      '<tbody>' + rows.map((s) => '' +
+        '<tr data-gid="' + esc(s.id) + '">' +
+        '<td><input data-gf="name" value="' + esc(s.name) + '" /></td>' +
+        '<td><input data-gf="weight" type="number" min="0.5" max="20" step="0.5" value="' + s.weight + '" style="width:64px" /></td>' +
+        '<td><input data-gf="chapters" type="number" min="1" max="40" value="' + s.chapters + '" style="width:64px" />' +
+          '<div class="muted" style="font-size:10px;margin-top:2px">' + esc(s.topicLabel || 'درس') + '</div></td>' +
+        '<td><input data-gf="masteredChapters" type="number" min="0" max="40" value="' + (s.masteredChapters || 0) + '" style="width:64px" /></td>' +
+        '<td><input data-gf="mastery" type="number" min="0" max="100" step="5" value="' + (s.mastery == null ? 45 : s.mastery) + '" style="width:70px" /></td>' +
+        '<td><input data-gf="include" type="checkbox" ' + (s.include === false ? '' : 'checked') + ' /></td>' +
+        '</tr>').join('') + '</tbody>';
+  }
+
+  function readGeneral() {
+    const table = $('general');
+    if (!table) return [];
+    const byId = {};
+    (state.general || []).forEach((s) => { byId[s.id] = s; });
+    const out = [];
+    table.querySelectorAll('tbody tr').forEach((tr, i) => {
+      const get = (f) => tr.querySelector('[data-gf="' + f + '"]');
+      const base = byId[tr.dataset.gid] || {};
+      out.push(Object.assign({}, base, {
+        id: tr.dataset.gid || ('G' + (i + 1)),
+        name: get('name').value.trim() || base.name || ('درس عمومی ' + (i + 1)),
+        weight: Number(get('weight').value) || 2,
+        chapters: Number(get('chapters').value) || 1,
+        masteredChapters: Number(get('masteredChapters').value) || 0,
+        mastery: Number(get('mastery').value) || 0,
+        include: get('include').checked,
+        general: true,
+        type: base.type || 'conceptual',
+        difficulty: base.difficulty || 2,
+        topicLabel: base.topicLabel || 'درس',
+        topicNames: base.topicNames || null,
+        examPercent: base.examPercent == null ? null : base.examPercent,
+      }));
+    });
+    return out;
+  }
+
   /* ---------------- کلاس‌ها و آزمون‌ها ---------------- */
 
   function subjectOptions(selected) {
-    const subs = state.config && state.config.subjects ? state.config.subjects : presets.subjectsFor('tajrobi');
+    const base = state.config && state.config.subjects ? state.config.subjects.filter((x) => !x.general) : presets.subjectsFor('tajrobi');
+    const subs = base.concat((state.general || []).map((x) => ({ id: x.id, name: x.name })));
     return subs.map((x) => '<option value="' + esc(x.id) + '"' + (selected === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
   }
 
@@ -142,7 +202,7 @@
         '<div><label>از</label><input type="time" data-ef="start" value="' + (e.start || '08:00') + '" /></div>' +
         '<div><label>تا</label><input type="time" data-ef="end" value="' + (e.end || '11:30') + '" /></div>' +
         '<div><label>درس‌های آزمون</label><select multiple data-ef="subjectIds">' +
-          (state.config && state.config.subjects ? state.config.subjects : []).map((x) =>
+          (state.config ? state.config.subjects : []).concat(state.general || []).map((x) =>
             '<option value="' + esc(x.id) + '"' + ((e.subjectIds || []).indexOf(x.id) !== -1 ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
         '</select></div>' +
         '<button class="del" title="حذف">✕</button>';
@@ -202,10 +262,9 @@
     const rows = $('subjects').querySelectorAll('tbody tr');
     const out = [];
     rows.forEach((tr, i) => {
-      const base = state.config.subjects[i] || { id: 'S' + (i + 1) };
       const get = (f) => tr.querySelector('[data-f="' + f + '"]');
       out.push({
-        id: base.id,
+        id: tr.dataset.id || ('S' + (i + 1)),
         name: get('name').value.trim() || 'درس ' + (i + 1),
         weight: Number(get('weight').value) || 1,
         chapters: Number(get('chapters').value) || 1,
@@ -225,7 +284,7 @@
     document.querySelectorAll('[data-avail]').forEach((inp) => {
       availability[inp.dataset.avail] = Number(inp.value) || 0;
     });
-    const subjects = readSubjects();
+    const subjects = readSubjects().concat(readGeneral().filter((x) => x.include));
     const schoolDays = { sat: '16:00', sun: '16:00', mon: '16:00', tue: '16:00', wed: '16:00', thu: '09:00', fri: '09:00' };
     return {
       student: {
@@ -264,7 +323,11 @@
     $('breakMinutes').value = String(cfg.breakMinutes == null ? 10 : cfg.breakMinutes);
     $('weeklyMock').value = cfg.weeklyMock === false ? '0' : '1';
     buildAvailabilityGrid(cfg.availability || {});
-    renderSubjects(cfg.subjects || presets.subjectsFor('tajrobi'));
+    const allSubs = cfg.subjects || presets.subjectsFor('tajrobi');
+    const core = allSubs.filter((x) => !x.general);
+    const gen = allSubs.filter((x) => x.general);
+    renderSubjects(core.length ? core : presets.subjectsFor(cfg.student && cfg.student.field || 'tajrobi'));
+    renderGeneral(gen.length ? gen : presets.generalFor((cfg.student && cfg.student.grade) || 'دوازدهم'));
     renderClassRows(cfg.classes || []);
     renderExamRows(cfg.exams || []);
   }
@@ -289,7 +352,7 @@
       weeklyMock: true,
       classes: [],
       exams: [],
-      subjects: presets.subjectsFor(field),
+      subjects: presets.subjectsFor(field).concat(presets.generalFor($('grade').value || 'دوازدهم')),
     };
   }
 
@@ -300,6 +363,22 @@
 
   $('resetSubjects').addEventListener('click', () => {
     renderSubjects(presets.subjectsFor($('field').value));
+  });
+
+  $('grade').addEventListener('change', () => {
+    renderGeneral(presets.generalFor($('grade').value));
+    toast('دروس عمومی پایهٔ ' + $('grade').value + ' بارگذاری شد.');
+  });
+
+  $('resetGeneral').addEventListener('click', () => {
+    renderGeneral(presets.generalFor($('grade').value));
+  });
+
+  $('toggleGeneral').addEventListener('click', () => {
+    const rows = readGeneral();
+    const anyOn = rows.some((r) => r.include);
+    rows.forEach((r) => { r.include = !anyOn; });
+    renderGeneral(rows);
   });
 
   /* ---------------- ساخت برنامه ---------------- */
@@ -405,7 +484,7 @@
 
     const head = '<div class="card" style="margin-bottom:10px;background:var(--panel2)">' +
       '<div class="row" style="justify-content:space-between">' +
-      '<div><b style="font-size:13.5px">' + esc(d.weekday) + ' — ' + faNum(d.date) + '</b>' +
+      '<div><b style="font-size:13.5px">' + esc(d.weekday) + ' — ' + bidi(faNum(d.date)) + '</b>' +
       '<div class="muted" style="font-size:11.5px;margin-top:3px">' + faNum(d.plannedMinutes) + ' دقیقه' +
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
       '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') + '</div>';
@@ -415,16 +494,16 @@
       '<span>' + (e.type === 'exam' ? '📝' : '📌') + '</span>' +
       '<b>' + esc(e.title) + '</b>' +
       (e.subjectName ? '<span class="muted">· ' + esc(e.subjectName) + '</span>' : '') +
-      '<span class="t">' + faNum(e.start) + '–' + faNum(e.end) + (e.type === 'exam' ? ' · آزمون' : ' · کلاس') + '</span>' +
+      '<span class="t">' + bidi(faNum(e.start) + '–' + faNum(e.end)) + (e.type === 'exam' ? ' · آزمون' : ' · کلاس') + '</span>' +
       '</div>').join('');
 
     const blocks = d.blocks.map((b, i) => {
       const key = d.date + '#' + i;
       const done = state.done[key] ? 'checked' : '';
       return '<div class="block">' +
-        '<div class="time">' + faNum(b.start) + '–' + faNum(b.end) + '<small>' + faNum(b.minutes) + ' دقیقه</small></div>' +
+        '<div class="time">' + bidi(faNum(b.start) + '–' + faNum(b.end)) + '<small>' + faNum(b.minutes) + ' دقیقه</small></div>' +
         '<div><div class="t">' + esc(b.subjectName) + ' <span class="muted" style="font-size:11px">· ' + esc(b.topic) + '</span></div>' +
-        '<div class="c">' + esc(faNum(b.content)) + (b.retrievalTail ? ' <b style="color:#a5b4fc">+' + faNum(b.retrievalTail) + ' دقیقه بازیابی</b>' : '') + '</div>' +
+        '<div class="c">' + esc(faNum(b.content)) + (b.retrievalTail ? ' <b style="color:#4f46e5">+' + faNum(b.retrievalTail) + ' دقیقه بازیابی</b>' : '') + '</div>' +
         '<div class="tech">' + esc(faNum(b.technique)) + '</div>' +
         (b.ifThen ? '<details><summary>جملهٔ اجرا (if-then)</summary>' + esc(b.ifThen) + '</details>' : '') +
         (b.why ? '<details><summary>چرا این کار؟</summary>' + esc(b.why) + '</details>' : '') +

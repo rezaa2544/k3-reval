@@ -187,7 +187,7 @@ function injectWelcomeBanner(win) {
     var box = document.createElement('div');
     box.id = 'reval-welcome';
     box.setAttribute('dir','rtl');
-    box.style.cssText = 'position:fixed;top:14px;inset-inline-start:50%;transform:translateX(-50%);z-index:2147483600;max-width:min(620px,92vw);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;background:#0f172a;color:#e8eefc;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 16px;box-shadow:0 18px 40px rgba(2,8,23,.35);font:13px/1.9 "Segoe UI",Tahoma,sans-serif';
+    box.style.cssText = 'position:fixed;top:14px;left:0;right:0;margin-left:auto;margin-right:auto;width:-webkit-fit-content;width:fit-content;max-width:min(620px,92vw);z-index:2147483600;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;background:#ffffff;color:#16233a;border:1px solid #e3e9f2;border-radius:14px;padding:12px 16px;box-shadow:0 18px 44px rgba(15,23,42,.16);font:13px/1.9 "Segoe UI",Tahoma,sans-serif';
     var t = document.createElement('span');
     t.textContent = 'نسخهٔ دسکتاپ روال آماده است — برنامه‌ریزی خودکار: دکمهٔ پایین صفحه یا ${planShortcut}';
     var b = document.createElement('button');
@@ -237,7 +237,7 @@ function openAccountWindow() {
   accountWindow = new BrowserWindow({
     width: 620, height: 520, resizable: false, minimizable: false, maximizable: false,
     title: 'تنظیمات حساب — روال',
-    backgroundColor: '#0b1220',
+    backgroundColor: '#f5f8fd',
     icon: process.platform === 'win32' ? ICON_ICO : ICON_PNG,
     parent: mainWindow || undefined,
     modal: false,
@@ -269,7 +269,7 @@ function openPlannerWindow() {
     minWidth: 900,
     minHeight: 640,
     title: 'مشاور هوشمند روال',
-    backgroundColor: '#0a0f1a',
+    backgroundColor: '#f6f8fc',
     icon: process.platform === 'win32' ? ICON_ICO : ICON_PNG,
     show: false,
     autoHideMenuBar: true,

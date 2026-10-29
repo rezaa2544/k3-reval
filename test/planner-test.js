@@ -129,6 +129,41 @@ const plain = engine.createPlan(Object.assign({}, config, { classes: [], exams: 
 assert.ok(plain.summary.totalHours > 100 && plain.summary.classFixBlocks === 0);
 console.log('plain plan hours:', plain.summary.totalHours, '| weekly mock days:', plain.days.filter((d) => d.isMockDay).length);
 
+/* ۱۱) دروس عمومی: باید در برنامهٔ روزانه سهم و بلوک واقعی داشته باشند */
+const presetsMod = require('../src/planner/presets.js');
+presetsMod.GENERAL['دهم'].concat(presetsMod.GENERAL['دوازدهم']).forEach((g) => {
+  assert.ok(g.chapters >= 4, 'تعداد فصل/درس عمومی نامعتبر: ' + g.name);
+  assert.ok(g.general === true, 'پرچم general ندارد: ' + g.name);
+});
+assert.deepStrictEqual(presetsMod.generalFor('دوازدهم').map((x) => x.id), ['fa3', 'ar3', 'di3', 'en3']);
+assert.deepStrictEqual(presetsMod.generalFor('دهم').map((x) => x.chapters), [8, 8, 12, 4]);
+assert.deepStrictEqual(presetsMod.generalFor('یازدهم').map((x) => x.chapters), [8, 7, 12, 4]);
+
+const genCfg = Object.assign({}, config, {
+  subjects: presetsMod.subjectsFor('tajrobi').concat(presetsMod.generalFor('دوازدهم')),
+});
+const genPlan = engine.createPlan(genCfg);
+const genNames = presetsMod.generalFor('دوازدهم').map((x) => x.name);
+const genMinutes = {};
+genPlan.days.forEach((d) => d.blocks.forEach((b) => {
+  if (genNames.indexOf(b.subjectName) !== -1) genMinutes[b.subjectName] = (genMinutes[b.subjectName] || 0) + b.minutes;
+}));
+genNames.forEach((n) => {
+  assert.ok((genMinutes[n] || 0) >= 90, 'درس عمومی بلوک کافی نگرفت: ' + n + ' = ' + (genMinutes[n] || 0) + ' دقیقه');
+});
+/* نام فصل‌های فارسی از کتاب درسی می‌آید، نه «فصل ۱» */
+const faBlock = genPlan.days.flatMap((d) => d.blocks).find((b) => b.subjectName === 'فارسی ۳');
+assert.ok(faBlock && faBlock.topic !== 'فصل ۱', 'نام فصل فارسی از عنوان کتاب نیامد: ' + (faBlock && faBlock.topic));
+/* روزی باید هم اختصاصی و هم عمومی داشته باشد */
+const mixed = genPlan.days.find((d) => {
+  const names = d.blocks.map((b) => b.subjectName);
+  return names.some((n) => genNames.indexOf(n) !== -1) && names.some((n) => genNames.indexOf(n) === -1);
+});
+assert.ok(mixed, 'هیچ روزی ترکیب اختصاصی + عمومی ندارد');
+assert.ok(genPlan.summary.learnedTopics >= genCfg.subjects.reduce((a, s) => a + s.chapters, 0) * 0.9,
+  'مباحث کافی پوشش داده نشد: ' + genPlan.summary.learnedTopics);
+console.log('عمومی — دقیقه به‌ازای هر درس:', genMinutes, '| مباحث پوشش‌داده‌شده:', genPlan.summary.learnedTopics);
+
 console.log('\n✅ همه تست‌های موتور v2 پاس شدند');
 const smp = days.find((d) => d.events.length && d.blocks.length);
 console.log('\nنمونه روز —', smp.weekday, smp.date);

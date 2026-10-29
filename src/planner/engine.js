@@ -135,6 +135,9 @@
       type: s.type || 'conceptual',
       examPercent: s.examPercent == null ? null : clamp(Number(s.examPercent), -33, 100),
       include: s.include !== false,
+      general: !!s.general,
+      topicLabel: s.topicLabel || null,
+      topicNames: Array.isArray(s.topicNames) ? s.topicNames.slice(0, 100) : null,
     })).filter((s) => s.include);
     if (!cfg.subjects.length) throw new Error('حداقل یک درس لازم است.');
 
@@ -197,7 +200,10 @@
           subjectId: s.id,
           subjectName: s.name,
           chapter: i,
-          label: 'فصل ' + toFa(i),
+          label: (s.topicNames && s.topicNames[i - 1])
+            ? String(s.topicNames[i - 1])
+            : (s.topicLabel || 'فصل') + ' ' + toFa(i),
+          general: !!s.general,
           mastery: mastered,
           needMinutes: Math.max(0, roundTo5(need)),
           learnedOn: null,
@@ -211,6 +217,7 @@
   function scoreSubjects(cfg) {
     const active = cfg.subjects;
     const weightSum = sum(active.map((s) => s.weight)) || 1;
+    const nActive = Math.max(1, active.length);
     const stats = {};
     active.forEach((s) => {
       const wNorm = s.weight / weightSum;
@@ -222,6 +229,20 @@
     });
     const total = sum(Object.values(stats).map((x) => x.raw)) || 1;
     Object.keys(stats).forEach((k) => { stats[k].share = stats[k].raw / total; });
+
+    /* سهم تضمین‌شده: هیچ درسی (خصوصاً دروس عمومی) کامل گرسنه نمی‌ماند.
+       هر درس فعال حداقل ۵۵٪ سهمِ برابر را می‌گیرد، سپس همه دوباره نرمال می‌شوند. */
+    const floor = 0.55 / nActive;
+    const bumped = {};
+    let bumpedTotal = 0;
+    Object.keys(stats).forEach((k) => {
+      bumped[k] = Math.max(stats[k].share, floor);
+      bumpedTotal += bumped[k];
+    });
+    Object.keys(stats).forEach((k) => {
+      stats[k].share = bumped[k] / (bumpedTotal || 1);
+      stats[k].floored = bumped[k] > stats[k].raw / total + 1e-9;
+    });
     return stats;
   }
 
@@ -542,11 +563,28 @@
     const totalDays = dayDiff(cfg._start, cfg._exam);
     if (totalDays <= 0) throw new Error('تاریخ آزمون باید بعد از تاریخ شروع باشد.');
 
-    const learnQueue = topics
-      .filter((t) => t.needMinutes > 0)
-      .map((t) => ({ t, score: stats[t.subjectId].share * (t.needMinutes / 100) }))
-      .sort((a, b) => b.score - a.score)
-      .map((x) => x.t);
+    /* صف یادگیری به‌ازای هر درس + تخصیص عادلانه بر اساس «سهم هدف منهای زمان داده‌شده».
+       این کار تضمین می‌کند دروس عمومی هم مثل اختصاصی‌ها بلوک روزانه بگیرند. */
+    const learnBySubject = {};
+    let learnNeedTotal = 0;
+    topics.filter((t) => t.needMinutes > 0).forEach((t) => {
+      (learnBySubject[t.subjectId] = learnBySubject[t.subjectId] || []).push(t);
+      learnNeedTotal += t.needMinutes;
+    });
+    Object.keys(learnBySubject).forEach((id) => {
+      learnBySubject[id].sort((a, b) => b.needMinutes - a.needMinutes);
+    });
+    const learnSpent = {};
+    const learnQueue = []; // فقط برای گزارش «مباحث باقی‌مانده»
+    topics.filter((t) => t.needMinutes > 0).forEach((t) => learnQueue.push(t));
+
+    function peekLearnNeed() {
+      let total = 0;
+      Object.keys(learnBySubject).forEach((id) => {
+        learnBySubject[id].forEach((t) => { total += Math.max(0, t.needMinutes); });
+      });
+      return total;
+    }
 
     const dueReviews = [];
     const days = [];
@@ -696,14 +734,35 @@
         const perSubjectCap = Math.max(cfg.blockMinutes, Math.round(load.minutes * (daysLeft <= 7 ? 0.3 : 0.5)));
         let used = 0;
         let guard = 0;
-        while (learnQueue.length && used < budget && guard++ < 40) {
-          const idx = learnQueue.findIndex((t) => {
-            if (scope && !scope.has(t.subjectId)) return false;
-            const take = Math.min(cfg.blockMinutes, t.needMinutes);
-            return (subjectUsedToday[t.subjectId] || 0) + take <= perSubjectCap;
+        while (used < budget && guard++ < 40) {
+          // درس را بر اساس کمترین نسبت «زمان داده‌شده ÷ سهم هدف» انتخاب کن
+          let chosenId = null;
+          let chosenDeficit = -Infinity;
+          Object.keys(learnBySubject).forEach((id) => {
+            const q = learnBySubject[id].filter((t) => !scope || scope.has(t.subjectId));
+            if (!q.length) return;
+            const take = Math.min(cfg.blockMinutes, q[0].needMinutes);
+            if ((subjectUsedToday[id] || 0) + take > perSubjectCap) return;
+            const target = Math.max(1, (stats[id] ? stats[id].share : 0) * learnNeedTotal);
+            const ratio = (learnSpent[id] || 0) / target;
+            if (-ratio > chosenDeficit) { chosenDeficit = -ratio; chosenId = id; }
           });
-          if (idx === -1) break;
-          const topic = learnQueue[idx];
+          if (!chosenId) break;
+          const topic = learnBySubject[chosenId][0];
+
+          /* باقی‌ماندهٔ ناچیز (<۱۰ دقیقه): مبحث را بسته و بلوک کوچک نساز.
+             این کار جلوی «قفل‌شدن» صف یادگیری توسط یک مبحث نیمه‌تمام را می‌گیرد. */
+          if (topic.needMinutes < 10) {
+            learnBySubject[chosenId].shift();
+            topic.needMinutes = 0;
+            topic.learnedOn = date;
+            learnedCount++;
+            const li0 = learnQueue.indexOf(topic);
+            if (li0 !== -1) learnQueue.splice(li0, 1);
+            scheduleReviews(topic, date);
+            continue;
+          }
+
           const chunk = Math.min(cfg.blockMinutes, topic.needMinutes, budget - used);
           if (chunk < 10) break;
           tasks.push({
@@ -712,9 +771,12 @@
           });
           used += chunk;
           subjectUsedToday[topic.subjectId] = (subjectUsedToday[topic.subjectId] || 0) + chunk;
+          learnSpent[topic.subjectId] = (learnSpent[topic.subjectId] || 0) + chunk;
           topic.needMinutes -= chunk;
           if (topic.needMinutes <= 0) {
-            learnQueue.splice(idx, 1);
+            learnBySubject[chosenId].shift();
+            const lq = learnQueue.indexOf(topic);
+            if (lq !== -1) learnQueue.splice(lq, 1);
             topic.learnedOn = date;
             learnedCount++;
             scheduleReviews(topic, date);
@@ -827,7 +889,7 @@
 
     /* ---- جمع‌بندی ---- */
     if (learnQueue.length) {
-      const missing = sum(learnQueue.map((t) => t.needMinutes));
+      const missing = Math.max(0, Math.round(peekLearnNeed()));
       const low = cfg.subjects.filter((s) => s.weight < 3).sort((a, b) => a.weight - b.weight).slice(0, 2);
       warnings.push(
         'با زمان‌های فعلی (با احتساب کلاس‌ها و آزمون‌ها) حدود ' + Math.round(missing / 60) + ' ساعت برای پوشش کاملِ ' +
