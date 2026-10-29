@@ -4,6 +4,8 @@
 
   const engine = window.RevalPlanner;
   const presets = window.RevalPresets;
+  const dayplan = window.RevalDayPlan || null;      // تایمر/توقف/ادامه + شروع روز
+  const cw = window.RevalChapterWeights || null;    // اهمیت واقعی فصل‌ها
   const J = window.RevalJalali;   // تقویم شمسی
   const api = window.revalPlanner || null;
 
@@ -50,7 +52,15 @@
     startTimes: null,        // ساعت شروع هر روز
     timeMode: 'fixed',       // دستی یا خودکار (فقط سقف)
     lastCarry: [],           // کارهای جامانده‌ای که بازچینش شدند
+    sessions: {},            // v2.5: تایمر هر بلوک — 'date#i' → {plannedMinutes, accumMs, since, status}
+    dayStarts: {},           // v2.5: شروع واقعی روزها — 'iso' → 'HH:MM'
+    emergency: [],           // v2.5: آیتم‌های اضطراری
+    routines: null,          // v2.5: روال‌های ثابت روز
+    routinePinned: false,
+    wakeTime: '07:00',
   };
+  const sessions = () => (state.sessions = state.sessions || {});
+  const nowMs = () => Date.now();
 
   /* ---------------- ابزار ---------------- */
 
@@ -618,6 +628,411 @@
     return out;
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+     v2.5 — شروع روز · توقف/ادامهٔ بلوک · آیتم اضطراری · آمادگی جدا
+     ══════════════════════════════════════════════════════════════════ */
+
+  const DP = dayplan || null;
+
+  function todayIso() {
+    return (J && J.dateToISO) ? J.dateToISO(new Date()) : iso(new Date());
+  }
+  function findDay(plan, dateIso) {
+    if (!plan || !plan.days) return null;
+    return plan.days.find((d) => d.date === dateIso) || null;
+  }
+  function findBlock(plan, key) {
+    const parts = String(key).split('#');
+    const d = findDay(plan, parts[0]);
+    if (!d) return { day: null, block: null, idx: -1 };
+    const idx = Number(parts[1]);
+    return { day: d, block: (d.blocks || [])[idx] || null, idx };
+  }
+
+  /* ---------- تایمر هر بلوک: شروع / توقف (مکس) / ادامه / پایان ---------- */
+
+  function sessionOf(day, idx, block) {
+    const key = day.date + '#' + idx;
+    const all = sessions();
+    const planned = DP ? DP.newSession(block).plannedMinutes
+      : (Number(block.minutes) || Math.max(0, (Number(block.end) || 0) - (Number(block.start) || 0)));
+    if (!all[key]) all[key] = { plannedMinutes: planned, accumMs: 0, since: null, status: 'idle', pauses: 0 };
+    return all[key];
+  }
+
+  /** وضعیت نمایشی تایمر یک بلوک: دقیقه‌های گذشته، باقی‌مانده، درصد */
+  function sessionView(day, idx, block) {
+    const s = sessionOf(day, idx, block);
+    if (!DP) return { s: s, elapsed: 0, remain: s.plannedMinutes, pct: 0, label: 'شروع نشده' };
+    return {
+      s: s,
+      elapsed: DP.elapsedMinutes(s, nowMs()),
+      remain: DP.remainingMinutes(s, nowMs()),
+      pct: DP.progressPct(s, nowMs()),
+      label: DP.statusFa(s),
+    };
+  }
+
+  function timerHtml(day, block, idx) {
+    if (!DP) return '';
+    if (block.kind === 'routine') return '';
+    const v = sessionView(day, idx, block);
+    const key = day.date + '#' + idx;
+    const st = v.s.status;
+    const btns = [];
+    if (st === 'idle') btns.push('<button class="btn small" data-tmr="start" data-key="' + key + '">▶ شروع</button>');
+    if (st === 'running') {
+      btns.push('<button class="btn small warn" data-tmr="pause" data-key="' + key + '">⏸ مکس (توقف)</button>');
+      btns.push('<button class="btn ghost small" data-tmr="finish" data-key="' + key + '">پایان کار</button>');
+    }
+    if (st === 'paused') {
+      btns.push('<button class="btn small primary" data-tmr="resume" data-key="' + key + '">▶ ادامه</button>');
+      btns.push('<button class="btn ghost small" data-tmr="finish" data-key="' + key + '">پایان کار</button>');
+    }
+    if (st === 'done') btns.push('<button class="btn ghost small" data-tmr="reset" data-key="' + key + '">از نو</button>');
+    return '<div class="tmr" data-tmrbox="' + key + '">' +
+      '<div class="tmrbar"><i style="width:' + v.pct + '%"></i></div>' +
+      '<div class="row" style="gap:6px;align-items:center;margin-top:5px">' +
+        '<span class="tmrstat' + (st === 'running' ? ' on' : st === 'done' ? ' done' : '') + '">' + esc(v.label) + '</span>' +
+        '<span class="muted" style="font-size:11px">' + faNum(v.elapsed) + ' از ' + faNum(v.s.plannedMinutes) + ' دقیقه' +
+          (st === 'paused' ? ' · ' + faNum(v.remain) + ' دقیقه مانده' : '') + '</span>' +
+        '<span style="margin-inline-start:auto"></span>' + btns.join('') +
+      '</div></div>';
+  }
+
+  function applyTimerAction(key, action) {
+    if (!DP || !state.plan) return;
+    const f = findBlock(state.plan, key);
+    if (!f.block) return;
+    const cur = sessionOf(f.day, f.idx, f.block);
+    let next = cur;
+    if (action === 'start') next = DP.start(cur, nowMs());
+    else if (action === 'pause') next = DP.pause(cur, nowMs());
+    else if (action === 'resume') next = DP.resume(cur, nowMs());
+    else if (action === 'finish') next = DP.finish(cur, nowMs());
+    else if (action === 'reset') next = DP.newSession(f.block);
+    sessions()[key] = next;
+    if (next.status === 'done') state.done[key] = true;
+    if (next.status !== 'done' && state.done[key]) delete state.done[key];
+    persist();
+    try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+    try { renderDayStartUI(); } catch (e) { /* بی‌صدا */ }
+    try { if ($('dayView') && state.selectedDay != null) renderDay(state.selectedDay); } catch (e) { /* بی‌صدا */ }
+    if (action === 'pause') toast('تایمر متوقف شد — هر وقت خواستی «ادامه» را بزن.');
+    if (action === 'resume') toast('ادامهٔ همان بلوک — زمان قبلی حفظ شده است.');
+  }
+
+  document.addEventListener('click', (ev) => {
+    const b = ev.target.closest ? ev.target.closest('[data-tmr]') : null;
+    if (!b) return;
+    ev.preventDefault();
+    applyTimerAction(b.dataset.key, b.dataset.tmr);
+  });
+
+  /* ---------- شروع روز ---------- */
+
+  function renderDayStartUI() {
+    const card = $('homeDayCard');
+    if (!card) return;
+    const plan = state.plan;
+    if (!plan) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const t = todayIso();
+    const ov = (state.dayStarts || {})[t] || null;
+    if ($('homeDayState')) {
+      $('homeDayState').textContent = 'ساعت پیش‌فرض بیداری: ' + faNum(state.wakeTime || '۰۷:۰۰') +
+        (ov ? ' · امروز از ' + faNum(ov) + ' شروع شده' : '');
+    }
+    const inp = $('startDayTime');
+    if (inp && document.activeElement !== inp) {
+      inp.value = faNum(ov || state.wakeTime || '۰۷:۰۰');
+    }
+    const note = $('dayStateNote');
+    const day = findDay(plan, t);
+    if (note) {
+      if (!day) {
+        note.textContent = 'امروز خارج از بازهٔ برنامه است. با «ساخت برنامه» بازه را به‌روز کن.';
+      } else if (ov) {
+        const n = (day.blocks || []).filter((b) => b.kind !== 'routine').length;
+        note.innerHTML = '✓ امروز از ساعت <b>' + faNum(ov) + '</b> شروع شد و برنامهٔ همین روز بازچیده شد (' +
+          faNum(n) + ' بلوک). کلاس‌ها، روال‌های ثابت و آزمون‌ها جابه‌جا نشدند. ' +
+          'دکمهٔ «بستن روز» کارهای نیمه‌کاره را با اولویت به روزهای بعد منتقل می‌کند.';
+      } else {
+        note.textContent = 'امروز هنوز با ساعت پیش‌فرض شروع شده است. اگر دیرتر بیدار شدی، ساعت واقعی را بنویس و دکمه را بزن.';
+      }
+    }
+  }
+
+  /** بازساخت برنامه با تغییرات اجرایی (شروع روز / اضطراری / انتقال جامانده‌ها) */
+  function rebuildWith(mutate, msg) {
+    let cfg;
+    try { cfg = collectConfig(); } catch (e) { cfg = JSON.parse(JSON.stringify(state.config || {})); }
+    cfg = Object.assign({}, cfg, {
+      dayStarts: Object.assign({}, state.dayStarts || {}),
+      emergency: (state.emergency || []).slice(),
+      routinePinned: state.routinePinned === true,
+      routines: (state.routines || cfg.routines || []).slice(),
+      wakeTime: state.wakeTime || cfg.wakeTime,
+    });
+    if (mutate) mutate(cfg);
+    try {
+      state.plan = engine.createPlan(cfg);
+      state.config = cfg;
+      state.week = 0;
+      state.selectedDay = null;
+      renderPlan();
+      renderReport();
+      renderHome();
+      persist();
+      if (msg) toast(msg);
+      return true;
+    } catch (err) {
+      toast('خطا در بازچینی: ' + err.message);
+      return false;
+    }
+  }
+
+  if ($('startDayBtn')) $('startDayBtn').addEventListener('click', () => {
+    if (!state.plan) return toast('اول برنامه را بساز.');
+    const t = todayIso();
+    const want = normTime(($('startDayTime') && $('startDayTime').value) || '') || state.wakeTime || '07:00';
+    state.dayStarts = state.dayStarts || {};
+    state.dayStarts[t] = want;
+    const today = findDay(state.plan, t);
+    const pinnedCount = today ? (today.blocks || []).filter((b) => DP && DP.isPinned(b)).length : 0;
+    rebuildWith((cfg) => { if (cfg.startDate > t) cfg.startDate = t; },
+      'روز از ساعت ' + faNum(want) + ' بازچیده شد ✓ (' + faNum(pinnedCount) + ' رویداد ثابت سر جایش ماند)');
+  });
+
+  if ($('resetDayBtn')) $('resetDayBtn').addEventListener('click', () => {
+    if (!state.plan) return toast('اول برنامه را بساز.');
+    const t = todayIso();
+    if (state.dayStarts) delete state.dayStarts[t];
+    rebuildWith(null, 'امروز به ساعت پیش‌فرض برگشت.');
+  });
+
+  if ($('closeDayBtn')) $('closeDayBtn').addEventListener('click', () => {
+    if (!state.plan) return toast('اول برنامه را بساز.');
+    const t = todayIso();
+    const day = findDay(state.plan, t);
+    if (!day) return toast('امروز در بازهٔ برنامه نیست.');
+    const unf = DP ? DP.unfinished(day, state.sessions || {}, { skipUntouched: false }) : [];
+    if (!unf.length) return toast('کار جامانده‌ای امروز نیست — عالی.');
+    const carry = DP ? DP.toCarryOver(unf) : [];
+    if (!carry.length) return toast('چیزی برای انتقال نیست.');
+    /* بلوک‌های منتقل‌شده دیگر «کار امروز» نیستند */
+    unf.forEach((x) => { if (state.sessions) delete state.sessions[x.key]; });
+    rebuildWith((cfg) => {
+      cfg.carryOver = (cfg.carryOver || []).concat(carry);
+      if (cfg.startDate > t) cfg.startDate = t;
+    }, faNum(carry.length) + ' کار جامانده با اولویت به روزهای بعد منتقل شد ✓');
+    $('dayStateNote').textContent = faNum(carry.length) + ' کار جامانده (مجموع ' +
+      faNum(Math.round(carry.reduce((a, c) => a + c.minutes, 0) / 60 * 10) / 10) + ' ساعت) به روزهای بعد منتقل شد.';
+  });
+
+  /* ---------- آیتم‌های اضطراری ---------- */
+
+  function emergencySubjects() {
+    const plan = state.plan;
+    const list = [];
+    if (plan && plan.summary && plan.summary.bySubject) {
+      plan.summary.bySubject.forEach((s) => list.push({ id: s.id, name: s.name, chapters: null }));
+    } else {
+      (state.coreSubjects || []).forEach((s) => list.push({ id: s.id, name: s.name, chapters: s.chapters }));
+    }
+    return list;
+  }
+
+  function renderEmergencyUI() {
+    const card = $('emergencyCard');
+    if (!card) return;
+    if (!state.plan) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+
+    const sel = $('emSubject');
+    if (sel) {
+      const subs = emergencySubjects();
+      const prev = sel.value;
+      sel.innerHTML = subs.map((s) => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('');
+      if (prev && subs.some((s) => s.id === prev)) sel.value = prev;
+    }
+    renderEmergencyChapters();
+
+    const box = $('emList');
+    if (!box) return;
+    const items = state.emergency || [];
+    if (!items.length) {
+      box.innerHTML = '<div class="muted" style="font-size:11.5px">هنوز آیتم اضطراری اضافه نکرده‌ای. ' +
+        'هر موضوعی که «باید» انجام شود را این‌جا اضافه کن تا برنامه دور آن بازچینی شود.</div>';
+      return;
+    }
+    const placed = {};
+    ((state.plan.summary && state.plan.summary.emergency) || []).forEach((e) => { placed[e.id] = e; });
+    box.innerHTML = items.map((e) => {
+      const p = placed[e.id];
+      return '<div class="issue ' + (p ? 'info' : 'warn') + '" style="cursor:default">' +
+        '<span class="mark">' + (p ? '✓' : '!') + '</span>' +
+        '<div class="body"><div class="ttl">' + esc(e.title || (e.subjectName || 'آیتم اضطراری')) +
+        (e.scope === 'week' ? ' · این هفته (اولین فرصت)' : ' · امروز ' + faNum(e.time || '')) + '</div>' +
+        '<div class="det">' + (p
+          ? 'چیده شد: ' + faNum(J ? J.fmt(p.date) : p.date) + ' · ساعت ' + faNum(p.start) + '–' + faNum(p.end) +
+            ' (' + faNum(p.minutes) + ' دقیقه)'
+          : 'هنوز در برنامه جا نگرفته — یا بازهٔ برنامهٔ فعلی تمام شده، یا آن روز جای کافی نبود.') + '</div></div>' +
+        '<button class="btn ghost small" data-em-del="' + esc(e.id) + '">حذف</button></div>';
+    }).join('');
+    box.querySelectorAll('[data-em-del]').forEach((b) => {
+      b.addEventListener('click', () => {
+        state.emergency = (state.emergency || []).filter((x) => x.id !== b.dataset.emDel);
+        rebuildWith(null, 'آیتم اضطراری حذف شد.');
+      });
+    });
+  }
+
+  function renderEmergencyChapters() {
+    const sel = $('emChapter');
+    if (!sel) return;
+    const sub = ($('emSubject') && $('emSubject').value) || '';
+    const plan = state.plan;
+    const stat = plan && plan.summary && plan.summary.chapterStats ? plan.summary.chapterStats : [];
+    const rows = stat.filter((c) => c.subjectId === sub);
+    if (!rows.length) {
+      sel.innerHTML = '<option value="">کل درس</option>';
+      return;
+    }
+    sel.innerHTML = rows.map((c) =>
+      '<option value="' + c.chapter + '">' + esc(c.label) +
+      (c.ciTag ? ' · ' + esc(c.ciTag) : '') + '</option>').join('');
+  }
+
+  if ($('emSubject')) $('emSubject').addEventListener('change', renderEmergencyChapters);
+
+  if ($('emAdd')) $('emAdd').addEventListener('click', () => {
+    if (!state.plan) return toast('اول برنامه را بساز.');
+    const sid = ($('emSubject') && $('emSubject').value) || '';
+    const chapter = ($('emChapter') && $('emChapter').value) || '';
+    const scope = ($('emScope') && $('emScope').value) === 'week' ? 'week' : 'today';
+    const time = normTime(($('emTime') && $('emTime').value) || '') || '17:00';
+    const minutes = clampNum(Number(numVal($('emMinutes'))) || 60, 20, 300);
+    if (!sid) return toast('اول یک درس انتخاب کن.');
+    const sub = emergencySubjects().find((s) => s.id === sid);
+    const stat = (state.plan.summary.chapterStats || []).find((c) => c.subjectId === sid && String(c.chapter) === String(chapter));
+    const t = todayIso();
+    const title = (sub ? sub.name : 'درس') + (stat ? ' · ' + stat.label : '');
+    state.emergency = (state.emergency || []).concat([{
+      id: 'E' + Date.now().toString(36),
+      title: title,
+      subjectId: sid,
+      chapter: chapter === '' ? null : Number(chapter),
+      scope: scope,
+      date: t,
+      time: time,
+      minutes: minutes,
+      done: false,
+    }]);
+    rebuildWith((cfg) => { if (cfg.startDate > t) cfg.startDate = t; },
+      'آیتم اضطراری اضافه شد و برنامه دور آن بازچینی شد ✓');
+  });
+
+  /* ---------- آمادگی جدا: کنکور در برابر نهایی ---------- */
+
+  function gaugeRow(label, value, color, hint) {
+    const pct = clampNum(Math.round(value || 0), 0, 100);
+    return '<div style="margin-bottom:10px">' +
+      '<div class="row" style="justify-content:space-between;margin-bottom:4px">' +
+        '<span style="font-size:11.5px">' + esc(label) + '</span>' +
+        '<b style="font-size:12px">' + faNum(pct) + '٪</b></div>' +
+      '<div class="acard-bar" style="height:8px"><i style="width:' + pct + '%;background:' + color + '"></i></div>' +
+      (hint ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(hint) + '</div>' : '') +
+    '</div>';
+  }
+
+  function renderReadinessSplit(plan) {
+    const box = $('readinessSplit');
+    if (!box) return;
+    const sm = plan && plan.summary ? plan.summary.readinessSplit : null;
+    if (!sm) { box.innerHTML = '<div class="muted" style="font-size:12px">برنامه‌ای نیست.</div>'; return; }
+    const k = sm.konkur || {};
+    const f = sm.finals || {};
+    const konkurCard =
+      '<div class="card" style="margin:0;background:var(--panel2)">' +
+        '<div class="row" style="justify-content:space-between;margin-bottom:8px">' +
+          '<b style="font-size:13px">آمادگی کنکور</b>' +
+          '<span class="chip">' + faNum(k.projected || 0) + '٪ برآورد پایان</span></div>' +
+        gaugeRow('آمادگی فعلی (ضریب × تسلط فصل)', k.current || 0, '#4f46e5') +
+        gaugeRow('پوشش فصل‌ها', k.coverage || 0, '#0ea5e9') +
+        gaugeRow('پیشرفت تست زمان‌دار', k.testRatio || 0, '#10b981',
+          faNum(k.testsDone || 0) + ' از ' + faNum(k.testsNeed || 0) + ' تست چیده‌شده') +
+        '<div class="muted" style="font-size:10.5px;margin-top:6px">مبنای سنجش: ' + esc(k.basis || '') + '</div>' +
+        '<ul class="notes" style="margin-top:6px">' +
+          (k.method || []).map((m) => '<li>' + esc(m) + '</li>').join('') + '</ul>' +
+      '</div>';
+    const finalsCard =
+      '<div class="card" style="margin:0;background:var(--panel2)">' +
+        '<div class="row" style="justify-content:space-between;margin-bottom:8px">' +
+          '<b style="font-size:13px">آمادگی امتحان نهایی</b>' +
+          '<span class="chip">' + faNum(f.projected || 0) + '٪ برآورد پایان</span></div>' +
+        gaugeRow('آمادگی فعلی (بارم × تسلط)', f.current || 0, '#d97706') +
+        gaugeRow('پیشرفت کار برنامه', f.budgetRatio || 0, '#f59e0b',
+          faNum(Math.round((f.minutes || 0) / 60 * 10) / 10) + ' ساعت چیده‌شده') +
+        '<div class="muted" style="font-size:10.5px">میانگین نمرهٔ برآوردی درس‌ها: ' +
+          faNum(Math.round((f.avgScore || 0) * 10) / 10) + ' از ۲۰</div>' +
+        '<div class="muted" style="font-size:10.5px;margin-top:6px">مبنای سنجش: ' + esc(f.basis || '') + '</div>' +
+        '<ul class="notes" style="margin-top:6px">' +
+          (f.method || []).map((m) => '<li>' + esc(m) + '</li>').join('') + '</ul>' +
+      '</div>';
+    box.innerHTML = '<div class="grid g2" style="align-items:start">' + konkurCard + finalsCard + '</div>' +
+      '<div class="muted" style="font-size:11px;margin-top:8px">' + esc(sm.note || '') + '</div>';
+  }
+
+  /* ---------- روال‌های ثابت روز ---------- */
+
+  function routineDefaults() {
+    return [
+      { title: 'صبحانه', start: '08:00', minutes: 30 },
+      { title: 'ناهار', start: '13:30', minutes: 45 },
+      { title: 'شام', start: '20:00', minutes: 45 },
+    ];
+  }
+
+  function renderRoutineRows(rows) {
+    const box = $('routineRows');
+    if (!box) return;
+    const list = (rows && rows.length ? rows : state.routines || routineDefaults()).slice(0, 4);
+    box.innerHTML = list.map((r, i) =>
+      '<div><label>' + esc(r.title || ('روال ' + faNum(i + 1))) + '</label>' +
+        '<div class="row" style="gap:6px">' +
+          '<input class="tin" data-routine-time="' + i + '" value="' + faNum(r.start || '13:00') + '" inputmode="numeric" />' +
+          '<input class="tin num" data-routine-min="' + i + '" value="' + faNum(r.minutes || 30) + '" inputmode="numeric" style="max-width:74px" />' +
+          '<span class="muted" style="font-size:10.5px;align-self:center">دقیقه</span>' +
+        '</div></div>').join('');
+  }
+
+  function readRoutines() {
+    const base = (state.routines && state.routines.length ? state.routines : routineDefaults()).slice();
+    const out = base.map((r, i) => {
+      const tEl = document.querySelector('[data-routine-time="' + i + '"]');
+      const mEl = document.querySelector('[data-routine-min="' + i + '"]');
+      return {
+        title: r.title,
+        start: normTime(tEl ? tEl.value : r.start) || r.start || '13:00',
+        minutes: clampNum(Number(numVal(mEl)) || r.minutes || 30, 5, 180),
+        enabled: true,
+      };
+    });
+    return out;
+  }
+
+  if ($('routinePinned')) {
+    $('routinePinned').addEventListener('change', () => {
+      state.routinePinned = $('routinePinned').checked;
+      state.routines = readRoutines();
+      try { persist(); } catch (e) { /* بی‌صدا */ }
+      if (state.plan) rebuildWith(null, state.routinePinned
+        ? 'روال‌های روز ثابت شدند و برنامه دور آن‌ها بازچینی شد.'
+        : 'روال‌های روز از برنامه برداشته شدند.');
+    });
+  }
+
   function renderHome() {
     const st = stepStatus();
     const avail = readAvailabilityTotal();
@@ -697,6 +1112,9 @@
 
     /* کارت‌های خطا در خانه + برنامهٔ امروز و روزهای آینده */
     try { renderIssues(issuesOf(state.plan), $('homeIssues')); } catch (e) { /* بی‌صدا */ }
+    try { renderDayStartUI(); } catch (e) { /* بی‌صدا */ }
+    try { renderEmergencyUI(); } catch (e) { /* بی‌صدا */ }
+    try { renderReadinessSplit(state.plan); } catch (e) { /* بی‌صدا */ }
     try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
   }
 
@@ -711,6 +1129,15 @@
   function dayTests(d) {
     return (d.blocks || []).reduce((a, b) => a + (b.practiceCount || 0), 0);
   }
+  /** «۰۹:۳۰» یا «09:30» → دقیقه از نیمه‌شب (۶۹۰) */
+  function hmMin(v) {
+    if (typeof v === 'number' && v >= 0) return v;
+    const en = faToEn(String(v == null ? '' : v));
+    const m = /(\d{1,2}):(\d{2})/.exec(en);
+    if (!m) return 0;
+    return (Number(m[1]) % 24) * 60 + Number(m[2]);
+  }
+
   function hoursFa(mins) {
     const h = Math.round((mins / 60) * 10) / 10;
     return faNum(h);
@@ -777,8 +1204,9 @@
         return;
       }
 
-      const lastEnd = blocks.reduce((a, b) => Math.max(a, b.end || 0), 0);
-      const firstStart = blocks.reduce((a, b) => Math.min(a, b.start || 1440), 1440);
+      /* شروع/پایان بازهٔ مطالعه — ساعت‌ها رشته‌اند («۰۹:۰۰») و باید به دقیقه تبدیل شوند */
+      const lastEnd = blocks.reduce((a, b) => Math.max(a, hmMin(b.end)), 0);
+      const firstStart = blocks.reduce((a, b) => Math.min(a, hmMin(b.start)), 1440);
       $('homeTodayStats').innerHTML = [
         { v: hoursFa(mins) + ' ساعت', l: 'مدت مطالعهٔ این روز' },
         { v: faNum(blocks.length), l: 'بلوک کاری' },
@@ -792,13 +1220,16 @@
       const evts = (d.events || []).map((e) =>
         '<div class="evt' + (e.type === 'exam' ? ' exam' : '') + '"><span>' + (e.type === 'exam' ? '📝' : '📌') + '</span>' +
         '<b>' + esc(e.title) + '</b><span class="t">' + bidi(faNum(e.start) + '–' + faNum(e.end)) + '</span></div>').join('');
-      const items = blocks.slice(0, 5).map((b) =>
-        '<div class="block" style="grid-template-columns:86px 1fr"><div class="time">' +
-        bidi(faNum(b.start) + '–' + faNum(b.end)) + '<small>' + faNum(b.minutes || (b.end - b.start)) + ' دقیقه</small></div>' +
-        '<div><div class="t">' + esc(b.subjectName) + ' <span class="muted" style="font-size:11px">· ' + esc(b.topic) + '</span></div>' +
-        '<div class="tech">' + esc(faNum(b.kindLabel || '')) + '</div></div></div>').join('');
-      const more = blocks.length > 5
-        ? '<div class="muted" style="font-size:11px;margin-top:6px">و ' + faNum(blocks.length - 5) + ' بلوک دیگر — در «برنامهٔ من» ببین.</div>'
+      const items = blocks.slice(0, 6).map((b) => {
+        const bi = (d.blocks || []).indexOf(b);
+        return '<div class="block" style="grid-template-columns:86px 1fr"><div class="time">' +
+          bidi(faNum(b.start) + '–' + faNum(b.end)) + '<small>' + faNum(b.minutes || 0) + ' دقیقه</small></div>' +
+          '<div><div class="t">' + esc(b.subjectName) + ' <span class="muted" style="font-size:11px">· ' + esc(b.topic) + '</span></div>' +
+          '<div class="tech">' + esc(faNum(b.kindLabel || '')) + '</div>' +
+          timerHtml(d, b, bi) + '</div></div>';
+      }).join('');
+      const more = blocks.length > 6
+        ? '<div class="muted" style="font-size:11px;margin-top:6px">و ' + faNum(blocks.length - 6) + ' بلوک دیگر — در «برنامهٔ من» ببین.</div>'
         : '';
       list.innerHTML = evts + items + more || '<div class="muted" style="font-size:12px">این روز بلوکی ندارد (استراحت یا تعطیل).</div>';
     }
@@ -894,6 +1325,33 @@
     bookDeadlineRows: { t: 'مهلت کتابی', d: 'مثلاً «پایان زیست تا ۲۹ اسفند». برنامه عقب‌افتادگی را حساب می‌کند و می‌گوید روزی چند دقیقه لازم است.' },
     shortDeadlineRows: { t: 'مهلت کوتاه / آزمون تک‌درس', d: 'مهلت برای یک درس یا یک بازهٔ فصل‌ها. برای آزمون‌های آموزشگاه‌ها هم از همین استفاده کن.' },
     mocksCard: { t: 'آزمون‌های دوره‌ای هفتگی', d: 'هر روز هفته، هر چند هفته یک‌بار، چند آزمون هم‌زمان. برنامه قبلش مرور و بعدش تحلیل خطا می‌گذارد.' },
+    /* — v2.5 — */
+    startDay: {
+      t: 'شروع روز',
+      d: 'ساعت بیداری فقط پیش‌فرض است. اگر امروز ۷ یا ۱۱ بیدار شدی، ساعت واقعی را بنویس و این دکمه را بزن: ' +
+        'فقط برنامهٔ همین روز از همان ساعت بازچیده می‌شود. کلاس‌ها، وعده‌های غذایی و آزمون‌ها ثابت می‌مانند و ' +
+        'بلوکی که جا نشود خودکار با اولویت به روزهای بعد منتقل می‌شود.',
+    },
+    emergency: {
+      t: 'آیتم اضطراری',
+      d: 'یک فصل یا موضوع که «باید» انجام شود. برنامه می‌پرسد کِی: «امروز» با ساعتی که می‌نویسی، یا «این هفته» در اولین فرصت. ' +
+        'بعد بقیهٔ برنامه را دور همین آیتم بازچینی می‌کند تا از ذهنت بیرون نرود. ساعت کلاس‌ها دست نمی‌خورد.',
+    },
+    routines: {
+      t: 'روال ثابت روز',
+      d: 'وعده‌های غذایی، نماز، ورزش. اگر روشن باشد این بازه‌ها مثل کلاس قفل می‌شوند و هیچ بازچینشی آن‌ها را جابه‌جا نمی‌کند؛ ' +
+        'برنامه فقط اطرافشان چیده می‌شود. اگر خاموش باشد، این ساعت‌ها هم به مطالعه اختصاص می‌یابد.',
+    },
+    readiness: {
+      t: 'آمادگی کنکور و نهایی',
+      d: 'دو مسیر جدا: کنکور با ضریب درس × تسلط فصل × تست زمان‌دار سنجیده می‌شود؛ امتحان نهایی با بارم رسمی هر فصل × تسلط و ' +
+        'پاسخ تشریحی. روش مطالعه و برنامهٔ این دو هم جدا چیده می‌شود، پس دو عدد جدا هم می‌بینی.',
+    },
+    timer: {
+      t: 'تایمر بلوک (مکس / ادامه)',
+      d: 'روی هر بلوک «شروع» را بزن. اگر وسط کار چیزی پیش آمد «مکس (توقف)» را بزن — زمان جمع‌شده حفظ می‌شود. ' +
+        'بعداً «ادامه» را بزن تا همان مدت برنامه‌ریزی‌شده کامل شود. هر بلوک فقط وقتی «تمام‌شده» می‌شود که زمانش پر شود.',
+    },
   };
 
   let helpTipEl = null;
@@ -1635,10 +2093,23 @@
         spread: ($('finalsSpread') || {}).value !== '0',
         spreadMinutes: Number(($('finalsSpreadMinutes') || {}).value) || 45,
       },
+      /* v2.5: بیداری پیش‌فرض، روال ثابت، شروع روزها، آیتم اضطراری */
+      wakeTime: state.wakeTime || readTime($('wake'), '07:00'),
+      dayStarts: Object.assign({}, state.dayStarts || {}),
+      routinePinned: state.routinePinned === true,
+      routines: readRoutines(),
+      emergency: (state.emergency || []).map((e) => Object.assign({}, e)),
     };
   }
 
   function applyConfigToForm(cfg) {
+    try {
+      if (cfg.wakeTime) state.wakeTime = cfg.wakeTime;
+      if (cfg.dayStarts) state.dayStarts = cfg.dayStarts;
+      if (Array.isArray(cfg.emergency)) state.emergency = cfg.emergency;
+      if (typeof cfg.routinePinned === 'boolean') state.routinePinned = cfg.routinePinned;
+      if (Array.isArray(cfg.routines) && cfg.routines.length) state.routines = cfg.routines;
+    } catch (e) { /* بی‌صدا */ }
     state.config = cfg;
     $('name').value = (cfg.student && cfg.student.name) || '';
     $('grade').value = (cfg.student && cfg.student.grade) || 'دوازدهم';
@@ -1954,7 +2425,23 @@
           '<td><b>' + faNum(Math.round((x.projected / 100) * 20 * 10) / 10) + '</b></td>' +
           '<td><span class="num">' + faNum(Math.round(x.plannedMinutes / 60 * 10) / 10) + ' / ' + faNum(Math.round(x.needMinutes / 60 * 10) / 10) + '</span> ساعت</td>' +
           '<td>' + progressBar(x.progress) + '</td></tr>').join('') +
-        '</tbody></table>'
+        '</tbody></table>' +
+        '<div style="margin-top:12px"><b style="font-size:12.5px">بارم رسمی، فصل‌به‌فصل</b>' +
+        '<div class="muted" style="font-size:11px;margin:3px 0 8px">نمرهٔ هر فصل در برگهٔ نهایی و زمانی که برنامه برایش گذاشته است — ' +
+        'فصل پربارم، وقت بیشتری می‌گیرد.</div>' +
+        fc.filter((x) => (x.chapters || []).length).map((x) =>
+          '<details style="margin-bottom:6px"><summary style="cursor:pointer;font-size:12px">' + esc(x.name) +
+          ' <span class="muted" style="font-size:10.5px">· ' + (x.uniform ? 'بارم یکنواخت' : 'بارم نامتوازن') +
+          (x.approx ? ' · تقریبی' : '') + '</span></summary>' +
+          '<table class="chap" style="margin-top:6px"><thead><tr><th>فصل / قلمرو</th><th>بارم</th><th>زمان چیده‌شده</th></tr></thead><tbody>' +
+          x.chapters.map((ch) => '<tr><td>' + esc(ch.name) + '</td><td>' + faNum(Math.round(ch.baram * 100) / 100) +
+            '</td><td>' + faNum(Math.round((ch.minutes || 0) / 60 * 10) / 10) + ' ساعت</td></tr>').join('') +
+          '</tbody></table>' +
+          (x.source ? '<div class="muted" style="font-size:10px;margin-top:4px">منبع: ' + esc(x.source) + '</div>' : '') +
+          '<div class="muted" style="font-size:10.5px;margin-top:4px">روش مطالعهٔ نهایی: ' +
+            esc((x.method || []).join(' · ')) + '</div>' +
+          '</details>').join('') +
+        '</div>'
       : '<div class="muted" style="font-size:12px">لایهٔ سوابق غیرفعال است (تنظیمات، بخش ۱۰).</div>';
 
     /* --- ظرفیت و استاندارد --- */
@@ -2094,12 +2581,18 @@
 
     if (!list.length) { box.innerHTML = '<div class="muted" style="font-size:12px">موردی با این فیلتر نیست.</div>'; return; }
     box.innerHTML =
-      '<table class="chap"><thead><tr><th>فصل</th><th>وضعیت</th><th>تسلط</th><th>تست</th>' +
+      '<table class="chap"><thead><tr><th>فصل</th><th>اهمیت واقعی</th><th>وضعیت</th><th>تسلط</th><th>تست</th>' +
       '<th style="width:110px">پیشرفت</th><th>چه چیزی مانده</th></tr></thead><tbody>' +
       list.map((c) => '<tr' + (c.mode === 'solid' ? ' style="opacity:.75"' : '') + '>' +
         '<td><b style="font-size:12px">' + esc(c.label) + '</b>' +
           '<div class="muted" style="font-size:10.5px">' + esc(c.subjectName) +
           (c.deadlineTitle ? ' · مهلت: ' + esc(c.deadlineTitle) : '') + '</div></td>' +
+        '<td>' + (c.ciTag
+          ? '<span class="ci ci-' + (c.ciTag === 'بحرانی' ? 'crit' : c.ciTag === 'پرتکرار' ? 'hot' : c.ciTag === 'متوسط' ? 'mid' : 'low') + '">' +
+            esc(c.ciTag) + '</span>' +
+            '<div class="muted" style="font-size:10.5px">' + faNum(Math.round((c.ciQuestions || 0) * 10) / 10) + ' سؤال · ' +
+            faNum(Math.round((c.ciSharePct || 0) * 10) / 10) + '٪ درس</div>'
+          : '<span class="muted" style="font-size:10.5px">—</span>') + '</td>' +
         '<td><span class="pill ' + (c.mode === 'solid' ? '' : c.mastery < 45 ? 'hot' : c.mastery < 75 ? 'warm' : '') + '">' +
           esc(c.status) + '</span></td>' +
         '<td>' + faNum(Math.round(c.mastery)) + '٪<div class="muted" style="font-size:10.5px">هدف ۷۵٪</div></td>' +
@@ -2226,7 +2719,8 @@
         (b.why ? '<details><summary>چرا این کار؟</summary>' + esc(b.why) + '</details>' : '') +
         '</div>' +
         '<div><span class="badge ' + (KIND_CLASS[b.kind] || '') + '">' + esc(b.kindLabel) + '</span>' +
-        '<div class="chk" style="margin-top:8px"><input type="checkbox" data-done="' + key + '" ' + done + ' /> انجام شد</div></div>' +
+        '<div class="chk" style="margin-top:8px"><input type="checkbox" data-done="' + key + '" ' + done + ' /> انجام شد</div>' +
+        timerHtml(d, b, i) + '</div>' +
         '</div>';
     }).join('');
 
@@ -2500,6 +2994,13 @@
         scores: state.scores,
         done: state.done,
         visited: state.visited,
+        /* v2.5: تایمرها و وضعیت اجرای روز */
+        sessions: state.sessions,
+        dayStarts: state.dayStarts,
+        emergency: state.emergency,
+        routines: state.routines,
+        routinePinned: state.routinePinned,
+        wakeTime: state.wakeTime,
       });
     } catch (e) { /* بی‌صدا */ }
   }
@@ -2513,6 +3014,15 @@
           state.scores = data.scores || {};
           state.done = data.done || {};
           state.visited = data.visited || {};
+          state.sessions = data.sessions || {};
+          if (data.dayStarts) state.dayStarts = data.dayStarts;
+          if (Array.isArray(data.emergency)) state.emergency = data.emergency;
+          if (Array.isArray(data.routines) && data.routines.length) { state.routines = data.routines; renderRoutineRows(state.routines); }
+          if (typeof data.routinePinned === 'boolean') {
+            state.routinePinned = data.routinePinned;
+            if ($('routinePinned')) $('routinePinned').checked = data.routinePinned;
+          }
+          if (data.wakeTime) state.wakeTime = data.wakeTime;
           if (data.plan) {
             state.plan = data.plan;
             renderPlan();
@@ -2778,7 +3288,19 @@
     if (b) b.addEventListener('click', () => { setTimeMode(mode); try { persist(); } catch (e) { /* بی‌صدا */ } });
   });
   setTimeMode('fixed');
-  restore().then(() => { try { renderHome(); } catch (e) { /* بی‌صدا */ } });
+  try { renderRoutineRows(null); } catch (e) { /* بی‌صدا */ }
+  if ($('routinePinned')) $('routinePinned').checked = state.routinePinned === true;
+  if ($('wake')) {
+    state.wakeTime = normTime($('wake').value) || state.wakeTime || '07:00';
+    $('wake').addEventListener('change', () => {
+      const v = normTime($('wake').value);
+      if (v) { state.wakeTime = v; try { persist(); } catch (e) { /* بی‌صدا */ } try { renderDayStartUI(); } catch (e) { /* بی‌صدا */ } }
+    });
+  }
+  restore().then(() => {
+    try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }
+    try { renderHome(); } catch (e) { /* بی‌صدا */ }
+  });
 
   /* با هر تغییر در فرم، نمای خانه و تیک‌های نوار کنار تازه می‌شوند */
   let homeTick = null;

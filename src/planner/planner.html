@@ -491,6 +491,53 @@
 
       <div id="homeIssues" style="margin-bottom:14px"></div>
 
+      <div class="card" id="homeDayCard" style="display:none">
+        <div class="row" style="margin-bottom:8px">
+          <h2 style="margin:0" data-help="startDay">شروع روز</h2>
+          <span class="chip" id="homeDayState" style="margin-inline-start:auto">ساعت پیش‌فرض بیداری: —</span>
+        </div>
+        <p class="lead">
+          ساعت بیداری فقط یک پیش‌فرض است. امروز اگر ۷ یا ۱۱ بیدار شدی، ساعت واقعی را بزن:
+          فقط برنامهٔ <b>همین روز</b> از همان ساعت بازچیده می‌شود و کلاس‌ها، وعده‌های غذایی و آزمون‌ها
+          دقیقاً سر جای خودشان می‌مانند.
+        </p>
+        <div class="row" style="align-items:flex-end; gap:8px">
+          <div style="min-width:130px"><label>ساعت واقعی شروع امروز</label>
+            <input id="startDayTime" class="tin" value="۰۷:۰۰" placeholder="۰۷:۰۰" inputmode="numeric" autocomplete="off" /></div>
+          <button class="btn primary" id="startDayBtn">شروع روز از این ساعت</button>
+          <button class="btn ghost small" id="resetDayBtn">بازگشت به ساعت پیش‌فرض</button>
+          <button class="btn ghost small" id="closeDayBtn">بستن روز و انتقال جامانده‌ها</button>
+        </div>
+        <div id="dayStateNote" class="muted" style="font-size:11.5px;margin-top:8px"></div>
+      </div>
+
+      <div class="card" id="emergencyCard" style="display:none">
+        <h2 style="margin-top:0" data-help="emergency">آیتم‌های اضطراری</h2>
+        <p class="lead">
+          یک فصل یا موضوع که «حتماً باید» انجام شود را این‌جا اضافه کن. برنامه خودش می‌پرسد کِی:
+          <b>امروز با ساعتی که می‌نویسی</b> یا <b>این هفته در اولین فرصت</b> — و بقیهٔ برنامه را دور آن بازمی‌چیند
+          (ساعت کلاس‌ها دست نمی‌خورد).
+        </p>
+        <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+          <div><label>درس</label><select id="emSubject"></select></div>
+          <div><label>فصل / موضوع</label><select id="emChapter"></select></div>
+          <div><label>کِی؟</label>
+            <select id="emScope">
+              <option value="today">امروز — با ساعت مشخص</option>
+              <option value="week">این هفته — اولین فرصت</option>
+            </select>
+          </div>
+          <div><label>ساعت (برای «امروز»)</label>
+            <input id="emTime" class="tin" value="۱۷:۰۰" placeholder="۱۷:۰۰" inputmode="numeric" autocomplete="off" /></div>
+          <div><label>مدت (دقیقه)</label>
+            <input id="emMinutes" class="tin num" value="۶۰" inputmode="numeric" autocomplete="off" /></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn primary" id="emAdd">افزودن و بازچینی برنامه</button>
+          </div>
+        </div>
+        <div id="emList" style="margin-top:10px"></div>
+      </div>
+
       <div class="card" id="homeTodayCard" style="display:none">
         <div class="row" style="margin-bottom:10px">
           <h2 style="margin:0">برنامهٔ امروز <span class="tag" id="homeTodayDate"></span></h2>
@@ -673,6 +720,22 @@
             <select id="breakMinutes"><option value="5">۵</option><option value="10" selected>۱۰</option><option value="15">۱۵</option></select>
           </div>
         </div>
+        <p class="soft" style="margin-top:10px;font-size:11.5px">
+          ساعت بیداری فقط پیش‌فرض است: هر روز با دکمهٔ «شروع روز» در صفحهٔ خانه، برنامهٔ همان روز از ساعت واقعی بازچیده می‌شود.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2 data-help="routines">روال ثابت روز (وعده‌های غذایی، نماز، ورزش)</h2>
+        <p class="lead">
+          اگر روشن باشد، این بازه‌ها مثل کلاس <b>ثابت</b> می‌شوند: هیچ بازچینشی (شروع روز، انتقال جامانده‌ها)
+          آن‌ها را جابه‌جا نمی‌کند و برنامه فقط اطرافشان چیده می‌شود.
+        </p>
+        <label class="chk" style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <input type="checkbox" id="routinePinned" />
+          <span>این روال‌ها در برنامه ثابت بمانند (پیشنهاد: روشن)</span>
+        </label>
+        <div class="grid" id="routineRows" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px"></div>
       </div>
 
       <div class="stepfoot">
@@ -918,7 +981,7 @@
 
       <div class="card" style="margin-top:14px">
         <div class="row" style="margin-bottom:10px">
-          <h2 style="margin:0">برنامهٔ روزانه</h2>
+          <h2 style="margin:0" data-help="timer">برنامهٔ روزانه</h2>
           <div class="row" style="margin-inline-start:auto">
             <button class="btn ghost small" id="todayBtn">امروز</button>
             <button class="btn ghost small" id="prevWeek">هفتهٔ قبل</button>
@@ -928,6 +991,15 @@
         </div>
         <div class="days" id="dayPills"></div>
         <div id="dayView"></div>
+      </div>
+
+      <div class="card" id="readinessCard">
+        <h2 data-help="readiness">آمادگی: کنکور و نهایی — دو مسیر جدا</h2>
+        <p class="lead">
+          کنکور با تست زمان‌دار و بودجه‌بندی واقعی هر فصل سنجیده می‌شود؛ امتحان نهایی با بارم رسمی و
+          پاسخ تشریحی. روش مطالعه، برنامه و عدد آمادگی این دو با هم قاطی نمی‌شود.
+        </p>
+        <div id="readinessSplit"></div>
       </div>
 
       <div class="card">
@@ -1177,11 +1249,32 @@
   .evt.exam{background:#fff7ed;border-color:#fed7aa}
   .evt b{font-weight:600}
   .evt .t{margin-inline-start:auto;color:var(--muted);font-size:11px}
+
+  /* ══════════ v2.5: شروع روز · تایمر بلوک · اهمیت فصل · آمادگی جدا ══════════ */
+  .chip{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
+    background:var(--panel3); border:1px solid var(--line2); color:#334155; border-radius:999px; padding:3px 10px}
+  .btn.warn{background:#fff7ed; border-color:#fed7aa; color:#b45309}
+  .btn.warn:hover{background:#ffedd5; border-color:#fdba74}
+  .btn.small.primary{background:var(--brand, #4f46e5); color:#fff; border-color:transparent}
+  .tmr{margin-top:8px; background:var(--panel2); border:1px solid var(--line2); border-radius:10px; padding:7px 9px}
+  .tmrbar{height:5px; border-radius:999px; background:#e4ebf6; overflow:hidden}
+  .tmrbar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#34d399,#0ea5e9); transition:width .4s}
+  .tmrstat{font-size:10.5px; font-weight:700; color:#64748b; background:#eef2f9; border-radius:999px; padding:2px 8px}
+  .tmrstat.on{background:#ecfdf5; color:#047857}
+  .tmrstat.done{background:#eef2ff; color:#4338ca}
+  .ci{display:inline-block; font-size:10px; font-weight:800; border-radius:999px; padding:2px 7px; border:1px solid transparent}
+  .ci-crit{background:#fef2f2; color:#b91c1c; border-color:#fecaca}
+  .ci-hot{background:#fff7ed; color:#c2410c; border-color:#fed7aa}
+  .ci-mid{background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe}
+  .ci-low{background:#f8fafc; color:#64748b; border-color:#e2e8f0}
+  .chk{display:inline-flex; align-items:center; gap:6px; font-size:11.5px}
 </style>
 
 <div id="helpTip"></div>
 <div class="toast" id="toast"></div>
 <script src="jalali.js"></script>
+<script src="chapter-weights.js"></script>
+<script src="dayplan.js"></script>
 <script src="engine.js"></script>
 <script src="presets.js"></script>
 <script src="planner.js"></script>

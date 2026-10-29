@@ -14,10 +14,26 @@
  */
 
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./jalali.js'));
-  else root.RevalPlanner = factory(root.RevalJalali);
-})(typeof self !== 'undefined' ? self : this, function (J) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./jalali.js'), require('./chapter-weights.js'));
+  } else root.RevalPlanner = factory(root.RevalJalali, root.RevalChapterWeights);
+})(typeof self !== 'undefined' ? self : this, function (J, CW0) {
   'use strict';
+
+  /* ---------------- اهمیت واقعی فصل‌به‌فصل (کنکور) و بارم (نهایی) ----------------
+     ماژول دادهٔ مستقل؛ اگر نبود، همهٔ ضرایب ۱ می‌شوند و موتور مثل قبل کار می‌کند. */
+  const CW = CW0 || {
+    konkur: () => null,
+    finals: () => null,
+    chapterInfo: () => null,
+    finalsChapterInfo: () => null,
+    konkurFactors: () => ({ mult: 1, needMult: 1, testMult: 1, info: null }),
+    konkurMethod: () => [],
+    finalsMethod: () => [],
+    konkurTable: () => [],
+    finalsTable: () => [],
+    tagOf: () => 'متوسط',
+  };
 
   /* نمایش تاریخ: همیشه شمسی؛ اگر ماژول تقویم نبود، همان ISO */
   const jDate = (iso) => (J && J.fmt ? J.fmt(iso) : iso);
@@ -176,6 +192,66 @@
     );
     cfg.startTimes = starts;
     cfg.sleep = Object.assign({ bedtime: '23:30', wake: '07:00' }, cfg.sleep || {});
+
+    /* ---------------- ساعت بیداری: فقط «پیش‌فرض» است ----------------
+       روز واقعی وقتی شروع می‌شود که کاربر دکمهٔ «شروع روز» را بزند و ساعت واقعی را بدهد.
+       cfg.dayStarts = { '2026-10-30': '11:00' }  ← بازچینش همان روز از ساعت واقعی. */
+    const hm = (v) => {
+      const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(v || ''));
+      if (!m) return null;
+      const h = Number(m[1]); const mm = Number(m[2]);
+      if (h > 23 || mm > 59) return null;
+      return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    };
+    cfg.wakeTime = hm(cfg.wakeTime) || hm(cfg.sleep.wake) || '07:00';
+    cfg.sleep.wake = cfg.wakeTime;
+    cfg.dayStarts = (function () {
+      const out = {};
+      const src = cfg.dayStarts || {};
+      Object.keys(src).forEach((k) => { const v = hm(src[k]); if (v) out[k] = v; });
+      return out;
+    })();
+
+    /* ---------------- روال‌های روز (وعده‌های غذایی، نماز، ورزش) ----------------
+       این‌ها «رویداد ثابت» هستند و هیچ بازچینشی (شروع روز / جابه‌جایی) آن‌ها را جابه‌جا نمی‌کند.
+       پیش‌فرض خاموش است تا ساعت مطالعهٔ اعلامی کاربر هدر نرود؛ در «زمان‌های تو» روشن می‌شود. */
+    cfg.routinePinned = cfg.routinePinned === true;
+    const rawRoutines = Array.isArray(cfg.routines) && cfg.routines.length
+      ? cfg.routines
+      : [
+        { title: 'صبحانه', start: '08:00', minutes: 30 },
+        { title: 'ناهار', start: '13:30', minutes: 45 },
+        { title: 'شام', start: '20:00', minutes: 45 },
+      ];
+    cfg.routines = rawRoutines.map((r, i) => ({
+      id: r.id || 'R' + (i + 1),
+      title: String(r.title || 'روال ' + toFa(i + 1)).slice(0, 40),
+      start: hm(r.start) || '13:00',
+      minutes: clamp(Number(r.minutes) || 30, 5, 180),
+      weekdays: Array.isArray(r.weekdays) && r.weekdays.length ? r.weekdays.map(Number) : [0, 1, 2, 3, 4, 5, 6],
+      enabled: r.enabled !== false,
+    }));
+
+    /* ---------------- آیتم‌های اضطراری ----------------
+       کاربر یک فصل/موضوع را «حتمی» می‌کند و می‌گوید کِی: امروز با ساعت مشخص یا این هفته.
+       برنامهٔ بقیهٔ روز/هفته دور همین آیتم بازچینی می‌شود؛ ساعت کلاس‌ها ثابت می‌ماند. */
+    cfg.emergency = (Array.isArray(cfg.emergency) ? cfg.emergency : [])
+      .map((e, i) => {
+        const scope = e.scope === 'week' ? 'week' : 'today';
+        return {
+          id: e.id || 'E' + (i + 1),
+          title: String(e.title || '').slice(0, 80),
+          subjectId: e.subjectId || null,
+          chapter: e.chapter == null ? null : Number(e.chapter),
+          scope,
+          date: /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')) ? String(e.date)
+            : (scope === 'today' ? isoDay(start) : null),
+          time: hm(e.time),
+          minutes: clamp(Number(e.minutes) || 60, 20, 300),
+          done: e.done === true,
+        };
+      })
+      .filter((e) => !e.done && (e.title || e.subjectId));
     cfg.student = Object.assign({ name: 'دانش‌آموز', grade: 'دوازدهم', field: 'tajrobi', chronotype: 'neutral' }, cfg.student || {});
     cfg.blockMinutes = clamp(Number(cfg.blockMinutes) || 45, 20, 120);
     cfg.breakMinutes = clamp(Number(cfg.breakMinutes) || 10, 0, 30);
@@ -426,21 +502,26 @@
       const data = s.chaptersData;
       for (let i = 1; i <= s.chapters; i++) {
         const row = data ? data[i - 1] : null;
+        /* اهمیت واقعی همین فصل از بودجه‌بندی کنکور (تعداد سؤال، اهمیت، سختی) */
+        const ci = CW.konkurFactors(s.id, i);
+        const ciM = ci.needMult || 1;
         const read = data ? Boolean(row && row.read) : (i <= Math.floor(s.masteredChapters));
         const mastery = data
           ? (row && row.read ? row.mastery : 0)
           : (read ? 100 : 0);
         let mode;
         let need;
+        /* ضریب اهمیت فصل روی «زمان لازم» اثر می‌گذارد: فصل پرسؤال‌تر و سخت‌تر
+           برای یادگیری، تثبیت، مرور و تست زمان بیشتری می‌گیرد. */
         if (!read) {
           mode = 'learn';
-          need = base * s.difficulty;
+          need = base * s.difficulty * ciM;
         } else if (mastery < DEFAULTS.RETEACH_BELOW) {
           mode = 'reteach';
-          need = 20 + base * s.difficulty * DEFAULTS.RETEACH_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW);
+          need = (20 + base * s.difficulty * DEFAULTS.RETEACH_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW)) * ciM;
         } else if (mastery < DEFAULTS.BOOST_BELOW) {
           mode = 'boost';
-          need = 15 + base * s.difficulty * DEFAULTS.BOOST_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW);
+          need = (15 + base * s.difficulty * DEFAULTS.BOOST_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW)) * ciM;
         } else {
           mode = 'solid';
           need = 0;
@@ -462,8 +543,18 @@
           mode,
           mastery: clamp(mastery, 0, 100),
           mastered: clamp(mastery, 0, 100) >= DEFAULTS.BOOST_BELOW,
-          /* نیاز تست هر فصل (مبنای گزارش فصل‌به‌فصل) */
-          testsNeed: Math.round((s.type === 'problem' ? 45 : s.type === 'memorization' ? 30 : 55) * s.difficulty),
+          /* نیاز تست هر فصل (مبنای گزارش فصل‌به‌فصل) — پرسؤال‌ترها تست بیشتری می‌خواهند */
+          testsNeed: Math.round((s.type === 'problem' ? 45 : s.type === 'memorization' ? 30 : 55) *
+            s.difficulty * (ci.testMult || 1)),
+          /* دادهٔ اهمیت واقعی فصل (برای نمایش و اولویت‌بندی) */
+          ciMult: ci.mult || 1,
+          ciNeed: ciM,
+          ciTag: ci.info ? ci.info.tag : null,
+          ciQuestions: ci.info ? ci.info.q : null,
+          ciSharePct: ci.info ? ci.info.sharePct : null,
+          ciImportance: ci.info ? ci.info.imp : null,
+          ciDifficulty: ci.info ? ci.info.diff : null,
+          ciSource: ci.info ? ci.info.source : null,
           testsDone: 0,
           learnedOn: null,
           doneDate: null,
@@ -486,7 +577,10 @@
   function topicPriority(t) {
     const gap = (100 - t.mastery) / 100;
     const kindFactor = t.mode === 'reteach' ? DEFAULTS.RETEACH_PRIORITY : t.mode === 'boost' ? 1.1 : 1;
-    return Math.max(0.01, t.weight * (0.15 + 0.85 * gap) * kindFactor);
+    /* ضریب اهمیت واقعی فصل: فصل پرتکرار/سخت زودتر و بیشتر خوانده می‌شود،
+       نه فقط به ترتیب شمارهٔ فصل. */
+    const ciFactor = t.ciMult || 1;
+    return Math.max(0.01, t.weight * (0.15 + 0.85 * gap) * kindFactor * ciFactor);
   }
 
   function scoreSubjects(cfg) {
@@ -560,6 +654,19 @@
       });
     });
 
+    /* روال‌های روز (وعده‌های غذایی/نماز/ورزش) — رویداد ثابت و غیرقابل‌جابه‌جایی */
+    if (cfg.routinePinned && cfg.routines) {
+      cfg.routines.forEach((r) => {
+        if (r.enabled === false) return;
+        if (r.weekdays && r.weekdays.indexOf(wd) === -1) return;
+        const st = minutesSinceMidnight(r.start);
+        out.push({
+          type: 'routine', id: r.id, title: r.title, subjectId: null, subjectName: '',
+          start: st, end: st + r.minutes, fixed: true,
+        });
+      });
+    }
+
     cfg.exams.forEach((e) => {
       if (e.date !== iso) return;
       out.push({
@@ -580,7 +687,16 @@
   function freeSegments(cfg, date, busy) {
     const wd = persianWeekday(date);
     const key = WEEKDAY_KEY[wd];
-    const windowStart = minutesSinceMidnight(cfg.startTimes[key]);
+    let windowStart = minutesSinceMidnight(cfg.startTimes[key]);
+    /* «شروع روز»: اگر کاربر برای این روز ساعت واقعیِ شروع را داده باشد،
+       پنجرهٔ آزاد از همان ساعت شروع می‌شود (نه از ساعت پیش‌فرض آن روز هفته). */
+    if (cfg.dayStarts) {
+      const ov = cfg.dayStarts[isoDay(date)];
+      if (ov) windowStart = minutesSinceMidnight(ov);
+    }
+    /* هیچ‌وقت قبل از بیداری مطالعه نداریم؛ زودتر از ساعت بیداری، پنجره باز نمی‌شود. */
+    const wakeMin = minutesSinceMidnight(cfg.wakeTime || (cfg.sleep && cfg.sleep.wake) || '07:00');
+    if (windowStart < wakeMin) windowStart = wakeMin;
     /* پایان پنجرهٔ مطالعه: ۴۵ دقیقه قبل از خواب؛ خوابِ بعد از نیمه‌شب تا پایان همان روز کشیده می‌شود */
     const bedGuard = Math.min(1440, sleepMinutes(cfg) - (cfg.SLEEP_GUARD_MIN || DEFAULTS.SLEEP_GUARD_MIN));
     if (bedGuard <= windowStart) return [];
@@ -778,6 +894,8 @@
       deadlinecheck: 'آماده‌سازی مهلت',
       carry: 'جبران عقب‌افتادگی',
       carryreview: 'مرور عقب‌افتادگی',
+      emergency: 'آیتم اضطراری',
+      routine: 'روال ثابت روز',
       rest: 'استراحت',
     }[kind] || kind;
   }
@@ -799,6 +917,8 @@
       deadlinecheck: 'بازیابی فشردهٔ محدودهٔ مهلت + تست شبیه‌ساز',
       carry: 'بازچینش هوشمند: کار عقب‌افتاده در اولین فرصت',
       carryreview: 'مرور کوتاه کار عقب‌افتاده (جلوگیری از دوباره‌فراموشی)',
+      emergency: 'بلوک حتمیِ کاربر — اولویت مطلق روی بقیهٔ روز',
+      routine: 'روال ثابت روز (غیرقابل جابه‌جایی)',
     }[kind] || '';
   }
 
@@ -818,6 +938,8 @@
     if (t.kind === 'deadlinecheck') return 'مرور فشردهٔ محدودهٔ مهلت: اول تست، بعد فقط نقاط ضعف را باز کن — نه خواندن از صفر';
     if (t.kind === 'carry') return 'کار عقب‌افتاده را کوچک و مشخص تمام کن: هدف این جلسه فقط همان تکهٔ جامانده است';
     if (t.kind === 'carryreview') return 'مرور کوتاه همان کار عقب‌افتاده تا دوباره فراموش نشود';
+    if (t.kind === 'emergency') return 'آیتم اضطراری: همین موضوع را تا آخر تمام کن و بقیهٔ برنامه بعد از آن بازچینی می‌شود';
+    if (t.kind === 'routine') return 'روال ثابت روز — برنامه دور آن چیده می‌شود و جابه‌جا نمی‌شود';
     return '';
   }
 
@@ -838,6 +960,8 @@
       deadlinecheck: 'مهلت‌ها معکوس کار می‌کنند: دو روز آخرِ هر مهلت، بازیابی فشرده بازده بیشتری از یادگیری تازه دارد.',
       carry: 'کار عقب‌افتاده اگر همان هفته جبران نشود، به بدهیِ مرکب تبدیل می‌شود (اثر اهداف اجرایی/Gollwitzer).',
       carryreview: 'مرور کوتاه بعد از جبران، همان کاری است که «جبران» را از «دوباره فراموش‌شدن» جدا می‌کند.',
+      emergency: 'آیتم اضطراری را خودت «حتمی» کرده‌ای؛ برنامه آن را در اولین فرصتِ واقعی می‌گذارد و بقیه را دور آن بازچینی می‌کند تا از ذهنت بیرون نرود.',
+      routine: 'وعده‌های غذایی و روال روز، سوختِ تمرکزند؛ برنامه آن‌ها را ثابت نگه می‌دارد و فقط اطرافشان می‌چیند.',
     }[kind] || '';
   }
 
@@ -991,8 +1115,16 @@
     const finalTopics = cfg.finals.enabled
       ? cfg.finals.courses.map((c) => {
         const cur = c.current == null ? 12 : c.current;          // ثبت‌نشده → فرضِ میانه
-        const need = Math.max(0, Math.round(
-          Math.max(0, c.target - cur) * (DEFAULTS.FINALS_MIN_PER_POINT) * (c.influence / 3)));
+        /* بارم واقعیِ نهایی: درس‌هایی که بارم بین فصل‌هایشان نامتوازن است
+           (مثل فیزیک ۳ با ۶٫۵ نمره در فصل نوسان) زمان بیشتری می‌خواهند. */
+        const fb = CW.finals(c.id, c.grade) || null;
+        const baram = fb && Array.isArray(fb.baram) && fb.baram.length ? fb.baram.slice() : null;
+        const baramSum = baram ? sum(baram) : 0;
+        const baramAvg = baram && baram.length ? baramSum / baram.length : 0;
+        const concentration = baramAvg > 0 ? (Math.max.apply(null, baram) / baramAvg) : 1;
+        const finalsMult = clamp(0.88 + 0.12 * concentration, 0.88, 1.25);
+        const need = Math.round(Math.max(0, Math.round(
+          Math.max(0, c.target - cur) * (DEFAULTS.FINALS_MIN_PER_POINT) * (c.influence / 3)) * finalsMult));
         return {
           id: 'fin.' + c.id, finalId: c.id, subjectId: 'fin.' + c.id, subjectName: c.name,
           label: 'نمونه‌سؤال و مرور ' + c.name,
@@ -1001,6 +1133,11 @@
           needMinutes: need, initialNeedMinutes: Math.max(1, need),
           plannedMinutes: 0, mode: 'finals', reviews: [], read: true, chapter: 0,
           testsNeed: 0, testsDone: 0, learnedOn: null, doneDate: null,
+          finalsBaram: baram, finalsBaramSum: baramSum, finalsUniform: fb ? Boolean(fb.uniform) : true,
+          finalsSource: fb ? fb.source : null, finalsApprox: fb ? Boolean(fb.approx) : false,
+          finalsMethod: CW.finalsMethod(c.id, c.grade),
+          finalsChapters: CW.finalsTable(c.id, c.grade),
+          finalsMult: Math.round(finalsMult * 100) / 100,
         };
       })
       : [];
@@ -1151,6 +1288,8 @@
       refreshTestTarget(cfg);
     }
     let classFixBacklog = []; // تثبیت کلاس‌هایی که همان روز جا نشدند
+    const emPlaced = new Set();   // آیتم‌های اضطراریِ چیده‌شده
+    const emReport = [];
     let lastMissSweep = -1;
 
     /* فشار مهلت یک درس در یک روز: نسبت «دقیقهٔ لازم در روز» به ظرفیت واقعی */
@@ -1292,6 +1431,42 @@
           examId: b.id,
           practiceCount: Math.round((b.end - b.start) * 0.7),
           fixed: { start: b.start, end: b.end }, // رویداد ثابت — نباید جابه‌جا شود
+        });
+      });
+
+      /* ---- ۰.۵) آیتم‌های اضطراری (کاربر گفته «این باید بشود») ----
+         رویداد ثابت با اولویت مطلق: ساعت خواسته‌شده، و اگر با کلاس/روال ثابت برخورد داشت
+         اولین فرصتِ آزادِ بعد از آن. برنامهٔ بقیهٔ روز دور همین بلوک بازچینی می‌شود. */
+      cfg.emergency.forEach((em) => {
+        if (emPlaced.has(em.id)) return;
+        if (em.scope === 'today' && em.date !== iso) return;
+        if (!segments.length) return;
+        const want = em.time ? minutesSinceMidnight(em.time) : null;
+        let pick = null;
+        segments.forEach((sg) => {
+          if (pick) return;
+          const from = want != null ? Math.max(sg.start, want) : sg.start;
+          if (sg.end - from >= Math.min(em.minutes, 30)) {
+            pick = { start: from, end: Math.min(sg.end, from + em.minutes) };
+          }
+        });
+        if (!pick) return;
+        emPlaced.add(em.id);
+        const subj = cfg.subjects.find((x) => x.id === em.subjectId) || null;
+        const label = em.chapter ? ((subj ? subj.name + ' · ' : '') + 'فصل ' + toFa(em.chapter)) : (em.title || 'آیتم اضطراری');
+        tasks.push({
+          kind: 'emergency',
+          subjectId: em.subjectId || 'EMERGENCY',
+          subjectName: em.title || (subj ? subj.name : 'آیتم اضطراری'),
+          topicLabel: label,
+          minutesLeft: Math.max(20, pick.end - pick.start),
+          priority: 900,
+          emergencyId: em.id,
+          fixed: { start: pick.start, end: pick.end },
+        });
+        emReport.push({
+          id: em.id, title: label, scope: em.scope, date: iso,
+          start: fmtHM(pick.start), end: fmtHM(pick.end), minutes: pick.end - pick.start,
         });
       });
 
@@ -1932,6 +2107,12 @@
         reviews: dueReviews.filter((r) => r.topic === t).length,
         progress, covered, status, general: Boolean(t.general),
         deadlineIdx: t.deadlineIdx, deadlineTitle: t.deadlineTitle, deadlineMissed: Boolean(t.deadlineMissed),
+        /* اهمیت واقعی فصل (بودجه‌بندی کنکور) — مبنای نمایش و اولویت */
+        ciTag: t.ciTag || null, ciQuestions: t.ciQuestions == null ? null : t.ciQuestions,
+        ciSharePct: t.ciSharePct == null ? null : t.ciSharePct,
+        ciImportance: t.ciImportance == null ? null : t.ciImportance,
+        ciDifficulty: t.ciDifficulty == null ? null : t.ciDifficulty,
+        ciMult: t.ciMult || 1, ciSource: t.ciSource || null,
       };
     });
     const coveredCount = chapterStats.filter((c) => c.covered).length;
@@ -2132,12 +2313,67 @@
         ? Math.min(100, Math.round((t.plannedMinutes / t.initialNeedMinutes) * 100)) : 100,
       projected: Math.round(clamp(t.mastery + (Math.round((t.target20 / 20) * 100) - t.mastery) *
         (t.initialNeedMinutes > 0 ? Math.min(1, t.plannedMinutes / t.initialNeedMinutes) : 0), 0, 100)),
+      /* بارم واقعی فصل‌به‌فصل + سهم زمانی هر فصل (کاربر می‌بیند کدام فصل وقت بیشتری گرفت) */
+      uniform: t.finalsUniform,
+      approx: t.finalsApprox,
+      source: t.finalsSource,
+      baramTotal: t.finalsBaramSum || null,
+      method: t.finalsMethod || [],
+      chapters: (t.finalsChapters || []).map((ch, i) => {
+        const share = t.finalsBaram && t.finalsBaram.length
+          ? t.finalsBaram[i] / (t.finalsBaramSum || 1) : 1 / Math.max(1, (t.finalsChapters || []).length);
+        return {
+          chapter: ch.chapter, name: ch.name, baram: ch.baram,
+          minutes: Math.round(share * t.initialNeedMinutes),
+          planned: Math.round(share * t.plannedMinutes),
+        };
+      }),
     }));
     const budgetRatio = finalsCourses.length
       ? sum(finalsCourses.map((c) => c.plannedMinutes / Math.max(1, c.needMinutes))) / finalsCourses.length : 0;
     const finalsProjectedScore = finalsCourses.length
       ? Math.round(sum(finalsCourses.map((c) => (c.projected / 100) * 20 * c.influence)) /
         (sum(finalsCourses.map((c) => c.influence)) || 1) * 10) / 10 : 0;
+
+    /* ---------------- آمادگی کنکور و نهایی: دو عدد جداگانه ----------------
+       کنکور با «ضریب × تسلط × پوشش فصل‌ها × تست» سنجیده می‌شود؛
+       نهایی با «بارم × تسلط × نسبت کار انجام‌شده» — چون روش و معیارشان یکی نیست. */
+    const konkurTestsNeedAll = sum(topics.map((t) => t.testsNeed || 0)) || 1;
+    const konkurTestsDoneAll = sum(topics.map((t) => Math.min(t.testsNeed || 0, t.testsDone || 0)));
+    const konkurTestRatio = clamp(konkurTestsDoneAll / konkurTestsNeedAll, 0, 1);
+    const konkurCoverRatio = clamp((coverageRatio || 0) / 100, 0, 1);
+    const konkurReviewRatio = clamp(
+      sum(topics.map((t) => Math.min(1, (t.reviewMinutes || 0) / Math.max(30, (t.initialNeedMinutes || 0) * 0.25)))) /
+        Math.max(1, topics.length), 0, 1);
+    const konkurReadiness = {
+      current: Math.round(readiness),
+      projected: Math.round(projectedReadiness),
+      coverage: Math.round(coverageRatio || 0),
+      testsDone: konkurTestsDoneAll,
+      testsNeed: Math.round(konkurTestsNeedAll),
+      testRatio: Math.round(konkurTestRatio * 100),
+      reviewRatio: Math.round(konkurReviewRatio * 100),
+      minutes: Math.round(sum(topics.map((t) => t.plannedMinutes || 0))),
+      remainingMinutes: Math.round(remainingNeed),
+      basis: 'ضریب درس × تسلط فصل × پوشش × تست زمان‌دار',
+      method: ['یادگیری مفهومی + تست زمان‌دار', 'مرور فاصله‌دار تا روز کنکور', 'آزمون جامع و تحلیل خطا',
+        'اولویت بر پایهٔ بودجه‌بندی واقعی هر فصل'],
+    };
+    const finalsReadinessObj = {
+      current: finalsReadiness,
+      projected: finalsCourses.length ? Math.round(sum(finalsCourses.map((c) => c.projected * c.influence)) /
+        (sum(finalsCourses.map((c) => c.influence)) || 1)) : 0,
+      courses: finalsCourses.length,
+      avgScore: Math.round(finalsCourses.length
+        ? (sum(finalsCourses.map((c) => c.projected / 100 * 20)) / finalsCourses.length) * 10 : 0) / 10,
+      budgetRatio: Math.round(budgetRatio * 100),
+      minutes: sum(finalsCourses.map((c) => c.plannedMinutes)),
+      remainingMinutes: sum(finalsCourses.map((c) => c.remainingMinutes)),
+      share: DEFAULTS.FINALS_SHARE,
+      basis: 'بارم رسمی هر فصل × تسلط ثبت‌شده × نمونه‌سؤال تشریحی',
+      method: ['حل نمونه‌سؤال نهایی با زمان‌سنج', 'تصحیح با بارم‌بندی رسمی', 'پاسخ تشریحی با جمله‌بندی کتاب',
+        'فصل پربارم = وقت بیشتر'],
+    };
 
     /* ---------------- مهلت‌ها: ارزیابی تحقق ---------------- */
     const totalWorkDays = Math.max(1, days.filter((d) => !d.isOff).length);
@@ -2265,6 +2501,8 @@
           ' فصلِ ضعیف، حدود ' + Math.round(remainingNeed / 60) + ' ساعت کم داری؛ یا ساعت مطالعه را بالا ببر یا فصل‌های کم‌ضریب را عقب بینداز.',
       readiness,
       projectedReadiness,
+      konkurReadiness,
+      finalsReadinessObj,
       reviewSessions: days.reduce((a, d) => a + d.blocks.filter((b) => b.kind === 'review' || b.kind === 'cumreview').length, 0),
       reviewDays: reviewDays.length,
       lastReviewDate: lastReviewDay,
@@ -2295,7 +2533,7 @@
 
     return {
       meta: {
-        version: '2.4.0', createdAt: new Date().toISOString(),
+        version: '2.5.0', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
@@ -2321,6 +2559,15 @@
         diagnostics,
         coachNotes: coachNotes(cfg, bySubject, warnings, notes, coverage),
         coverage,
+        /* تفکیک صریح کنکور / نهایی: روش، برنامه و سطح آمادگی جدا */
+        readinessSplit: {
+          konkur: konkurReadiness,
+          finals: finalsReadinessObj,
+          separate: true,
+          note: 'کنکور با تست زمان‌دار و بودجه‌بندی فصل‌به‌فصل سنجیده می‌شود؛ نهایی با بارم رسمی و پاسخ تشریحی — دو مسیر جدا، دو عدد جدا.',
+        },
+        /* آیتم‌های اضطراری چیده‌شده */
+        emergency: emReport,
         priorities,
         weakChapters,
         chapterStats,
@@ -2397,6 +2644,10 @@
       classes: cfg.classes, exams: cfg.exams, subjects: cfg.subjects,
       finals: cfg.finals, deadlines: cfg.deadlines, offDates: cfg.offDates,
       carryOver: cfg.carryOver,
+      /* v2.5: ساعت بیداری پیش‌فرض، شروع روزهای واقعی، روال‌های ثابت، آیتم‌های اضطراری */
+      wakeTime: cfg.wakeTime, dayStarts: cfg.dayStarts,
+      routinePinned: cfg.routinePinned, routines: cfg.routines,
+      emergency: cfg.emergency,
       /* هدف تست محاسبه‌شده ذخیره نمی‌شود؛ هر بار از ساعت‌های تازه ساخته می‌شود */
       timeMode: cfg.timeMode, dailyCapHours: cfg.dailyCapHours, dailyFloorHours: cfg.dailyFloorHours,
     };
