@@ -135,12 +135,31 @@ presetsMod.GENERAL['دهم'].concat(presetsMod.GENERAL['دوازدهم']).forEac
   assert.ok(g.chapters >= 4, 'تعداد فصل/درس عمومی نامعتبر: ' + g.name);
   assert.ok(g.general === true, 'پرچم general ندارد: ' + g.name);
 });
-assert.deepStrictEqual(presetsMod.generalFor('دوازدهم').map((x) => x.id), ['fa3', 'ar3', 'di3', 'en3']);
+assert.deepStrictEqual(presetsMod.generalFor('دوازدهم').map((x) => x.id),
+  ['fa3', 'ar3', 'di3', 'en3', 'sal3', 'hovi3']);
 assert.deepStrictEqual(presetsMod.generalFor('دهم').map((x) => x.chapters), [8, 8, 12, 4]);
 assert.deepStrictEqual(presetsMod.generalFor('یازدهم').map((x) => x.chapters), [8, 7, 12, 4]);
 
+/* سلامت و بهداشت (۱۴ درس) و هویت اجتماعی (۱۰ درس) باید در پایهٔ دوازدهم باشند */
+const sal = presetsMod.generalFor('دوازدهم').find((x) => x.id === 'sal3');
+const hovi = presetsMod.generalFor('دوازدهم').find((x) => x.id === 'hovi3');
+assert.ok(sal && sal.chapters === 14 && sal.topicNames.length === 14, 'سلامت و بهداشت ۱۴ درس نیست');
+assert.ok(hovi && hovi.chapters === 10 && hovi.topicNames.length === 10, 'هویت اجتماعی ۱۰ درس نیست');
+assert.ok(sal.name.indexOf('سلامت') !== -1 && hovi.name.indexOf('هویت') !== -1, 'نام درس‌های تازه درست نیست');
+
+/* انتخاب پایه: فقط دوازدهم / فقط دهم / همه */
+assert.deepStrictEqual(presetsMod.generalFor(['دوازدهم']).map((x) => x.id),
+  ['fa3', 'ar3', 'di3', 'en3', 'sal3', 'hovi3']);
+assert.deepStrictEqual(presetsMod.generalFor(['دهم']).map((x) => x.id), ['fa1', 'ar1', 'di1', 'en1']);
+assert.deepStrictEqual(presetsMod.generalFor(['دهم', 'دوازدهم']).length, 10);
+assert.deepStrictEqual(presetsMod.normalizeGrades(['دوازدهم', 'دوازدهم']), ['دوازدهم']);
+assert.deepStrictEqual(presetsMod.normalizeGrades([]), ['دوازدهم']);
+assert.deepStrictEqual(presetsMod.normalizeGrades('فارغ‌التحصیل'), ['دوازدهم']);
+assert.deepStrictEqual(presetsMod.grades(), ['دهم', 'یازدهم', 'دوازدهم']);
+
 const genCfg = Object.assign({}, config, {
-  subjects: presetsMod.subjectsFor('tajrobi').concat(presetsMod.generalFor('دوازدهم')),
+  generalGrades: ['دوازدهم'],
+  subjects: presetsMod.subjectsFor('tajrobi').concat(presetsMod.generalFor(['دوازدهم'])),
 });
 const genPlan = engine.createPlan(genCfg);
 const genNames = presetsMod.generalFor('دوازدهم').map((x) => x.name);
@@ -163,6 +182,22 @@ assert.ok(mixed, 'هیچ روزی ترکیب اختصاصی + عمومی ندا�
 assert.ok(genPlan.summary.learnedTopics >= genCfg.subjects.reduce((a, s) => a + s.chapters, 0) * 0.9,
   'مباحث کافی پوشش داده نشد: ' + genPlan.summary.learnedTopics);
 console.log('عمومی — دقیقه به‌ازای هر درس:', genMinutes, '| مباحث پوشش‌داده‌شده:', genPlan.summary.learnedTopics);
+
+/* ۱۲) حالت «فقط دوازدهم»: هیچ درس عمومی پایهٔ دهم/یازدهم نباید در برنامه بیاید */
+const only12 = engine.createPlan(Object.assign({}, config, {
+  generalGrades: ['دوازدهم'],
+  subjects: presetsMod.subjectsFor('tajrobi').concat(presetsMod.generalFor(['دوازدهم'])),
+}));
+const only12Names = new Set(only12.days.flatMap((d) => d.blocks.map((b) => b.subjectName)));
+['فارسی ۱', 'فارسی ۲', 'عربی ۱', 'دین و زندگی ۱', 'زبان انگلیسی ۲'].forEach((n) => {
+  assert.ok(!only12Names.has(n), 'درس پایهٔ دیگر در حالت فقط‌دوازدهم آمد: ' + n);
+});
+['سلامت و بهداشت', 'هویت اجتماعی'].forEach((n) => {
+  assert.ok(only12Names.has(n), 'درس عمومی دوازدهم در برنامه نیامد: ' + n);
+});
+const salMinutes = only12.days.reduce((a, d) => a + d.blocks.filter((b) => b.subjectName === 'سلامت و بهداشت').reduce((x, b) => x + b.minutes, 0), 0);
+assert.ok(salMinutes >= 60, 'سلامت و بهداشت بلوک کافی نگرفت: ' + salMinutes);
+console.log('فقط دوازدهم — سلامت و بهداشت:', salMinutes, 'دقیقه |', 'درس‌های عمومی حاضره:', ['سلامت و بهداشت', 'هویت اجتماعی'].join('، '));
 
 console.log('\n✅ همه تست‌های موتور v2 پاس شدند');
 const smp = days.find((d) => d.events.length && d.blocks.length);

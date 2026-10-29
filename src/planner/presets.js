@@ -66,7 +66,8 @@
   /* ------------------------------------------------------------------ */
   /* دروس عمومی — فصل‌بندی بر اساس کتاب‌های درسی رسمی                    */
   /* (فارسی ۸ فصل، عربی دهم ۸ / یازدهم ۷ / دوازدهم ۴ درس،               */
-  /*  دین و زندگی ۱۲ / ۱۲ / ۱۰ درس، زبان انگلیسی ۴ درس)                  */
+  /*  دین و زندگی ۱۲ / ۱۲ / ۱۰ درس، زبان انگلیسی ۴ درس،                  */
+  /*  سلامت و بهداشت ۱۴ درس و هویت اجتماعی ۱۰ درس در پایهٔ دوازدهم)       */
   /* ------------------------------------------------------------------ */
 
   const FARSI_FASL = ['ادبیات تعلیمی', 'ادبیات پایداری', 'ادبیات غنایی', 'ادبیات سفر و زندگی',
@@ -79,6 +80,15 @@
       type: 'conceptual', difficulty: 2, mastery: 50, general: true, grade,
     };
   }
+  const SALAMAT_DARS = ['سلامت چیست؟', 'سبک زندگی سالم', 'برنامهٔ غذایی سالم', 'کنترل وزن و تناسب اندام',
+    'بهداشت و ایمنی مواد غذایی', 'بیماری‌های غیرواگیر', 'بیماری‌های واگیر', 'بهداشت فردی',
+    'بهداشت ازدواج و فرزندآوری', 'بهداشت روان', 'مصرف دخانیات و الکل', 'اعتیاد به مواد مخدر و عوارض آن',
+    'پیشگیری از اختلالات اسکلتی-عضلانی', 'پیشگیری از حوادث خانگی'];
+
+  const HOVIAT_DARS = ['کنش‌های ما', 'پدیده‌های اجتماعی', 'جامعه و فرهنگ (جهان اجتماعی)', 'ارزیابی فرهنگ‌ها',
+    'هویت فردی و اجتماعی', 'بازتولید هویت اجتماعی', 'تحولات هویتی جامعه', 'بعد فرهنگی هویت ایران',
+    'بعد سیاسی هویت ایران', 'ابعاد جمعیتی و اقتصادی هویت ایران'];
+
   function book(id, name, chapters, opts, grade) {
     return Object.assign({ id, name, weight: 2, chapters, topicLabel: 'درس', type: 'conceptual', difficulty: 2, mastery: 45, general: true, grade }, opts || {});
   }
@@ -101,15 +111,46 @@
       book('ar3', 'عربی ۳', 4, { weight: 2, mastery: 40 }, 'دوازدهم'),
       book('di3', 'دین و زندگی ۳', 10, { weight: 3, type: 'memorization', difficulty: 1, mastery: 50 }, 'دوازدهم'),
       book('en3', 'زبان انگلیسی ۳', 4, { weight: 2, mastery: 50 }, 'دوازدهم'),
+      book('sal3', 'سلامت و بهداشت', 14, { weight: 2, type: 'memorization', difficulty: 1, mastery: 40, topicNames: SALAMAT_DARS }, 'دوازدهم'),
+      book('hovi3', 'هویت اجتماعی', 10, { weight: 2, type: 'conceptual', difficulty: 2, mastery: 40, topicNames: HOVIAT_DARS }, 'دوازدهم'),
     ],
   };
   GENERAL['فارغ‌التحصیل'] = GENERAL['دوازدهم'];
 
-  function generalFor(grade) {
-    const list = GENERAL[grade] || GENERAL['دوازدهم'];
-    return list.map((s) => Object.assign({}, s, {
-      masteredChapters: 0, include: true, examPercent: null, topicNames: s.topicNames ? s.topicNames.slice() : null,
-    }));
+  const GRADE_KEYS = ['دهم', 'یازدهم', 'دوازدهم'];
+
+  /** پایه‌های موجود برای دروس عمومی */
+  function grades() { return GRADE_KEYS.slice(); }
+
+  /** نرمال‌سازی ورودی: رشته یا آرایهٔ پایه‌ها → آرایهٔ یکتا و معتبر */
+  function normalizeGrades(input) {
+    const list = Array.isArray(input) ? input : (input == null ? [] : [input]);
+    const out = [];
+    list.forEach((g) => {
+      const key = g === 'فارغ‌التحصیل' ? 'دوازدهم' : g;
+      if (GRADE_KEYS.indexOf(key) !== -1 && out.indexOf(key) === -1) out.push(key);
+    });
+    return out.length ? out : ['دوازدهم'];
+  }
+
+  /**
+   * دروس عمومی یک یا چند پایه.
+   * generalFor('دوازدهم') یا generalFor(['دهم','دوازدهم'])
+   */
+  function generalFor(gradeOrGrades) {
+    const list = [];
+    const seen = {};
+    normalizeGrades(gradeOrGrades).forEach((g) => {
+      (GENERAL[g] || []).forEach((s) => {
+        if (seen[s.id]) return;
+        seen[s.id] = true;
+        list.push(Object.assign({}, s, {
+          masteredChapters: 0, include: true, examPercent: null,
+          topicNames: s.topicNames ? s.topicNames.slice() : null,
+        }));
+      });
+    });
+    return list;
   }
 
   function subjectsFor(field) {
@@ -124,5 +165,5 @@
     return year + '-04-05';
   }
 
-  return { FIELDS, GENERAL, subjectsFor, generalFor, defaultExamDate };
+  return { FIELDS, GENERAL, GRADE_KEYS, grades, normalizeGrades, subjectsFor, generalFor, defaultExamDate };
 });

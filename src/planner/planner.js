@@ -25,6 +25,8 @@
     scores: {},
     done: {},
     general: null,
+    gradeSel: ['دوازدهم'],   // پایه‌های انتخابی برای دروس عمومی
+    generalEdits: {},        // ویرایش‌های کاربر روی هر درس عمومی (با id)
   };
 
   /* ---------------- ابزار ---------------- */
@@ -113,17 +115,52 @@
 
   /* ---------------- دروس عمومی ---------------- */
 
+  /** چیپ‌های انتخاب پایه برای دروس عمومی */
+  function renderGradeChips() {
+    const box = $('generalGrades');
+    if (!box) return;
+    const grades = presets.grades ? presets.grades() : ['دهم', 'یازدهم', 'دوازدهم'];
+    box.innerHTML = grades.map((g) =>
+      '<button class="grade-chip' + (state.gradeSel.indexOf(g) !== -1 ? ' on' : '') + '" data-grade="' + esc(g) + '">' +
+      esc(g) + '</button>').join('');
+    box.querySelectorAll('[data-grade]').forEach((b) => {
+      b.addEventListener('click', () => {
+        readGeneral(); // ویرایش‌های فعلی را نگه دار
+        const g = b.dataset.grade;
+        const i = state.gradeSel.indexOf(g);
+        if (i === -1) state.gradeSel.push(g);
+        else if (state.gradeSel.length > 1) state.gradeSel.splice(i, 1);
+        else { toast('حداقل یک پایه باید انتخاب باشد.'); return; }
+        renderGeneralForGrades();
+      });
+    });
+  }
+
+  /** ساخت لیست عمومی‌ها بر اساس پایه‌های انتخابی + ویرایش‌های ذخیره‌شده */
+  function generalFromGrades() {
+    return presets.generalFor(state.gradeSel).map((s) => {
+      const edit = state.generalEdits[s.id];
+      return edit ? Object.assign({}, s, edit) : s;
+    });
+  }
+
+  function renderGeneralForGrades() {
+    renderGradeChips();
+    renderGeneral(generalFromGrades());
+  }
+
   function renderGeneral(list) {
-    const rows = (list && list.length ? list : presets.generalFor($('grade').value || 'دوازدهم'))
+    const rows = (list && list.length ? list : generalFromGrades())
       .map((s) => Object.assign({}, s, { include: s.include !== false }));
     state.general = rows;
     const table = $('general');
     if (!table) return;
     table.innerHTML = '' +
-      '<thead><tr><th>درس</th><th>ضریب</th><th>تعداد درس/فصل</th><th>خوانده‌شده</th><th>تسلط٪</th><th>در برنامه</th></tr></thead>' +
+      '<thead><tr><th>درس</th><th>پایه</th><th>ضریب</th><th>تعداد درس/فصل</th><th>خوانده‌شده</th><th>تسلط٪</th><th>در برنامه</th></tr></thead>' +
       '<tbody>' + rows.map((s) => '' +
         '<tr data-gid="' + esc(s.id) + '">' +
         '<td><input data-gf="name" value="' + esc(s.name) + '" /></td>' +
+        '<td><span class="grade-tag">' + esc(s.grade || '—') + '</span></td>' +
         '<td><input data-gf="weight" type="number" min="0.5" max="20" step="0.5" value="' + s.weight + '" style="width:64px" /></td>' +
         '<td><input data-gf="chapters" type="number" min="1" max="40" value="' + s.chapters + '" style="width:64px" />' +
           '<div class="muted" style="font-size:10px;margin-top:2px">' + esc(s.topicLabel || 'درس') + '</div></td>' +
@@ -142,7 +179,7 @@
     table.querySelectorAll('tbody tr').forEach((tr, i) => {
       const get = (f) => tr.querySelector('[data-gf="' + f + '"]');
       const base = byId[tr.dataset.gid] || {};
-      out.push(Object.assign({}, base, {
+      const row = Object.assign({}, base, {
         id: tr.dataset.gid || ('G' + (i + 1)),
         name: get('name').value.trim() || base.name || ('درس عمومی ' + (i + 1)),
         weight: Number(get('weight').value) || 2,
@@ -156,7 +193,13 @@
         topicLabel: base.topicLabel || 'درس',
         topicNames: base.topicNames || null,
         examPercent: base.examPercent == null ? null : base.examPercent,
-      }));
+      });
+      // ویرایش‌ها را برای دفعهٔ بعد (تغییر پایه) نگه دار
+      state.generalEdits[row.id] = {
+        name: row.name, weight: row.weight, chapters: row.chapters,
+        masteredChapters: row.masteredChapters, mastery: row.mastery, include: row.include,
+      };
+      out.push(row);
     });
     return out;
   }
@@ -304,6 +347,7 @@
       weeklyMock: $('weeklyMock').value === '1',
       classes: readClasses(),
       exams: readExams(),
+      generalGrades: state.gradeSel.slice(),
       subjects,
     };
   }
@@ -327,7 +371,19 @@
     const core = allSubs.filter((x) => !x.general);
     const gen = allSubs.filter((x) => x.general);
     renderSubjects(core.length ? core : presets.subjectsFor(cfg.student && cfg.student.field || 'tajrobi'));
-    renderGeneral(gen.length ? gen : presets.generalFor((cfg.student && cfg.student.grade) || 'دوازدهم'));
+
+    /* پایه‌های عمومی: از config، وگرنه از خودِ دروس ذخیره‌شده، وگرنه پایهٔ دانش‌آموز */
+    const cfgGrades = cfg.generalGrades && cfg.generalGrades.length
+      ? presets.normalizeGrades(cfg.generalGrades)
+      : presets.normalizeGrades(gen.length ? gen.map((g) => g.grade).filter(Boolean) : ((cfg.student && cfg.student.grade) || 'دوازدهم'));
+    state.gradeSel = cfgGrades;
+    gen.forEach((g) => {
+      state.generalEdits[g.id] = {
+        name: g.name, weight: g.weight, chapters: g.chapters,
+        masteredChapters: g.masteredChapters, mastery: g.mastery, include: g.include,
+      };
+    });
+    renderGeneralForGrades();
     renderClassRows(cfg.classes || []);
     renderExamRows(cfg.exams || []);
   }
@@ -352,7 +408,8 @@
       weeklyMock: true,
       classes: [],
       exams: [],
-      subjects: presets.subjectsFor(field).concat(presets.generalFor($('grade').value || 'دوازدهم')),
+      generalGrades: state.gradeSel.slice(),
+      subjects: presets.subjectsFor(field).concat(generalFromGrades()),
     };
   }
 
@@ -366,19 +423,24 @@
   });
 
   $('grade').addEventListener('change', () => {
-    renderGeneral(presets.generalFor($('grade').value));
-    toast('دروس عمومی پایهٔ ' + $('grade').value + ' بارگذاری شد.');
+    readGeneral();
+    state.gradeSel = presets.normalizeGrades($('grade').value);
+    state.generalEdits = {};
+    renderGeneralForGrades();
+    toast('دروس عمومی پایهٔ ' + $('grade').value + ' بارگذاری شد (قابل تغییر از بخش ۶).');
   });
 
   $('resetGeneral').addEventListener('click', () => {
-    renderGeneral(presets.generalFor($('grade').value));
+    state.generalEdits = {};
+    renderGeneralForGrades();
+    toast('دروس عمومی پایه‌های انتخابی بازگردانی شد.');
   });
 
   $('toggleGeneral').addEventListener('click', () => {
     const rows = readGeneral();
     const anyOn = rows.some((r) => r.include);
     rows.forEach((r) => { r.include = !anyOn; });
-    renderGeneral(rows);
+    renderGeneralForGrades();
   });
 
   /* ---------------- ساخت برنامه ---------------- */
