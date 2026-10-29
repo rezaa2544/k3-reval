@@ -1,10 +1,13 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "2.3.0",
-  "description": "Reval desktop 2.3: رابط کاربری تازه (خانه + ۶ قدم + نوار کنار)، به‌روزرسانی خودکار، آزمون‌های دوره‌ای، ظرفیت تست استاندارد",
-  "main": "src/main.js",
+  "version": "2.3.1",
+  "description": "Reval desktop 2.3: رابط کاربری تازه (خانه + ۶ قدم + نوار کنار)، به‌روزرسانی خودکار و به‌روزرسانی کوچک (فقط تغییرات)",
+  "main": "src/bootstrap.js",
   "author": "Reval Desktop",
   "license": "MIT",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
 }

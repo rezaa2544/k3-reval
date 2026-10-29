@@ -7,6 +7,8 @@ out/
 dist/*
 !dist/Reval-Setup-*.exe
 !dist/SHA256.txt
+!dist/reval-code-*.zip
+!dist/reval-code-*.zip.sha256
 
 # electron-builder cache
 .electron-builder/

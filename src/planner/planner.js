@@ -2175,10 +2175,18 @@
     const later = $('ubarLater');
     const prog = $('ubarProg');
     const fill = $('ubarFill');
+    const fullBtn = $('ubarFull');
     bar.classList.remove('err', 'done');
     const show = (kind) => { if (!(userDismissed && kind !== 'ready' && kind !== 'downloading')) bar.hidden = false; };
 
     const sizeMb = snap.sizeMb ? upFa(snap.sizeMb) + ' مگابایت' : '';
+
+    /* هر بار وضعیت از صفر رسم می‌شود؛ وگرنه ممکن است دکمه از حالت قبلی پنهان بماند */
+    act.hidden = false;
+    later.hidden = false;
+    act.disabled = false;
+    prog.hidden = true;
+    if (fullBtn) fullBtn.hidden = true;
 
     if (snap.status === 'downloading') {
       show('downloading');
@@ -2213,6 +2221,19 @@
     prog.hidden = true;
     act.disabled = false;
 
+    if (snap.status === 'ready' && snap.usedPatch) {
+      show('ready');
+      bar.classList.add('done');
+      prog.hidden = false;
+      fill.style.width = '100%';
+      title.textContent = 'نسخهٔ ' + upVer(snap.latest) + ' دانلود شد ✅';
+      sub.textContent = 'فقط کدِ تغییریافته دانلود شد' + (snap.savedMb ? ' (' + upFa(snap.savedMb) + ' مگابایت صرفه‌جویی)' : '') +
+        '. برای نصب، برنامه بسته و خودکار دوباره باز می‌شود.';
+      act.textContent = 'نصب و راه‌اندازی مجدد';
+      act.disabled = false;
+      return;
+    }
+
     if (snap.status === 'installing') {
       show('installing');
       title.textContent = 'در حال نصب نسخهٔ ' + upVer(snap.latest) + '…';
@@ -2226,9 +2247,19 @@
     if (snap.hasUpdate && snap.latest) {
       show('available');
       title.textContent = 'نسخهٔ جدید موجود است: ' + upVer(snap.latest);
-      sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) + (sizeMb ? ' · ' + sizeMb : '') +
-        ' — با یک کلیک دانلود و نصب می‌شود.';
-      act.textContent = 'به‌روزرسانی';
+      if (snap.patchAvailable) {
+        const kb = snap.patchKb ? upFa(snap.patchKb) + ' کیلوبایت' : 'چند صد کیلوبایت';
+        const saved = snap.sizeMb ? ' · به‌جای ' + upFa(snap.sizeMb) + ' مگابایت' : '';
+        sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) + ' — فقط بخش‌های تغییریافته دانلود می‌شود (' +
+          kb + saved + '). با یک کلیک نصب و برنامه دوباره باز می‌شود.';
+        act.textContent = 'به‌روزرسانی سریع (' + kb + ')';
+        fullBtn.hidden = false;
+      } else {
+        sub.textContent = 'نسخهٔ فعلی ' + upVer(snap.current) + (sizeMb ? ' · ' + sizeMb : '') +
+          ' — با یک کلیک دانلود و نصب می‌شود.';
+        act.textContent = 'به‌روزرسانی';
+        fullBtn.hidden = true;
+      }
       return;
     }
 
@@ -2323,6 +2354,19 @@
       } catch (e) {
         renderUpdate({ ...(updateSnap || {}), status: 'error', error: 'خطای غیرمنتظره در به‌روزرسانی' }, { manual: true });
       }
+    });
+    const fullBtn = $('ubarFull');
+    if (fullBtn) fullBtn.addEventListener('click', async () => {
+      fullBtn.disabled = true;
+      fullBtn.textContent = 'شروع دانلود کامل…';
+      try {
+        const snap = await upd.now({ full: true });
+        renderUpdate(snap, { manual: true });
+      } catch (e) {
+        renderUpdate({ ...(updateSnap || {}), status: 'error', error: 'دانلود کامل ناموفق بود' }, { manual: true });
+      }
+      fullBtn.disabled = false;
+      fullBtn.textContent = 'نصب کامل (فایل نصب‌کننده)';
     });
     const later = $('ubarLater');
     if (later) later.addEventListener('click', () => {

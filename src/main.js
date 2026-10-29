@@ -20,12 +20,18 @@ const os = require('os');
 const https = require('https');
 const { spawn } = require('child_process');
 const updaterCore = require('./updater.js');
+const zipCore = require('./zip.js');
+const codePatchCore = require('./code-patch.js');
 
 const APP_NAME = 'روال | Reval';
 const HOME_URL = 'https://revaledu.ir/?view=dashboard';
 const ALLOWED_HOSTS = ['revaledu.ir', 'www.revaledu.ir'];
 
-const ROOT = path.join(__dirname, '..');
+/* ریشهٔ دارایی‌ها همیشه نسخهٔ نصب‌شده است؛ کد می‌تواند از وصلهٔ کوچک بیاید */
+const ROOT = process.env.REVAL_ASSETS_ROOT || path.join(__dirname, '..');
+/* نسخهٔ فعال: اگر وصلهٔ کد نصب شده باشد، همان است */
+const APP_VERSION = process.env.REVAL_CODE_VERSION || app.getVersion();
+const CODE_ROOT = process.env.REVAL_CODE_ROOT || path.join(__dirname, '..');
 const ICON_ICO = path.join(ROOT, 'assets', 'icon.ico');
 const ICON_PNG = path.join(ROOT, 'assets', 'icon.png');
 const ICON_TRAY = path.join(ROOT, 'assets', 'icon-512.png');
@@ -158,7 +164,7 @@ function injectToolbar(win) {
     const current = win.webContents.getURL() || '';
     if (/\.html?(\?|$)/.test(current) && current.startsWith('file:')) return; // صفحهٔ آفلاین/داخلی
     if (toolbarTemplate === null) toolbarTemplate = fs.readFileSync(TOOLBAR_SRC, 'utf8');
-    const src = toolbarTemplate.replace(/__REVAL_VERSION__/g, JSON.stringify(app.getVersion()));
+    const src = toolbarTemplate.replace(/__REVAL_VERSION__/g, JSON.stringify(APP_VERSION));
     win.webContents.executeJavaScript(src, true).catch(() => {});
   } catch (err) {
     console.warn('[reval] toolbar inject:', err.message);
@@ -310,7 +316,7 @@ function createMainWindow() {
     width: state.width, height: state.height,
     x: state.x, y: state.y,
     minWidth: 940, minHeight: 620,
-    title: APP_NAME + ' ' + app.getVersion(),
+    title: APP_NAME + ' ' + APP_VERSION,
     backgroundColor: '#f6f7fb',
     icon: process.platform === 'win32' ? ICON_ICO : ICON_PNG,
     show: false,
@@ -484,11 +490,19 @@ function buildMenu() {
         { label: 'اینستاگرام روال', click: () => openExternal('https://instagram.com/reval_academy_') },
         { type: 'separator' },
         { label: 'بررسی به‌روزرسانی…', click: () => { checkUpdatesInteractive(); } },
+        { label: 'بازگشت به نسخهٔ نصب‌شده', click: () => {
+          const r = revertCodePatch();
+          dialog.showMessageBox(mainWindow, {
+            type: 'info', title: 'بازگشت نسخه',
+            message: r.reverted ? 'به نسخهٔ نصب‌شده برمی‌گردیم (' + (r.version || '') + ' حذف شد).' : 'الان روی نسخهٔ نصب‌شده هستی.',
+            buttons: ['باشه'], noLink: true,
+          }).then(() => { if (r.reverted) { app.relaunch(); app.exit(0); } });
+        } },
         { label: 'بازکردن صفحهٔ نسخه‌ها در گیت‌هاب', click: () => openExternal('https://github.com/rezaa2544/k3-reval/releases') },
         { type: 'separator' },
         { label: 'درباره برنامه', click: () => dialog.showMessageBox(mainWindow, {
           type: 'info', title: 'درباره روال', message: 'روال — نسخه دسکتاپ',
-          detail: `نسخه ${app.getVersion()}\nElectron ${process.versions.electron} · Chromium ${process.versions.chrome}\n\n` +
+          detail: `نسخه ${APP_VERSION}\nElectron ${process.versions.electron} · Chromium ${process.versions.chrome}\n\n` +
                   `میزکار شخصیِ یادگیری — ${HOME_URL}`,
           buttons: ['باشه'], noLink: true,
         }) },
@@ -564,6 +578,41 @@ function httpJson(url, headers) {
   });
 }
 
+/** خواندن متن کوچک (مثل فایل چک‌سام) با پیگیری ریدایرکت */
+function httpText(url, redirects) {
+  const hop = redirects || 0;
+  return new Promise((resolve, reject) => {
+    if (hop > 6) { reject(new Error('ریدایرکت بیش از حد')); return; }
+    const req = https.get(url, { headers: { 'User-Agent': 'Reval-Desktop' } }, (res) => {
+      const code = res.statusCode || 0;
+      if (code >= 300 && code < 400 && res.headers.location) {
+        res.resume();
+        resolve(httpText(res.headers.location, hop + 1));
+        return;
+      }
+      if (code !== 200) { res.resume(); reject(new Error('کد پاسخ ' + code)); return; }
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    });
+    req.on('error', reject);
+    req.setTimeout(20000, () => req.destroy(new Error('پایان زمان انتظار')));
+  });
+}
+
+function sha256File(file) {
+  return require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+/** آیا می‌توان فقط کد را آپدیت کرد؟ (وصلهٔ کوچک + موتور یکسان + نسخهٔ بالاتر) */
+function supportsPatch(latest, patch) {
+  if (!patch || !patch.url) return false;
+  if (!app.isPackaged) return false;
+  const active = activeCodeVersion() || app.getVersion();
+  if (updaterCore.compareVersions(latest, active) <= 0) return false;
+  return true;
+}
+
 /** دانلود فایل با درصد پیشرفت و پیگیری ریدایرکت */
 function downloadFile(url, dest, onProgress, redirects) {
   const hop = redirects || 0;
@@ -628,8 +677,37 @@ function runInstaller(file, opts) {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* وصلهٔ کد (به‌روزرسانی کوچک)                                        */
+/* ------------------------------------------------------------------ */
+
+const CODE_DIR = () => process.env.REVAL_CODE_DIR || path.join(app.getPath('userData'), 'code');
+
+/** نسخهٔ کدِ فعال (اگر وصله نصب شده باشد) */
+function activeCodeVersion() {
+  return process.env.REVAL_CODE_VERSION || null;
+}
+
+/** نصب وصلهٔ کد: باز کردن ZIP و فعال‌سازی آن (بدون Electron داخل منطق) */
+function installCodePatch(zipPath, meta) {
+  return codePatchCore.installPatch(zipPath, meta, {
+    codeDir: CODE_DIR(),
+    electronVersion: process.versions.electron,
+  });
+}
+
+/** بازگشت به کدِ نصب‌شده (حذف وصله) */
+function revertCodePatch() {
+  return codePatchCore.revert(CODE_DIR(), 'menu');
+}
+
+/** نشانهٔ «بالا آمد» — تا اجرای بعدی بداند وصله سالم است */
+function markBootOk() {
+  codePatchCore.markBootOk(CODE_DIR());
+}
+
 const updater = updaterCore.createUpdater({
-  getCurrentVersion: () => app.getVersion(),
+  getCurrentVersion: () => APP_VERSION,
   httpJson,
   downloadFile,
   runInstaller,
@@ -637,8 +715,19 @@ const updater = updaterCore.createUpdater({
   exists: (p) => { try { return fs.existsSync(p); } catch { return false; } },
   fileSize: (p) => { try { return fs.statSync(p).size; } catch { return -1; } },
   tempPath: (name) => path.join(os.tmpdir(), name || 'Reval-Setup.exe'),
+  httpText,
+  sha256: sha256File,
+  supportsPatch,
   onEvent: (ev) => broadcastUpdate(ev),
   quit: () => { app.isQuitting = true; app.quit(); },
+  /* ---- وصلهٔ کد ---- */
+  currentCodeVersion: () => activeCodeVersion(),
+  electronVersion: () => process.versions.electron,
+  installPatch: (zipPath, meta) => installCodePatch(zipPath, meta),
+  relaunch: () => {
+    app.isQuitting = true;
+    setTimeout(() => { app.relaunch(); app.exit(0); }, 400);
+  },
 });
 
 function broadcastUpdate(ev) {
@@ -716,6 +805,8 @@ if (!gotLock) {
     // (داخل صفحه) امکان ثبت یک‌باره‌ی مشخصات را پیشنهاد می‌دهد.
     if (!state.onboarded) writeState({ onboarded: true });
 
+    markBootOk();
+
     /* بررسی خودکار به‌روزرسانی: ۱۲ ثانیه بعد از باز شدن و هر ۴ ساعت */
     scheduleUpdateChecks();
   });
@@ -729,7 +820,7 @@ if (!gotLock) {
     if (mainWindow) loadHome(mainWindow);
   });
   ipcMain.handle('reval:info', () => ({
-    version: app.getVersion(),
+    version: APP_VERSION,
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     platform: process.platform,
@@ -742,7 +833,7 @@ if (!gotLock) {
   ipcMain.handle('reval:open-planner', () => openPlannerWindow());
   ipcMain.handle('reval:apply-autologin', () => { applyGateSkip(mainWindow); return { ok: true }; });
   ipcMain.handle('reval:go-home', () => { if (mainWindow) mainWindow.loadURL(HOME_URL); return { ok: true }; });
-  ipcMain.handle('reval:version', () => app.getVersion());
+  ipcMain.handle('reval:version', () => APP_VERSION);
 
   ipcMain.handle('account:get', () => {
     const acc = readAccount();
@@ -828,6 +919,16 @@ if (!gotLock) {
   ipcMain.handle('update:download', async () => { await updater.download(); return updater.snapshot(); });
   ipcMain.handle('update:install', async () => { await updater.install(); return updater.snapshot(); });
   ipcMain.handle('update:now', async () => { await updater.updateNow(); return updater.snapshot(); });
+  ipcMain.handle('update:code-info', () => ({
+    active: activeCodeVersion(),
+    packaged: app.getVersion(),
+    reverts: codePatchCore.lastRevert(CODE_DIR()),
+  }));
+  ipcMain.handle('update:revert-code', async () => {
+    const res = revertCodePatch();
+    if (res.reverted) setTimeout(() => { app.relaunch(); app.exit(0); }, 300);
+    return res;
+  });
   ipcMain.handle('update:open-release', async () => {
     const snap = updater.snapshot();
     if (snap.pageUrl) openExternal(snap.pageUrl);

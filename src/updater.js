@@ -10,9 +10,13 @@
  * در main.js با تابع‌های واقعی Electron تزریق می‌شود.
  */
 
+const fs = require('fs');
+
 const OWNER = 'rezaa2544';
 const REPO = 'k3-reval';
 const ASSET_RE = /^Reval-Setup-.*\.exe$/i;
+const PATCH_RE = /^reval-code-.*\.zip$/i;
+const PATCH_SHA_RE = /^reval-code-.*\.zip\.sha256$/i;
 
 /* ---------- ابزار نسخه ---------- */
 
@@ -57,6 +61,20 @@ function pickAsset(assets) {
 
 /* ---------- خواندن پاسخ API ---------- */
 
+/** وصلهٔ کوچک کد (اگر منتشر شده باشد) */
+function pickPatch(assets) {
+  const list = Array.isArray(assets) ? assets : [];
+  const zip = list.find((a) => a && PATCH_RE.test(a.name || ''));
+  if (!zip) return null;
+  const sha = list.find((a) => a && PATCH_SHA_RE.test(a.name || ''));
+  return {
+    name: zip.name,
+    url: zip.browser_download_url,
+    size: zip.size || 0,
+    shaUrl: sha ? sha.browser_download_url : null,
+  };
+}
+
 function parseRelease(release, currentVersion) {
   if (!release || !release.tag_name) {
     return { ok: false, error: 'پاسخ گیت‌هاب نامعتبر بود.', current: currentVersion, hasUpdate: false };
@@ -70,6 +88,7 @@ function parseRelease(release, currentVersion) {
     latest,
     hasUpdate: Boolean(hasUpdate),
     asset: asset ? { name: asset.name, url: asset.browser_download_url, size: asset.size || 0 } : null,
+    patch: pickPatch(release.assets),
     notes: release.body || '',
     publishedAt: release.published_at || '',
     pageUrl: release.html_url || ('https://github.com/' + OWNER + '/' + REPO + '/releases/tag/v' + latest),
@@ -116,6 +135,11 @@ function createUpdater(deps) {
     error: '',
     file: '',
     checkedAt: 0,
+    patch: null,          // {name,url,size,shaUrl}
+    patchReady: false,    // وصلهٔ کوچک انتخاب شده است؟
+    mode: 'full',         // 'patch' = فقط کد تغییریافته · 'full' = نصب‌کنندهٔ کامل
+    usedPatch: false,     // این به‌روزرسانی واقعاً با وصله انجام شد؟
+    savedMb: 0,           // چند مگابایت صرفه‌جویی شد
   };
 
   let inflight = null;
@@ -135,6 +159,13 @@ function createUpdater(deps) {
       error: state.error,
       checkedAt: state.checkedAt,
       ready: state.status === 'ready',
+      mode: state.mode,
+      patchSizeMb: state.patch ? Math.round(((state.patch.size || 0) / 1048576) * 100) / 100 : 0,
+      patchKb: state.patch ? Math.round((state.patch.size || 0) / 1024) : 0,
+      patchAvailable: Boolean(state.patch && state.patchReady),
+      usedPatch: state.usedPatch,
+      savedMb: state.savedMb,
+      activeCode: deps.currentCodeVersion ? deps.currentCodeVersion() : null,
     };
   }
 
@@ -175,6 +206,15 @@ function createUpdater(deps) {
           received: 0,
           total: parsed.asset ? parsed.asset.size : 0,
         };
+        /* آیا می‌توان فقط کد را آپدیت کرد؟ (حجم چند صد کیلوبایت به‌جای ده‌ها مگابایت) */
+        let patchReady = false;
+        if (parsed.hasUpdate && parsed.patch && deps.supportsPatch ? deps.supportsPatch(parsed.latest, parsed.patch) : false) {
+          patchReady = true;
+        }
+        state.patch = parsed.patch || null;
+        state.patchReady = patchReady;
+        state.mode = patchReady ? 'patch' : 'full';
+
         if (parsed.missingAsset) {
           return set({ ...patch, status: 'error', error: 'نسخهٔ ' + parsed.latest + ' منتشر شده ولی فایل نصب ویندوز ندارد.' }, 'error');
         }
@@ -189,7 +229,10 @@ function createUpdater(deps) {
     return inflight;
   }
 
-  async function download() {
+  async function download(opts) {
+    const forceFull = Boolean(opts && opts.full);
+    const usePatch = state.mode === 'patch' && !forceFull && state.patch && state.patchReady;
+    if (usePatch) return downloadPatch();
     if (!state.hasUpdate || !state.asset) {
       return set({ status: 'error', error: 'نسخهٔ جدیدی برای دانلود مشخص نیست.' }, 'error');
     }
@@ -214,9 +257,65 @@ function createUpdater(deps) {
     }
   }
 
+  function patchTarget(name) {
+    const safe = String(name || 'reval-code.zip').replace(/[^\w.\-]/g, '_');
+    return deps.tempPath(safe);
+  }
+
+  async function downloadPatch() {
+    const target = patchTarget(state.patch.name);
+    const sizeOnDisk = deps.fileSize ? deps.fileSize(target) : -1;
+    const need = state.patch.size || 0;
+    set({ status: 'downloading', percent: 0, received: 0, total: need, error: '', mode: 'patch' }, 'downloading');
+    if (deps.exists(target) && need && sizeOnDisk !== need) {
+      try { fs.unlinkSync(target); } catch (_) { /* بی‌صدا */ }
+    }
+    try {
+      let expectedSha = null;
+      if (state.patch.shaUrl) {
+        const r = await deps.httpText(state.patch.shaUrl);
+        const m = String(r || '').match(/[a-f0-9]{64}/i);
+        if (m) expectedSha = m[0].toLowerCase();
+      }
+      const file = await deps.downloadFile(state.patch.url, target, (p) => {
+        state.received = p.received || 0;
+        state.total = p.total || need || 0;
+        state.percent = p.percent || (state.total ? (state.received / state.total) * 100 : 0);
+        emit({ type: 'progress', state: snapshot() });
+      });
+      if (deps.sha256 && expectedSha) {
+        const actual = deps.sha256(file);
+        if (String(actual).toLowerCase() !== expectedSha) throw new Error('چک‌سام وصله مطابقت ندارد');
+      }
+      state.file = file || target;
+      state.usedPatch = true;
+      state.savedMb = Math.max(0, Math.round((((state.asset && state.asset.size) || 0) - (need || 0)) / 1048576));
+      return set({ status: 'ready', percent: 100 }, 'ready');
+    } catch (err) {
+      /* اگر وصله نیامد، به نصب‌کنندهٔ کامل برگرد (بدون اینکه کاربر گیر کند) */
+      state.mode = 'full';
+      state.patchReady = false;
+      emit({ type: 'fallback', state: snapshot() });
+      return download({ full: true });
+    }
+  }
+
   async function install() {
-    if (!state.file) return set({ status: 'error', error: 'فایل نصب دانلود نشده است.' }, 'error');
+    if (!state.file) return set({ status: 'error', error: 'فایل دانلود نشده است.' }, 'error');
     set({ status: 'installing' }, 'installing');
+    if (state.mode === 'patch' && state.usedPatch && deps.installPatch) {
+      try {
+        const res = deps.installPatch(state.file, { version: state.latest, electron: deps.electronVersion ? deps.electronVersion() : null });
+        emit({ type: 'patched', state: snapshot(), result: res });
+        if (deps.relaunch) deps.relaunch();
+        return snapshot();
+      } catch (err) {
+        /* وصله اعمال نشد → نصب کامل */
+        state.mode = 'full';
+        state.usedPatch = false;
+        return download({ full: true }).then((s) => (s.status === 'ready' ? install() : s));
+      }
+    }
     try {
       await deps.runInstaller(state.file, { installDir: deps.installDir ? deps.installDir() : '' });
       if (deps.quit) setTimeout(() => deps.quit(), 600);
@@ -231,9 +330,9 @@ function createUpdater(deps) {
   }
 
   /** دانلود و نصب در یک کلیک */
-  async function updateNow() {
+  async function updateNow(opts) {
     if (state.status === 'ready') return install();
-    const dl = await download();
+    const dl = await download(opts);
     if (dl.status === 'ready') return install();
     return dl;
   }

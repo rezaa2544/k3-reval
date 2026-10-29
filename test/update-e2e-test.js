@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * تست End-to-End به‌روزرسانی خودکار (نسخهٔ ۲.۲)
+ * تست End-to-End به‌روزرسانی خودکار (نسخهٔ ۲.۳.۱ — دانلود فقط تغییرات)
  * ----------------------------------------------------------
  * زنجیرهٔ واقعی را می‌آزماید: سرور HTTP محلی (شبیه گیت‌هاب) →
  * هستهٔ updater.js → کانال‌های IPC → پل preload → دکمهٔ رابط کاربری.
@@ -18,6 +18,8 @@ const path = require('path');
 const assert = require('assert');
 
 const core = require('../src/updater.js');
+const codePatch = require('../src/code-patch.js');
+const { makeZip } = require('../scripts/make-code-patch.js');
 
 const OUT = path.join(__dirname, '..', 'docs', 'screens');
 const ROOT = path.join(__dirname, '..');
@@ -31,6 +33,15 @@ const FAKE_SIZE = 2 * 1024 * 1024;
 const FAKE_EXE = path.join(os.tmpdir(), 'Reval-Setup-9.9.9.exe');
 fs.writeFileSync(FAKE_EXE, Buffer.alloc(FAKE_SIZE, 7));
 
+/* بستهٔ «فقط تغییرات»: چند فایل کد، مثل وصلهٔ واقعی */
+const FAKE_PATCH = makeZip([
+  { name: 'src/main.js', data: Buffer.from('// نسخهٔ ۹.۹.۹ (تست)\n') },
+  { name: 'src/planner/planner.js', data: Buffer.from(('// planner 9.9.9' + String.fromCharCode(10)).repeat(1500), 'utf8') },
+  { name: 'package.json', data: Buffer.from('{"version":"9.9.9"}', 'utf8') },
+  { name: 'patch-manifest.json', data: Buffer.from('{"version":"9.9.9"}', 'utf8') },
+]);
+const FAKE_PATCH_SHA = require('crypto').createHash('sha256').update(FAKE_PATCH).digest('hex');
+
 const state = {
   http: null,
   installed: null,
@@ -42,6 +53,16 @@ const state = {
 function startFakeGitHub() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
+      if (req.url === '/patch') {
+        res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': FAKE_PATCH.length });
+        res.end(FAKE_PATCH);
+        return;
+      }
+      if (req.url === '/patch-sha') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(FAKE_PATCH_SHA + '  reval-code-9.9.9.zip\n');
+        return;
+      }
       if (req.url === '/dl') {
         res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': FAKE_SIZE });
         fs.createReadStream(FAKE_EXE).pipe(res);
@@ -59,6 +80,8 @@ function startFakeGitHub() {
         assets: [
           { name: 'SHA256.txt', size: 88, browser_download_url: 'http://127.0.0.1:' + port + '/dl' },
           { name: 'Reval-Setup-9.9.9.exe', size: FAKE_SIZE, browser_download_url: 'http://127.0.0.1:' + port + '/dl' },
+          { name: 'reval-code-9.9.9.zip', size: FAKE_PATCH.length, browser_download_url: 'http://127.0.0.1:' + port + '/patch' },
+          { name: 'reval-code-9.9.9.zip.sha256', size: 90, browser_download_url: 'http://127.0.0.1:' + port + '/patch-sha' },
         ],
       }));
     });
@@ -105,8 +128,29 @@ function httpJson(url) {
   });
 }
 
+/* پوشهٔ کاربری وصله (به‌جای %APPDATA% در تست) */
+const TEST_USERDATA = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-userdata-'));
+const CODE_DIR = path.join(TEST_USERDATA, 'code');
+state.relaunchCalled = false;
+
 const updater = core.createUpdater({
   getCurrentVersion: () => '2.2.0',
+  electronVersion: () => process.versions.electron,
+  supportsPatch: () => true,
+  currentCodeVersion: () => codePatch.activeVersion(CODE_DIR),
+  installPatch: (file, meta) => codePatch.installPatch(file, meta, {
+    codeDir: CODE_DIR,
+    electronVersion: process.versions.electron,
+  }),
+  relaunch: () => { state.relaunchCalled = true; },
+  httpText: (url) => new Promise((resolve, reject) => {
+    require('http').get(url, (res) => {
+      const c = [];
+      res.on('data', (d) => c.push(d));
+      res.on('end', () => resolve(Buffer.concat(c).toString('utf8')));
+    }).on('error', reject);
+  }),
+  sha256: (f) => require('crypto').createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
   httpJson: (url, headers) => {
     /* آدرس API گیت‌هاب به سرور محلی هدایت می‌شود */
     const local = state.http ? 'http://127.0.0.1:' + state.http.address().port + '/api' : url;
@@ -189,10 +233,22 @@ app.whenReady().then(async () => {
   })()`);
   ok(bar.hidden === false, 'نوار به‌روزرسانی نمایش داده شد');
   ok(bar.title.indexOf('۹.۹.۹') !== -1, 'شمارهٔ نسخهٔ جدید در عنوان آمده (' + bar.title + ')');
-  ok(bar.action === 'به‌روزرسانی', 'دکمهٔ یک‌کلیکی «به‌روزرسانی» است');
+  ok(/به‌روزرسانی/.test(bar.action), 'دکمهٔ یک‌کلیکی «به‌روزرسانی» است (' + bar.action + ')');
   await shot('21-update-available.png');
 
-  console.log('۴) دانلود واقعی با نوار پیشرفت');
+  const avail2 = await js(`(function(){
+    const sub = document.getElementById('ubarSub').textContent;
+    const act = document.getElementById('ubarAction').textContent;
+    const full = document.getElementById('ubarFull');
+    return { sub, act, fullHidden: full.hidden, fullText: full.textContent };
+  })()`);
+  ok(avail2.sub.indexOf('فقط بخش‌های تغییریافته') !== -1, 'نوار می‌گوید فقط تغییرات دانلود می‌شود');
+  ok(/کیلوبایت/.test(avail2.act), 'حجم واقعی وصله روی دکمه نوشته شده (' + avail2.act + ')');
+  ok(avail2.fullHidden === false, 'گزینهٔ «نصب کامل» هم به‌عنوان جایگزین دیده می‌شود');
+  ok(!/76 مگابایت/.test(avail2.sub), 'برای بستهٔ کوچک، عدد ۷۶ مگابایت تبلیغ نمی‌شود');
+
+  console.log('۴) دانلود فقط تغییرات (وصلهٔ کد)');
+  const patchSize = FAKE_PATCH.length;
   await js('window.revalPlanner.updates.download(), true');
   await wait(2000);
   const after = await js(`(function(){
@@ -213,17 +269,66 @@ app.whenReady().then(async () => {
   console.log('۵) کلیک روی دکمهٔ نصب');
   await js('document.getElementById("ubarAction").click(), true');
   await wait(1500);
-  ok(state.installed !== null, 'نصب‌کننده اجرا شد');
-  ok(state.installed && fs.existsSync(state.installed.file), 'فایل دانلودشده روی دیسک هست (' + path.basename(state.installed.file) + ')');
-  ok(state.installed && fs.statSync(state.installed.file).size === FAKE_SIZE, 'حجم فایل دانلودشده دقیقاً همان حجم اعلامی است');
-  ok(state.installed.opts.installDir.indexOf('Programs\\Reval') !== -1, 'مسیر نصب فعلی به نصب‌کننده داده شد');
-  await wait(900);
-  ok(state.quitCalled === true, 'پس از اجرای نصب، برنامه برای جایگزینی فایل بسته می‌شود');
+  ok(codePatch.activeVersion(CODE_DIR) === '9.9.9', 'وصله نصب و فعال شد (نسخهٔ ۹.۹.۹)');
+  const installedMain = path.join(CODE_DIR, '9.9.9', 'src', 'main.js');
+  ok(fs.existsSync(installedMain), 'فایل‌های کد جدید در پوشهٔ نسخه نشستند');
+  ok(fs.readFileSync(installedMain, 'utf8').length > 5, 'محتوای کد جدید نوشته شده است (' + fs.statSync(installedMain).size + ' بایت)');
+  ok(state.relaunchCalled === true, 'برنامه برای اجرای کد تازه دوباره راه‌اندازی می‌شود');
+  ok(state.installed === null, 'این بار نصب‌کنندهٔ ۷۶ مگابایتی اجرا نشد');
+  ok(patchSize < FAKE_SIZE / 4, 'حجم دانلود وصله یک‌چهارم فایل نصبی هم نیست (' + Math.round(patchSize / 1024) + 'KB در برابر ' + Math.round(FAKE_SIZE / 1048576) + 'MB)');
+
+  console.log('۵-۲) راه‌انداز نسخهٔ وصله‌شده را انتخاب می‌کند');
+  const packagedRoot = path.join(ROOT);
+  const packedOk = fs.existsSync(path.join(packagedRoot, 'src', 'main.js'));
+  ok(packedOk, 'کدِ نصب‌شده هم موجود است (مرجع بازگشت)');
+  const decision = codePatch.decide(CODE_DIR, packagedRoot);
+  ok(decision.activeVersion === '9.9.9' && decision.activeRoot.indexOf('9.9.9') !== -1,
+    'راه‌انداز، کدِ وصله‌شده را بار می‌کند');
+  let syntaxOk = true;
+  try { new (require('vm').Script)(fs.readFileSync(path.join(decision.activeRoot, 'src', 'main.js'), 'utf8')); }
+  catch (e) { syntaxOk = false; }
+  ok(syntaxOk, 'کدِ وصله‌شده از نظر نحوی سالم است');
+
+  console.log('۵-۳) بازگشت خودکار اگر نسخهٔ جدید بالا نیاید');
+  codePatch.markPending(CODE_DIR, '9.9.9'); /* شبیه‌سازی: دفعهٔ قبل بالا نیامد */
+  const rolledBack = codePatch.decide(CODE_DIR, packagedRoot);
+  ok(rolledBack.reverted === true && rolledBack.activeVersion === null,
+    'برنامه خودکار به نسخهٔ نصب‌شده برمی‌گردد');
+  ok(codePatch.lastRevert(CODE_DIR).version === '9.9.9', 'دلیل بازگشت ثبت می‌شود');
+
+  console.log('٤-۲) نصب کامل هم کار می‌کند (برای وقتی موتور عوض شده)');
+  state.quitCalled = false;
+
+  let fullInstaller = null;
+  const uFull = core.createUpdater({
+    getCurrentVersion: () => '2.2.0',
+    electronVersion: () => process.versions.electron,
+    supportsPatch: () => true,
+    httpJson: () => httpJson('http://127.0.0.1:' + state.http.address().port + '/api'),
+    httpText: () => Promise.resolve(FAKE_PATCH_SHA),
+    sha256: (f) => require('crypto').createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
+    downloadFile,
+    installPatch: () => { throw new Error('نباید در حالت کامل اجرا شود'); },
+    relaunch: () => {},
+    runInstaller: async (file, opts) => { fullInstaller = { file, opts }; },
+    installDir: () => 'C:\\Apps\\Reval',
+    exists: () => false,
+    fileSize: () => -1,
+    tempPath: (name) => path.join(os.tmpdir(), 'e2e-full-' + name),
+    onEvent: () => {},
+    quit: () => {},
+  });
+  await uFull.check();
+  const fullState = await uFull.download({ full: true });
+  ok(fullState.status === 'ready', 'نصب‌کنندهٔ کامل دانلود شد (حالت صریح)');
+  await uFull.install();
+  ok(fullInstaller !== null, 'در حالت کامل، نصب‌کننده اجرا می‌شود');
 
   console.log('۶) مسیر «یک دکمه»: دانلود + نصب با یک کلیک');
   let nowInstalled = null;
   const uNow = core.createUpdater({
     getCurrentVersion: () => '2.2.0',
+    supportsPatch: () => false,
     httpJson: (url) => httpJson('http://127.0.0.1:' + state.http.address().port + '/api'),
     downloadFile,
     runInstaller: async (file, opts) => { nowInstalled = { file, opts }; },
