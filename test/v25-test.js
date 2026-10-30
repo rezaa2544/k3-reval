@@ -318,9 +318,9 @@ const plan = engine.createPlan(baseCfg());
 /* ═══ ۱۱) نسخه ═══ */
 {
   const pkg = JSON.parse(read('package.json'));
-  eq(pkg.version, '2.7.0', 'نسخهٔ بسته ۲.۷.۰ است');
+  ok(String(pkg.version).split('.').map(Number)[0] >= 2, 'نسخهٔ بسته ۲ یا بالاتر است');
   const eng = read('src/planner/engine.js');
-  ok(/version: '2\.7\.0'/.test(eng), 'نسخهٔ موتور ۲.۷.۰ است');
+  ok(/version: '2\.[0-9]+\.[0-9]+'/.test(eng), 'نسخهٔ موتور در فایل ثبت شده است');
 }
 
 console.log('\n✅ ' + n + ' تست نسخهٔ ۲.۵ (شروع روز · توقف/ادامه · اضطراری · اهمیت فصل · آمادگی جدا) پاس شد');

@@ -20,6 +20,8 @@ const eq = (a, b, msg) => { assert.strictEqual(a, b, msg + ' (' + a + ' ≠ ' + 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const pkg = JSON.parse(read('package.json'));
+/* مقایسهٔ نسخه‌ها: ۲.۸.۰ → ۲۰۰۸۰۰ */
+const CLV = (v) => String(v).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0).reduce((a, b) => a * 1000 + b, 0);
 
 const baseCfg = (extra) => Object.assign({
   student: { name: 'سارا', grade: 'دوازدهم', field: 'tajrobi' },
@@ -35,9 +37,9 @@ const baseCfg = (extra) => Object.assign({
 
 /* ═══ ۰) نسخه ═══ */
 {
-  eq(pkg.version, '2.7.0', 'نسخهٔ بسته ۲.۷.۰ است');
+  ok(CLV(pkg.version) >= CLV('2.7.0'), 'نسخهٔ بسته ۲.۷.۰ یا بالاتر است');
   const plan = engine.createPlan(baseCfg({}));
-  eq(plan.meta.version, '2.7.0', 'نسخهٔ موتور ۲.۷.۰ است');
+  eq(plan.meta.version, pkg.version, 'نسخهٔ موتور با نسخهٔ بسته یکی است');
 }
 
 /* ═══ ۱) بلوک واقعی، نه تکهٔ ۱۳ دقیقه‌ای ═══ */
@@ -140,11 +142,11 @@ const byKind = (k) => blocks.filter((b) => b.kind === k);
 /* ═══ ۵) تاریخچهٔ تغییرات ═══ */
 {
   ok(CL.CHANGELOG.length >= 4, 'تاریخچهٔ تغییرات برای چند نسخه وجود دارد');
-  eq(CL.latest().version, '2.7.0', 'جدیدترین نسخه در تاریخچه ۲.۷.۰ است');
+  eq(CL.latest().version, pkg.version, 'جدیدترین نسخه در تاریخچه با بسته یکی است');
   ok(CL.latest().items.length >= 5, 'تغییرات نسخهٔ جدید فهرست شده‌اند');
-  eq(CL.since('2.6.0').length, 1, 'پس از به‌روزرسانی از ۲.۶ فقط تغییرات ۲.۷ نشان داده می‌شود');
-  eq(CL.since('2.5.0').map((e) => e.version).join(','), '2.7.0,2.6.0', 'اگر چند نسخه رد شود، همه نشان داده می‌شوند');
-  eq(CL.since('2.7.0').length, 0, 'اگر نسخه دیده شده باشد، پنجره باز نمی‌شود');
+  eq(CL.since('2.6.0').map((e) => e.version).join(','), '2.8.0,2.7.0', 'پس از به‌روزرسانی از ۲.۶، تغییرات ۲.۷ و ۲.۸ هم نشان داده می‌شوند');
+  eq(CL.since('2.5.0').map((e) => e.version).join(','), '2.8.0,2.7.0,2.6.0', 'اگر چند نسخه رد شود، همه نشان داده می‌شوند');
+  eq(CL.since('2.8.0').length, 0, 'اگر نسخه دیده شده باشد، پنجره باز نمی‌شود');
   ok(CL.compare('2.7.0', '2.6.9') > 0, 'مقایسهٔ نسخه‌ها عددی است، نه رشته‌ای');
   ok(CL.compare('v2.7.0', '2.7.0') === 0, 'پیشوند v بی‌اثر است');
   ok(CL.CHANGELOG.every((e) => e.kind && e.date && e.title && Array.isArray(e.items) && e.items.length),

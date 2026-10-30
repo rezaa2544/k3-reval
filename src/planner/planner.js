@@ -4236,6 +4236,654 @@
       if (v) { state.wakeTime = v; try { persist(); } catch (e) { /* بی‌صدا */ } try { renderDayStartUI(); } catch (e) { /* بی‌صدا */ } }
     });
   }
+  /* ══════════════════ v2.8: مشاور هوش مصنوعی ══════════════════ */
+  const AIBrain = window.RevalAIBrain || null;
+  const AITools = window.RevalAITools || null;
+  const AINLU = window.RevalAINLU || null;
+  const AIKB = window.RevalAIKnowledge || null;
+  let aiApi = (api && api.ai) ? api.ai : null;
+  /* اگر پل دسکتاپ نبود (پیش‌نمایش مرورگر)، فهرست ارائه‌دهنده‌ها از همین‌جا پر می‌شود
+     تا هیچ‌وقت کادر خالی و بی‌معنی نماند. */
+  const AI_PROVIDERS_FALLBACK = [
+    { id: 'openai', label: 'OpenAI', defaultModel: 'gpt-4o-mini', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1-mini'], keyUrl: 'https://platform.openai.com/api-keys' },
+    { id: 'openrouter', label: 'OpenRouter', defaultModel: 'openai/gpt-4o-mini', models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001'], keyUrl: 'https://openrouter.ai/keys' },
+    { id: 'gemini', label: 'Google Gemini', defaultModel: 'gemini-2.0-flash', models: ['gemini-2.0-flash', 'gemini-1.5-pro'], keyUrl: 'https://aistudio.google.com/apikey' },
+    { id: 'custom', label: 'سرویس سازگار با OpenAI (آدرس دلخواه)', defaultModel: '', models: [], keyUrl: '' },
+  ];
+
+  const ai = {
+    open: false,
+    cfg: null,          // تنظیمات ارائه‌دهنده (بدون کلید)
+    ready: false,       // کلید معتبر دارد؟
+    busy: false,
+    history: [],        // [{role:'user'|'assistant'|'tool', content, actions}]
+    providerModels: [],
+  };
+
+  /* ---------- ابزارهای اجرایی: دستیار با این‌ها واقعاً برنامه را عوض می‌کند ---------- */
+  const aiCtx = {
+    get studentName() { return (state.config && state.config.student && state.config.student.name) || null; },
+
+    readConfig() {
+      const c = state.config || {};
+      const av = c.availability || {};
+      const days = WEEKDAY_KEY.map((k) => Number(av[k]) || 0);
+      const total = days.reduce((a, b) => a + b, 0);
+      return {
+        avgDailyHours: Math.round((total / (days.filter((d) => d > 0).length || 1)) * 10) / 10,
+        weeklyHours: total,
+        restDay: c.restDay,
+        blockMinutes: c.blockMinutes,
+        timeMode: c.timeMode,
+        examDate: c.examDate,
+      };
+    },
+
+    readPlan(scope) {
+      if (!state.plan) return null;
+      const t = todayIso();
+      let day = findDay(state.plan, t);
+      if (scope === 'tomorrow' || scope === 'tomorrow_plus') {
+        const i = state.plan.days.findIndex((d) => d.date === t);
+        day = state.plan.days[Math.min(state.plan.days.length - 1, Math.max(0, i) + 1)] || day;
+      }
+      if (scope === 'week') {
+        const i = Math.max(0, state.plan.days.findIndex((d) => d.date === t));
+        const slice = state.plan.days.slice(i, i + 7);
+        const blocks = slice.flatMap((d) => (d.blocks || []).filter((b) => b.kind !== 'routine')
+          .map((b) => Object.assign({}, b, { start: fmtDayShort(d) + ' ' + b.start })));
+        return {
+          label: 'از ' + J.fmt(slice[0] && slice[0].date) + ' تا ' + J.fmt(slice[slice.length - 1] && slice[slice.length - 1].date),
+          blocks, count: blocks.length,
+          totalMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
+        };
+      }
+      if (!day) return null;
+      const blocks = (day.blocks || []).filter((b) => b.kind !== 'routine');
+      return {
+        label: J.fmt(day.date), date: day.date, blocks, count: blocks.length,
+        totalMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
+      };
+    },
+
+    readReport() {
+      const toMin = (hm) => { const a = String(hm || '').split(':'); return (Number(a[0]) || 0) * 60 + (Number(a[1]) || 0); };
+      const p = state.plan;
+      if (!p) return null;
+      const S = p.summary;
+      const cov = S.coverage || {};
+      const t = todayIso();
+      const daysLeft = Math.max(0, Math.round((new Date(p.meta.examDate || state.config.examDate) - new Date(t)) / 86400000));
+      const day = findDay(p, t);
+      const blocks = day ? (day.blocks || []).filter((b) => b.kind !== 'routine') : [];
+      const nowMin = toMin(nowHM());
+      const next = blocks.find((b, i) => toMin(b.start) >= nowMin && !isBlockDone(day, i));
+      const weak = (S.chapterStats || []).filter((c) => c.needMinutes > 0 && c.mastery < 60)
+        .sort((a, b) => (a.mastery || 0) - (b.mastery || 0)).slice(0, 4)
+        .map((c) => c.subjectName + ' — ' + c.label + ' (' + faNum(Math.round(c.mastery || 0)) + '٪)').join(' · ');
+      const warn = [];
+      ((cov.diagnostics || []).concat(S.diagnostics || [])).forEach((d) => { if (d && d.title) warn.push(d.title); });
+      return {
+        coverage: cov.coverageRatio,
+        covered: cov.coveredChapters,
+        total: cov.totalChapters,
+        hours: S.totalHours || 0,
+        daysLeft,
+        examDateFa: J.fmt(p.meta.examDate || (state.config && state.config.examDate)),
+        konkurProjected: (S.readinessSplit && S.readinessSplit.konkur && S.readinessSplit.konkur.projected) || 0,
+        konkurCurrent: (S.readinessSplit && S.readinessSplit.konkur && S.readinessSplit.konkur.current) || 0,
+        finalsProjected: (S.readinessSplit && S.readinessSplit.finals && S.readinessSplit.finals.projected) || 0,
+        finalsCurrent: (S.readinessSplit && S.readinessSplit.finals && S.readinessSplit.finals.current) || 0,
+        todayCount: blocks.length,
+        todayMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
+        nextBlock: next ? { start: next.start, title: (next.subjectName || '') + ' — ' + (next.topic || '') } : null,
+        weak, warnings: warn,
+      };
+    },
+
+    readChapters(opts) {
+      const p = state.plan;
+      if (!p) return null;
+      const o = opts || {};
+      const wOf = {};
+      ((state.config && state.config.subjects) || []).forEach((x) => { wOf[x.id] = Number(x.weight) || 1; });
+      let list = (p.summary.chapterStats || []).filter((c) => c.needMinutes > 0 || c.plannedMinutes > 0);
+      if (o.subjectId) list = list.filter((c) => c.subjectId === o.subjectId);
+      /* وزن هر فصل در «کل برنامه» = ضریب درس × سهم فصل از کتاب (نه فقط سهم درون‌درس،
+         وگرنه فصل کوچکِ زمین‌شناسی از فصل مشتقِ ریاضی جلو می‌زند). */
+      const score = (c) => (wOf[c.subjectId] || 1) * (c.ciSharePct || 0);
+      if (o.weakest) list = list.slice().sort((a, b) => (a.mastery || 0) - (b.mastery || 0));
+      else list = list.slice().sort((a, b) => score(b) - score(a));
+      const items = list.slice(0, o.limit || 6).map((c) => ({
+        subjectName: c.subjectName, label: c.label, chapter: c.chapter,
+        share: c.ciSharePct != null ? c.ciSharePct : 0,
+        rank: c.ciRank || null, total: c.ciTotal || null,
+        importance: c.ciImportance != null ? c.ciImportance : 0,
+        mastery: Math.round(c.mastery || 0), needMinutes: c.needMinutes,
+      }));
+      if (!items.length) return null;
+      return { items };
+    },
+
+    /* --- تغییرها --- */
+    applyAvailability(days) {
+      const cur = Object.assign({}, (state.config && state.config.availability) || {});
+      Object.keys(days || {}).forEach((k) => { cur[k] = days[k]; });
+      Object.keys(cur).forEach((k) => {
+        const inp = document.querySelector('[data-avail="' + k + '"]');
+        if (inp) inp.value = faDigits(cur[k]);
+      });
+      const ok = rebuildWith((cfg) => { cfg.availability = Object.assign({}, cfg.availability, cur); });
+      const c = state.config || {};
+      return { ok, autoHours: c.autoHours || null };
+    },
+
+    applyRestDay(key) {
+      const idx = WEEKDAY_KEY.indexOf(key);
+      if (idx === -1) return { ok: false, message: 'روز نامعتبر است.' };
+      if ($('restDay')) $('restDay').value = String(idx);
+      rebuildWith((cfg) => { cfg.restDay = idx; });
+      return { ok: true };
+    },
+
+    applyBlockMinutes(m) {
+      if ($('blockMinutes')) $('blockMinutes').value = String(m);
+      rebuildWith((cfg) => { cfg.blockMinutes = m; });
+      return { ok: true };
+    },
+
+    applyExamDate(target) {
+      let isoDate = null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(target)) isoDate = target;
+      else {
+        const parts = String(target).split(/[\/\-.]/).map((x) => Number(x));
+        if (parts.length === 3 && parts[0] > 1300) {
+          try { isoDate = J.toISO(parts[0], parts[1], parts[2]); } catch (e) { isoDate = null; }
+        }
+      }
+      if (!isoDate) return { ok: false, message: 'تاریخ را نتوانستم بخوانم؛ مثال: ۱۴۰۶/۰۴/۱۰' };
+      writeJDate('examDate', isoDate);
+      rebuildWith((cfg) => { cfg.examDate = isoDate; });
+      return { ok: true, message: 'تاریخ آزمون شد ' + faNum(J.fmt(isoDate)) + ' و برنامه از نو ساخته شد.' };
+    },
+
+    applyTimeMode(mode, cap) {
+      setTimeMode(mode === 'auto' ? 'auto' : 'fixed');
+      if (cap != null && $('dailyCap')) $('dailyCap').value = faDigits(cap);
+      rebuildWith((cfg) => {
+        cfg.timeMode = mode === 'auto' ? 'auto' : 'fixed';
+        if (cap != null) cfg.dailyCapHours = cap;
+      });
+      const s = state.plan && state.plan.summary;
+      return { ok: true, autoHours: (s && s.autoInfo && s.autoInfo.chosenHours) || null };
+    },
+
+    rebuild() {
+      const ok = rebuildWith(null);
+      const s = state.plan && state.plan.summary;
+      return ok
+        ? { ok: true, message: 'برنامه از نو ساخته شد: ' + faNum(s.coverage.coverageRatio) + '٪ پوشش، ' + faNum(Math.round(s.totalHours)) + ' ساعت کل.' }
+        : { ok: false, message: 'ساخت برنامه ناموفق بود.' };
+    },
+
+    replanToday() {
+      const done = startDayNow(nowHM());
+      if (done === false) return { ok: false, message: 'امروز در بازهٔ برنامه نیست یا برنامه‌ای ساخته نشده.' };
+      const day = findDay(state.plan, todayIso());
+      const blocks = day ? (day.blocks || []).filter((b) => b.kind !== 'routine') : [];
+      return {
+        ok: true,
+        message: 'برنامهٔ امروز از ساعت ' + faNum(nowHM()) + ' بازچیده شد: ' + faNum(blocks.length) + ' بلوک.',
+      };
+    },
+
+    startFirstTask() {
+      const day = findDay(state.plan, todayIso());
+      if (!day) return { ok: false, message: 'برنامه‌ای برای امروز نیست.' };
+      const idx = firstTaskIndex(day);
+      if (idx < 0) return { ok: false, message: 'همهٔ کارهای امروز انجام شده‌اند 👏' };
+      const block = day.blocks[idx];
+      const key = day.date + '#' + idx;
+      const cur = sessionOf(day, idx, block);
+      sessions()[key] = DP ? DP.start(cur, nowMs()) : cur;
+      try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+      persist();
+      return {
+        ok: true,
+        message: 'شروع شد: ' + (block.subjectName || '') + ' — ' + (block.topic || '') + ' از ساعت ' + faNum(block.start) + '.',
+      };
+    },
+
+    addUrgent(item) {
+      const it = Object.assign({
+        id: 'em' + Date.now().toString(36),
+        date: todayIso(),
+        time: null,
+        minutes: 45,
+        subjectId: null,
+        subjectName: '',
+        topic: '',
+        scope: 'today',
+        createdAt: new Date().toISOString(),
+        source: 'ai',
+      }, item || {});
+      if (it.subjectId) {
+        const s = (state.config && state.config.subjects || []).find((x) => x.id === it.subjectId);
+        if (s) it.subjectName = s.name;
+      }
+      state.emergency = (state.emergency || []).concat([it]);
+      rebuildWith((cfg) => { cfg.emergency = (state.emergency || []).slice(); });
+      return { ok: true, message: '«' + (it.subjectName ? it.subjectName + ' — ' : '') + it.topic + '» (' + faNum(it.minutes) + ' دقیقه) اضافه و برنامه بازچینی شد.' };
+    },
+
+    applyTool(name, args) {
+      if (!AITools) return { ok: false, message: 'ابزارها بارگذاری نشده‌اند.' };
+      const res = AITools.run(name, args, aiCtx);
+      if (res && res.ok) { try { afterAiChange(); } catch (e) { /* بی‌صدا */ } }
+      return res;
+    },
+  };
+
+  function afterAiChange() {
+    try { renderHome(); } catch (e) { /* بی‌صدا */ }
+    try { renderPlan(); } catch (e) { /* بی‌صدا */ }
+    try { renderReport(); } catch (e) { /* بی‌صدا */ }
+    persist();
+  }
+
+  function fmtDayShort(day) {
+    try { return J.weekdayFa(day.date); } catch (e) { return ''; }
+  }
+  function isBlockDone(day, idx) {
+    const st = (state.sessions || {})[day.date + '#' + idx];
+    return Boolean(st && st.status === 'done');
+  }
+
+  /* ---------- رسم گفت‌وگو ---------- */
+  function aiEsc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function aiRich(t) {
+    /* متن ساده با **پررنگ** و خطوط */
+    /* ساعت‌ها همیشه با رقم لاتین و چپ‌به‌راست نوشته می‌شوند (۰۹:۰۰ ← 09:00) */
+    const withLatinClock = (str) => str.replace(/[۰-۹٠-٩]{1,2}:[۰-۹٠-٩]{2}/g,
+      (m) => '\u0001' + m.replace(/[۰-۹٠-٩]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c) >= 0 ? '۰۱۲۳۴۵۶۷۸۹'.indexOf(c) : '٠١٢٣٤٥٦٧٨٩'.indexOf(c))) + '\u0002');
+    return withLatinClock(aiEsc(t))
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/«(.+?)»/g, '<span style="color:#4338ca">«$1»</span>')
+      .replace(/\u0001([0-9:]{4,5})\u0002/g, '<span class="tt" dir="ltr">$1</span>');
+  }
+
+  function aiMsgHtml(m) {
+    const mine = m.role === 'user';
+    const actions = (m.actions || []).map((a) => {
+      const r = a.result || {};
+      const tool = (AITools && AITools.byName[a.name]) ? AITools.byName[a.name].title : a.name;
+      return '<div class="ai-act ' + (r.ok ? '' : 'bad') + '"><span class="ic">' + (r.ok ? '✓' : '!') + '</span><span>' +
+        '<b>' + aiEsc(tool) + '</b>' + (r.message ? '<br>' + aiEsc(r.message) : '') + '</span></div>';
+    }).join('');
+    const chips = (m.chips || []).map((c) => '<button class="ai-chip" data-chip="' + aiEsc(c) + '">' + aiEsc(c) + '</button>').join('');
+    return '<div class="msg ' + (mine ? 'me' : 'ai') + '">' +
+      '<div class="mini-av">' + (mine ? 'شما' : 'AI') + '</div>' +
+      '<div><div class="bub">' + aiRich(m.content || '') + '</div>' +
+      (actions ? '<div class="ai-tools">' + actions + '</div>' : '') +
+      (chips ? '<div class="ai-chips">' + chips + '</div>' : '') +
+      '</div></div>';
+  }
+
+  function aiRender() {
+    const body = $('aiBody');
+    if (!body) return;
+    body.innerHTML = ai.history.map(aiMsgHtml).join('') +
+      (ai.busy ? '<div class="msg ai"><div class="mini-av">AI</div><div class="bub"><div class="ai-typing"><i></i><i></i><i></i></div></div></div>' : '');
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function aiPush(role, content, extra) {
+    ai.history.push(Object.assign({ role, content }, extra || {}));
+    aiRender();
+  }
+
+  function aiSetStatus() {
+    const st = $('aiStatus');
+    const tx = $('aiStatusText');
+    const fab = $('aiFab');
+    if (!st || !tx) return;
+    st.classList.remove('off', 'ext');
+    if (ai.ready) {
+      st.classList.add('ext');
+      const mdl = (ai.cfg && ai.cfg.model) ? String(ai.cfg.model) : '';
+      tx.textContent = mdl ? ('هوش زبانی فعال · ' + mdl) : 'هوش زبانی فعال';
+      if (fab) fab.classList.add('live');
+    } else {
+      st.classList.add('off');
+      tx.textContent = 'حالت آفلاین — بدون کلید هم کار می‌کند';
+      if (fab) fab.classList.remove('live');
+    }
+    if ($('aiFab')) $('aiFab').setAttribute('aria-label', 'گفت‌وگو با مشاور هوشمند');
+  }
+
+  function aiNote() {
+    const note = $('aiNoteText');
+    if (!note) return;
+    note.textContent = ai.ready
+      ? 'متصل به ' + (ai.cfg.providerLabel || '') + ' · کلید روی همین دستگاه ذخیره شده است.'
+      : 'بدون کلید API هم کار می‌کند؛ برای هوش زبانی کامل، کلید را در تنظیمات بگذار.';
+  }
+
+  async function aiLoadConfig() {
+    if (!aiApi) {
+      ai.ready = false;
+      ai.providerModels = AI_PROVIDERS_FALLBACK;
+      aiSetStatus(); aiNote(); return;
+    }
+    try {
+      const c = await aiApi.config();
+      ai.cfg = c;
+      ai.ready = Boolean(c && c.ready);
+      ai.providerModels = (c && c.providers) || [];
+    } catch (e) { ai.ready = false; }
+    aiSetStatus(); aiNote();
+  }
+
+  function aiOpenPanel(open) {
+    const panel = $('aiPanel');
+    const back = $('aiBackdrop');
+    if (!panel) return;
+    ai.open = open !== false;
+    panel.classList.toggle('open', ai.open);
+    panel.setAttribute('aria-hidden', ai.open ? 'false' : 'true');
+    if (back) back.classList.toggle('show', ai.open);
+    if (ai.open) {
+      if (!ai.history.length) {
+        const op = AIBrain && AIBrain.opening ? AIBrain.opening(aiCtx) : { text: 'سلام! در خدمتم.', chips: [] };
+        aiPush('assistant', op.text, { chips: op.chips });
+      }
+      setTimeout(() => { const i = $('aiInput'); if (i) i.focus(); }, 120);
+    }
+  }
+
+  /* ---------- سیستم‌پرامپت مدل زبانی ---------- */
+  function aiSystemPrompt() {
+    const r = aiCtx.readReport();
+    const c = aiCtx.readConfig();
+    const lines = [
+      'تو «مشاور هوشمند روال» هستی: یک مشاور کنکور و برنامه‌ریزِ متخصص برای دانش‌آموزان ایرانی، مسلط بر روان‌شناسی یادگیری و تجربهٔ کنکورهای گذشته.',
+      'همیشه فارسی و راست‌به‌چپ پاسخ بده. کوتاه، دقیق و قابل اجرا باش (معمولاً کمتر از ۱۵۰ کلمه، مگر کاربر توضیح بخواهد).',
+      'اگر کاربر تغییری در برنامه می‌خواهد، حتماً از ابزارها (function calling) استفاده کن؛ دربارهٔ انجام کار حرف نزن، انجامش بده.',
+      'عدد و آمار را از context بگیر و از خودت نساز. اگر داده‌ای نداری، بگو نداری.',
+      'اگر درخواست مبهم است، فقط یک سؤال روشن‌کننده بپرس.',
+      'در توصیه‌ها به اصول علمی تکیه کن: بازیابی فعال، مرور فاصله‌دار (۱-۳-۷-۱۶-۳۵)، تمرین درهم، خودتوضیحی، خواب کافی، تحلیل خطا.',
+      'هرگز توصیهٔ ناسالم (شب‌بیداری، حذف خواب، بیش از ۱۲ ساعت مطالعه) نکن؛ اگر کاربر چنین چیزی خواست، صریح توضیح بده چرا ضرر دارد.',
+    ];
+    if (AIKB) {
+      lines.push('دانش پایه — ضرایب کنکور ' + AIKB.KONKUR.year + ': ' + JSON.stringify(AIKB.KONKUR.coefficients.tajrobi) + ' (تجربی)؛ سوابق ' +
+        Math.round(AIKB.KONKUR.finalShare * 100) + '٪ و آزمون ' + Math.round(AIKB.KONKUR.testShare * 100) + '٪.');
+      lines.push('حقایق کلیدی: ' + AIKB.KONKUR.facts.slice(0, 3).join(' | '));
+    }
+    lines.push('وضعیت فعلی برنامه (context):');
+    lines.push(c ? ('• تنظیمات: ' + c.avgDailyHours + ' ساعت/روز، روز استراحت شمارهٔ ' + c.restDay + '، بلوک ' + c.blockMinutes + ' دقیقه، حالت ' + c.timeMode) : '• برنامه‌ای ساخته نشده.');
+    if (r) {
+      lines.push('• پوشش ' + r.coverage + '٪ (' + r.covered + '/' + r.total + ' فصل)، ' + Math.round(r.hours) + ' ساعت کل، ' + r.daysLeft + ' روز تا کنکور');
+      lines.push('• آمادگی کنکور (برآورد پایان): ' + r.konkurProjected + '٪، آمادگی نهایی: ' + r.finalsProjected + '٪');
+      lines.push('• امروز: ' + r.todayCount + ' بلوک، ' + r.todayMinutes + ' دقیقه' + (r.nextBlock ? '، بعدی: ' + r.nextBlock.start + ' ' + r.nextBlock.title : ''));
+      if (r.weak) lines.push('• ضعیف‌ترین فصل‌ها: ' + r.weak);
+      if (r.warnings && r.warnings.length) lines.push('• هشدارها: ' + r.warnings.join(' | '));
+    }
+    return lines.join('\n');
+  }
+
+  /* ---------- پاسخ آفلاین ---------- */
+  function aiOfflineReply(text) {
+    if (!AIBrain) return { text: 'دستیار در دسترس نیست.', chips: [] };
+    return AIBrain.respond(text, aiCtx);
+  }
+
+  /* ---------- پاسخ با مدل زبانی ---------- */
+  async function aiLlmReply(userText) {
+    const sys = aiSystemPrompt();
+    const msgs = [{ role: 'system', content: sys }];
+    ai.history.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-12).forEach((m) => {
+      if (m.content) msgs.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+    });
+    const actions = [];
+    for (let step = 0; step < 5; step += 1) {
+      const res = await aiApi.chat({ messages: msgs, tools: AITools ? AITools.forLLM() : undefined });
+      if (!res || !res.ok) {
+        const why = (res && res.error) || 'ارتباط با سرویس هوش مصنوعی برقرار نشد.';
+        const fb = aiOfflineReply(userText);
+        return {
+          text: '⚠️ ' + why + '\n\n' + (res && res.needsKey
+            ? 'تا وقتی کلید تنظیم نشود، با حالت آفلاین جواب می‌دهم:'
+            : 'جواب آفلاین:') + '\n' + fb.text,
+          chips: fb.chips, actions, failed: true,
+        };
+      }
+      const m = res.message || {};
+      const calls = m.tool_calls || [];
+      if (calls.length) {
+        msgs.push({ role: 'assistant', content: m.content || '', tool_calls: calls });
+        calls.forEach((call) => {
+          let args = {};
+          try { args = JSON.parse(call.function && call.function.arguments || '{}'); } catch (e) { args = {}; }
+          const out = aiCtx.applyTool(call.function && call.function.name, args);
+          actions.push({ name: call.function && call.function.name, args, result: out });
+          msgs.push({
+            role: 'tool', tool_call_id: call.id,
+            content: JSON.stringify(out && out.data ? out.data : { ok: out.ok, message: out.message }),
+          });
+        });
+        continue;
+      }
+      return { text: (m.content || '').trim() || 'انجام شد.', chips: [], actions };
+    }
+    return { text: 'چند مرحله پیاپی ابزار اجرا شد؛ اگر کار تمام نشد بگو ادامه بدهم.', chips: [], actions };
+  }
+
+  async function aiSend(text) {
+    const clean = String(text || '').trim();
+    if (!clean || ai.busy) return;
+    aiPush('user', clean);
+    const input = $('aiInput');
+    if (input) { input.value = ''; input.style.height = 'auto'; }
+    ai.busy = true; aiRender();
+    try {
+      let reply;
+      if (ai.ready && aiApi) reply = await aiLlmReply(clean);
+      else {
+        await new Promise((r) => setTimeout(r, 180));   // حس طبیعیِ «فکر کردن»
+        reply = aiOfflineReply(clean);
+      }
+      ai.busy = false;
+      aiPush('assistant', reply.text, { chips: reply.chips, actions: reply.actions });
+      aiSaveHistory();
+    } catch (err) {
+      ai.busy = false;
+      aiPush('assistant', 'خطا: ' + (err && err.message ? err.message : 'نامشخص'), { chips: ['تلاش دوباره'] });
+    }
+  }
+
+  function aiSaveHistory() {
+    try {
+      const slim = ai.history.slice(-40).map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 4000) }));
+      localStorage.setItem('reval.ai.history', JSON.stringify(slim));
+    } catch (e) { /* بی‌صدا */ }
+  }
+  function aiLoadHistory() {
+    try {
+      const raw = localStorage.getItem('reval.ai.history');
+      if (!raw) return false;
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr) || !arr.length) return false;
+      ai.history = arr.slice(-40);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /* ---------- تنظیمات ---------- */
+  function aiOpenSettings() {
+    const c = ai.cfg || {};
+    const sel = $('aiProvider');
+    if (!(ai.providerModels || []).length) ai.providerModels = AI_PROVIDERS_FALLBACK;
+    if (sel && !sel.options.length) {
+      (ai.providerModels || []).forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p.id; o.textContent = p.label;
+        sel.appendChild(o);
+      });
+    }
+    if (sel) sel.value = c.provider || 'openai';
+    if ($('aiModel')) $('aiModel').value = c.model || '';
+    if ($('aiBaseUrl')) $('aiBaseUrl').value = c.baseUrl || '';
+    if ($('aiKey')) $('aiKey').value = '';
+    if ($('aiKeyHint')) {
+      $('aiKeyHint').textContent = c.hasKey
+        ? 'کلید ذخیره‌شده: ' + (c.keyHint || '') + ' — برای تغییر، کلید تازه را وارد کن.'
+        : 'کلیدی ذخیره نشده. بدون کلید هم دستیار در حالت آفلاین کار می‌کند.';
+    }
+    aiSyncModels();
+    if ($('aiModalErr')) {
+      $('aiModalErr').textContent = aiApi
+        ? ''
+        : 'این نسخه در مرورگر اجرا شده؛ ذخیرهٔ کلید فقط در نسخهٔ دسکتاپ روال کار می‌کند.';
+    }
+    if ($('aiTestBtn')) $('aiTestBtn').disabled = !aiApi;
+    if ($('aiSaveBtn')) $('aiSaveBtn').disabled = !aiApi;
+    const m = $('aiModal');
+    if (m) { m.classList.add('show'); m.setAttribute('aria-hidden', 'false'); }
+  }
+
+  function aiSyncModels() {
+    const prov = ($('aiProvider') && $('aiProvider').value) || 'openai';
+    const p = (ai.providerModels || []).find((x) => x.id === prov);
+    const list = $('aiModelList');
+    if (list) {
+      list.innerHTML = ((p && p.models) || []).map((m) => '<option value="' + aiEsc(m) + '"></option>').join('');
+    }
+    if ($('aiModel') && p && p.defaultModel && !$('aiModel').value) $('aiModel').value = p.defaultModel;
+    if ($('aiBaseRow')) $('aiBaseRow').style.display = prov === 'custom' ? '' : 'none';
+    if ($('aiKeyHint') && p && p.keyUrl) {
+      const el = $('aiKeyHint');
+      el.innerHTML = el.textContent + ' · <a href="#" data-key-url="' + aiEsc(p.keyUrl) + '" style="color:#4f46e5">گرفتن کلید ' + aiEsc(p.label) + '</a>';
+    }
+  }
+
+  async function aiSaveSettings() {
+    if (!aiApi) return;
+    const patch = {
+      provider: ($('aiProvider') && $('aiProvider').value) || 'openai',
+      model: ($('aiModel') && $('aiModel').value.trim()) || undefined,
+      baseUrl: ($('aiBaseUrl') && $('aiBaseUrl').value.trim()) || undefined,
+    };
+    const key = ($('aiKey') && $('aiKey').value.trim()) || '';
+    if (key) patch.key = key;
+    if ($('aiModalErr')) $('aiModalErr').textContent = '';
+    try {
+      const res = await aiApi.saveConfig(patch);
+      if (!res || !res.ok) {
+        if ($('aiModalErr')) $('aiModalErr').textContent = (res && res.error) || 'ذخیره نشد.';
+        return;
+      }
+      ai.cfg = Object.assign({}, ai.cfg || {}, res.config || {});
+      ai.ready = Boolean(ai.cfg && ai.cfg.ready);
+      aiSetStatus(); aiNote();
+      const m = $('aiModal');
+      if (m) { m.classList.remove('show'); m.setAttribute('aria-hidden', 'true'); }
+      aiPush('assistant', ai.ready
+        ? 'تنظیم شد ✅ حالا با هوش زبانی کامل صحبت می‌کنم (' + (ai.cfg.providerLabel || '') + ' · ' + (ai.cfg.model || '') + ').'
+        : 'ذخیره شد، ولی کلید معتبری نیست؛ فعلاً در حالت آفلاین کار می‌کنم.', { chips: ['آزمون اتصال'] });
+    } catch (e) {
+      if ($('aiModalErr')) $('aiModalErr').textContent = 'خطا در ذخیره: ' + e.message;
+    }
+  }
+
+  /* ---------- رویدادها ---------- */
+  if ($('aiFab')) $('aiFab').addEventListener('click', () => aiOpenPanel(!ai.open));
+  if ($('aiCloseBtn')) $('aiCloseBtn').addEventListener('click', () => aiOpenPanel(false));
+  if ($('aiBackdrop')) $('aiBackdrop').addEventListener('click', () => aiOpenPanel(false));
+  if ($('aiSend')) $('aiSend').addEventListener('click', () => aiSend($('aiInput') && $('aiInput').value));
+  if ($('aiInput')) {
+    const ta = $('aiInput');
+    ta.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); aiSend(ta.value); }
+    });
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+    });
+  }
+  if ($('aiBody')) {
+    $('aiBody').addEventListener('click', (ev) => {
+      const chip = ev.target.closest && ev.target.closest('[data-chip]');
+      if (chip) { aiSend(chip.getAttribute('data-chip')); return; }
+      const keyLink = ev.target.closest && ev.target.closest('[data-key-url]');
+      if (keyLink) { ev.preventDefault(); try { window.open(keyLink.getAttribute('data-key-url')); } catch (e) { /* بی‌صدا */ } }
+    });
+  }
+  if ($('aiClearBtn')) $('aiClearBtn').addEventListener('click', () => {
+    ai.history = [];
+    try { localStorage.removeItem('reval.ai.history'); } catch (e) { /* بی‌صدا */ }
+    const op = AIBrain && AIBrain.opening ? AIBrain.opening(aiCtx) : { text: 'سلام!', chips: [] };
+    aiPush('assistant', op.text, { chips: op.chips });
+  });
+  if ($('aiSettingsBtn')) $('aiSettingsBtn').addEventListener('click', aiOpenSettings);
+  if ($('aiNoteLink')) $('aiNoteLink').addEventListener('click', aiOpenSettings);
+  if ($('aiModalClose')) $('aiModalClose').addEventListener('click', () => {
+    const m = $('aiModal'); if (m) { m.classList.remove('show'); m.setAttribute('aria-hidden', 'true'); }
+  });
+  if ($('aiProvider')) $('aiProvider').addEventListener('change', aiSyncModels);
+  if ($('aiKeyClear')) $('aiKeyClear').addEventListener('click', async () => {
+    if (!aiApi) return;
+    const res = await aiApi.saveConfig({ clearKey: true });
+    if (res && res.ok) {
+      ai.cfg = Object.assign({}, ai.cfg || {}, res.config || {});
+      ai.ready = false; aiSetStatus(); aiNote();
+      if ($('aiKeyHint')) $('aiKeyHint').textContent = 'کلید پاک شد. دستیار در حالت آفلاین کار می‌کند.';
+    }
+  });
+  if ($('aiSaveBtn')) $('aiSaveBtn').addEventListener('click', aiSaveSettings);
+  if ($('aiTestBtn')) $('aiTestBtn').addEventListener('click', async () => {
+    if (!aiApi) return;
+    const el = $('aiModalErr');
+    if (el) { el.style.color = '#334155'; el.textContent = 'در حال آزمون…'; }
+    const r = await aiApi.test();
+    if (el) {
+      el.style.color = r && r.ok ? '#15803d' : '#b91c1c';
+      el.textContent = r && r.ok
+        ? '✅ اتصال برقرار است (' + (r.model || '') + ' · ' + (r.ms || 0) + ' میلی‌ثانیه)'
+        : '❌ ' + ((r && r.error) || 'اتصال برقرار نشد');
+    }
+  });
+
+  /* میان‌بر: Ctrl/⌘ + I */
+  document.addEventListener('keydown', (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'i' || ev.key === 'I')) {
+      ev.preventDefault();
+      aiOpenPanel(!ai.open);
+    }
+  });
+
+  /* ابزار تست/اسکرین‌شات */
+  try {
+    window.__revalAI = {
+      open: () => aiOpenPanel(true),
+      close: () => aiOpenPanel(false),
+      send: (t) => aiSend(t),
+      ask: (t) => aiOfflineReply(t),
+      history: () => ai.history,
+      ready: () => ai.ready,
+      settings: () => aiOpenSettings(),
+      state: () => ({ open: ai.open, ready: ai.ready, cfg: ai.cfg, count: ai.history.length }),
+      ctx: aiCtx,
+      /* فقط برای تست: جایگزینی کلاینت مدل با یک نمونهٔ ساختگی */
+      __setApi: (fake) => { aiApi = fake; ai.ready = Boolean(fake); aiSetStatus(); },
+      __push: (role, text, extra) => aiPush(role, text, extra || {}),
+    };
+  } catch (e) { /* بی‌صدا */ }
+
+  aiLoadConfig().then(() => {
+    if (aiLoadHistory()) aiRender();
+  });
+
   restore().then(() => {
     try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }
     try { maybeShowChangelog(); } catch (e) { /* بی‌صدا */ }

@@ -10,6 +10,14 @@ contextBridge.exposeInMainWorld('revalPlanner', {
   close: () => ipcRenderer.invoke('planner:close'),
   info: () => ipcRenderer.invoke('reval:info'),
 
+  /* ---- هوش مصنوعی: مشاور گفت‌وگویی ---- */
+  ai: {
+    config: () => ipcRenderer.invoke('ai:config'),
+    saveConfig: (patch) => ipcRenderer.invoke('ai:save-config', patch),
+    test: () => ipcRenderer.invoke('ai:test'),
+    chat: (payload) => ipcRenderer.invoke('ai:chat', payload),
+  },
+
   /* ---- به‌روزرسانی خودکار ---- */
   updates: {
     state: () => ipcRenderer.invoke('update:state'),

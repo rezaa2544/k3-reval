@@ -923,6 +923,12 @@
     return { blocks, unplacedMinutes: sum(pool.map((t) => t.minutesLeft || 0)), unplacedTasks };
   }
 
+  /** کفِ زمانِ یک نوع کار — هیچ کاری کوتاه‌تر از این ساخته نمی‌شود،
+      چون در چیدمان هرگز جا نمی‌گیرد و فقط «زمانِ مرده» تولید می‌کند. */
+  function minChunkOf(kind) {
+    return (DEFAULTS.MIN_CHUNK[kind] != null ? DEFAULTS.MIN_CHUNK[kind] : DEFAULTS.MIN_BLOCK);
+  }
+
   /** انتخاب تسک بدون اعمال جریمهٔ سخت interleaving (برای وقتی گزینهٔ دیگری نیست) */
   function bestFallback(cfg, pool, state) {
     let best = null;
@@ -1656,7 +1662,8 @@
         tasks.push({
           kind: 'analysis', subjectId: 'MOCK', subjectName: 'تحلیل آزمون ' + todaysMocks[0].title,
           topicLabel: 'دفتر اشتباهات',
-          minutesLeft: Math.min(cfg.MOCK_ANALYSIS_MIN, Math.max(20, load.minutes * 0.3)), priority: 470,
+          minutesLeft: Math.round(Math.max(minChunkOf('analysis'),
+            Math.min(cfg.MOCK_ANALYSIS_MIN, Math.max(20, load.minutes * 0.3)))), priority: 470,
         });
       }
 
@@ -1672,8 +1679,9 @@
         tasks.push({
           kind: 'cumreview', subjectId: 'CUM', subjectName: 'مرور تجمعی هفته',
           topicLabel: labels.length ? labels.join(' / ') : 'فصل‌های خوانده‌شدهٔ قبلی',
-          minutesLeft: Math.min(cfg.CUM_REVIEW_MIN || DEFAULTS.CUM_REVIEW_MIN,
-            Math.max(20, Math.round(load.minutes * (learnBacklog > 60 ? 0.12 : 0.25)))),
+          minutesLeft: Math.round(Math.max(minChunkOf('cumreview'),
+            Math.min(cfg.CUM_REVIEW_MIN || DEFAULTS.CUM_REVIEW_MIN,
+              Math.max(20, Math.round(load.minutes * (learnBacklog > 60 ? 0.12 : 0.25)))))),
           priority: 340,
         });
       }
@@ -1759,7 +1767,8 @@
         const examEv = busy.find((b) => b.type === 'exam');
         tasks.push({
           kind: 'analysis', subjectId: 'EXAM', subjectName: 'تحلیل آزمون آزمایشی',
-          topicLabel: 'دفتر اشتباهات', minutesLeft: Math.min(cfg.POST_EXAM_ANALYSIS_MIN, 40), priority: 460,
+          topicLabel: 'دفتر اشتباهات',
+          minutesLeft: Math.round(Math.max(minChunkOf('analysis'), Math.min(cfg.POST_EXAM_ANALYSIS_MIN, 40))), priority: 460,
           afterMin: (examEv ? examEv.end : 0) + (cfg.CLASS_GAP_MIN || DEFAULTS.CLASS_GAP_MIN),
         });
       }
@@ -1924,12 +1933,12 @@
           (backlogRatio > 0.7 ? 0.75 : 1));
       if (!isFinalExam && !noNewLearning) {
         addLearnChunks(Math.max(45, load.minutes * learnBudgetRatio - testReserve));
-        yesterdayLearned = tasks
-          .filter((t) => t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost')
-          .map((t) => t.topic);
-      } else {
-        yesterdayLearned = [];
       }
+      /* «مرور ۲۴ساعته» فقط برای فصل‌هایی که واقعاً امروز خوانده می‌شوند ساخته می‌شود.
+         این فهرست پایین‌تر — بعد از چیده‌شدنِ بلوک‌ها — از بلوک‌های واقعی پر می‌شود.
+         (پیش از این از تسک‌های «ساخته‌شده» پر می‌شد؛ اگر بلوک جا نمی‌شد، فردا از
+         فصلی که هرگز خوانده نشده «مرور» می‌خواست.) */
+      yesterdayLearned = [];
 
       /* ---- ۷) پر کردن ظرفیت باقی‌مانده با تمرین درهم ---- */
       const plannedSoFar = sum(tasks.map((t) => t.minutesLeft));
@@ -2023,9 +2032,13 @@
           .slice()
           /* ابتدا مرور/آماده‌سازی کوتاه می‌شود؛ «تست روزانه» آخرین چیزی است که قربانی می‌شود */
           .sort((a, b) => {
-            const pa = a.kind === 'practice' ? 1 : 0;
-            const pb = b.kind === 'practice' ? 1 : 0;
-            if (pa !== pb) return pa - pb;
+            /* ترتیبِ قربانی: اول «تحلیل آزمون» و «جمع‌بندی» (قابل انتقال به روز بعد)،
+               بعد تستِ روزانه، و در آخر مرورهای کوتاه و ارزشمند (۲۴ساعته/فاصله‌دار)
+               که ستون فقراتِ حافظه‌اند. */
+            const rank = (t) => (t.kind === 'practice' ? 3 : (t.kind === 'warmup' || t.kind === 'review') ? 5 : t.kind === 'review' ? 4 : 2);
+            const ra = rank(a);
+            const rb = rank(b);
+            if (ra !== rb) return ra - rb;
             return (a.priority || 0) - (b.priority || 0);
           })
           .forEach((t) => {
@@ -2111,7 +2124,10 @@
          استخر تست فقط از همین‌ها انتخاب می‌کند تا هیچ فصلی پیش از خواندن، تست نگیرد. */
       placed.blocks.forEach((b) => {
         const t = b.task;
-        if (t && t.topic && (t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost')) t.topic.learnStarted = true;
+        if (t && t.topic && (t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost')) {
+          t.topic.learnStarted = true;
+          if (yesterdayLearned.indexOf(t.topic) === -1) yesterdayLearned.push(t.topic);
+        }
       });
       const allBlocks = placed.blocks.concat(examBlocks).sort((a, b) => a.start - b.start);
 
@@ -2702,7 +2718,7 @@
 
     return {
       meta: {
-        version: '2.7.0', createdAt: new Date().toISOString(),
+        version: '2.8.0', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,

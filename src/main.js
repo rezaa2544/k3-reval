@@ -22,6 +22,7 @@ const { spawn } = require('child_process');
 const updaterCore = require('./updater.js');
 const zipCore = require('./zip.js');
 const codePatchCore = require('./code-patch.js');
+const aiLlm = require('./ai-llm.js');
 
 const APP_NAME = 'روال | Reval';
 const HOME_URL = 'https://revaledu.ir/?view=dashboard';
@@ -870,6 +871,33 @@ if (!gotLock) {
   });
 
   /* ---- IPC: مشاور هوشمند ---- */
+  /* ---------------- هوش مصنوعی (گفت‌وگو با مشاور) ----------------
+     کلید API فقط در فرایند اصلی خوانده/نوشته می‌شود و هرگز به صفحه برنمی‌گردد. */
+  const AI_DIR = () => app.getPath('userData');
+
+  ipcMain.handle('ai:config', () => ({
+    ...aiLlm.publicConfig(AI_DIR()),
+    providers: aiLlm.providersPublic(),
+  }));
+
+  ipcMain.handle('ai:save-config', (_e, patch) => {
+    try {
+      const p = Object.assign({}, patch || {});
+      if (p.clearKey) { p.key = ''; delete p.clearKey; }
+      aiLlm.writeConfig(AI_DIR(), p);
+      return { ok: true, config: aiLlm.publicConfig(AI_DIR()) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('ai:test', async () => aiLlm.test(AI_DIR()));
+
+  ipcMain.handle('ai:chat', async (_e, payload) => {
+    const res = await aiLlm.chat(AI_DIR(), payload || {});
+    return res;
+  });
+
   ipcMain.handle('planner:load-state', () => {
     try {
       return JSON.parse(fs.readFileSync(PLANNER_STATE(), 'utf8'));
