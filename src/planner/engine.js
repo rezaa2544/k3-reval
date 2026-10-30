@@ -1457,7 +1457,8 @@
         });
         continue;
       }
-      const lightFactor = off && off.kind === 'light' ? (cfg.LIGHT_DAY_RATIO || DEFAULTS.LIGHT_DAY_RATIO) : 1;
+      const isLightDay = !!(off && off.kind === 'light');
+      const lightFactor = isLightDay ? (cfg.LIGHT_DAY_RATIO || DEFAULTS.LIGHT_DAY_RATIO) : 1;
 
       const busy = busyEventsFor(cfg, date, dayIndex);
       const segments = freeSegments(cfg, date, busy);
@@ -2211,7 +2212,12 @@
         studyMinutes: dayMinutes,
         plannedMinutes: dayMinutes,
         blocks: outBlocks,
-        note: dayNote({ isFinalExam, hasManualExamToday, hasClassToday, preExam, reviewOnly, finalPhase, isDeload: load.isDeload, chronotype: cfg.student.chronotype, hasBlocks: outBlocks.length > 0 }),
+        isLightDay: isLightDay,
+        note: dayNote({
+          isFinalExam, hasManualExamToday, hasClassToday, preExam, reviewOnly, finalPhase,
+          isDeload: load.isDeload, chronotype: cfg.student.chronotype, hasBlocks: outBlocks.length > 0,
+          isLightDay: isLightDay, lightNote: (off && off.note) || '', lightRatio: lightFactor,
+        }),
       });
 
       // ثبت تثبیت‌های جا نشده برای روز بعد
@@ -2733,7 +2739,7 @@
 
     return {
       meta: {
-        version: '2.8.9', createdAt: new Date().toISOString(),
+        version: '2.8.10', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
@@ -2778,6 +2784,13 @@
 
   function dayNote(i) {
     if (i.isFinalExam) return 'روز کنکور — موفق باشی! خواب کافی شب قبل، مهم‌تر از هر مرور دیگری است.';
+    /* ۲.۸.۱۰: «روز سبک» باید خودش را توضیح بدهد — قبلاً یادداشتش خالی بود و
+       کاربر نمی‌دانست چرا امروز بارش نصف شده. */
+    if (i.isLightDay) {
+      const pct = Math.round((i.lightRatio || DEFAULTS.LIGHT_DAY_RATIO) * 100);
+      return 'روز سبک' + (i.lightNote ? ' (' + i.lightNote + ')' : '') +
+        ': بار امروز عمداً ' + toFa(pct) + '٪ روز عادی است و کارِ جامانده به روزهای بعد می‌رود.';
+    }
     if (i.hasManualExamToday) return 'روز آزمون آزمایشی: بعد از آزمون، بلوک تحلیل خطا را انجام بده — نمره بدون تحلیل، هدر رفته است.';
     if (i.preExam && i.preExam.days === 1) return 'مرور نهایی: امروز یادگیری جدید نداریم؛ فقط خلاصه‌ها، دفتر اشتباهات و خواب زودتر.';
     if (i.preExam && i.preExam.level === 1) return 'پیش‌آزمون' + (i.preExam.exam ? ' «' + i.preExam.exam.title + '»' : '') + ': فقط مرور مباحث آزمون، بدون مبحث جدید.';

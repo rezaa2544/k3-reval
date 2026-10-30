@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.9-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.9/Reval-Setup-2.8.9.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.9-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.9)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.10-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.10/Reval-Setup-2.8.10.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.10-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.10)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,39 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.9.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.9/Reval-Setup-2.8.9.exe)
+### [💾 Reval-Setup-2.8.10.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.10/Reval-Setup-2.8.10.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۹**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۰**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.9/Reval-Setup-2.8.9.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.10/Reval-Setup-2.8.10.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `c6aa4aa01676186cedb0c1856bf6e42c71ce63898121a0dbdf7125bfba12e882` |
-| **حجم دقیق** | ۸۰٬۱۴۸٬۲۱۳ بایت |
+| **SHA-256** | `4c78e0ea0cede9d729e698df079ebf93c41443f2eedd03f9e9c195c9d2b971b7` |
+| **حجم دقیق** | ۸۰٬۱۴۸٬۶۱۸ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.9.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.9.zip` — ۵۵۶ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.10.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.10.zip` — ۵۵۷ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۱۰ — «روز سبک» توضیح می‌دهد چرا سبک است
+
+| | |
+|---|---|
+| **مشکل** | روز «سبک» در قدم ۳ بارش را کم می‌کرد ولی یادداشتش خالی بود — معلوم نبود چرا |
+| **حالا** | «روز سبک (مهمانی): بار امروز عمداً ۵۵٪ روز عادی است و کارِ جامانده به روزهای بعد می‌رود.» |
+| **آزمون** | `sim-students` از ۱۴۰ به **۱۴۵** بررسی رسید (چهار بررسی تازه برای همین) |
+| **توسعه** | `npm test` · `npm run test:engine` · `npm run test:ui` · `npm run build:win` |
+
+جزئیات: [یادداشت انتشار ۲.۸.۱۰](docs/release-notes-2.8.10.md)
 
 ---
 

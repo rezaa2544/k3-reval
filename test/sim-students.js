@@ -360,6 +360,29 @@ console.log('\n▌ رگرسیون: مرور نهاییِ روز کنکور و آ
     restWithMock.length + ' روز');
 }
 
+/* ═══════════════ روز سبک / تعطیل: باید خودش را توضیح بدهد ═══════════════ */
+console.log('\n▌ روز سبک و تعطیل کامل');
+{
+  const lp = engine.createPlan(base('tajrobi', 'دوازدهم', {
+    availability: { sat: 5, sun: 5, mon: 5, tue: 5, wed: 5, thu: 5, fri: 5 },
+    restDay: 7, weeklyMock: true, finals: { enabled: false },
+    offDates: [
+      { date: '2026-11-02', kind: 'light', note: 'مهمانی' },
+      { date: '2026-11-03', kind: 'halt', note: 'سفر' },
+    ],
+  }));
+  const day = (d) => lp.days.filter((x) => x.date === d)[0];
+  const normal = day('2026-11-01'); const light = day('2026-11-02'); const halt = day('2026-11-03');
+  ok(light.plannedMinutes > 0 && light.plannedMinutes < normal.plannedMinutes,
+    '[روز سبک] بار روز سبک کمتر از روز عادی است', light.plannedMinutes + ' < ' + normal.plannedMinutes);
+  ok(/روز سبک/.test(light.note) && /مهمانی/.test(light.note),
+    '[روز سبک] روز خودش را توضیح می‌دهد (نه یادداشت خالی)', light.note);
+  ok(/٪/.test(light.note), '[روز سبک] درصد بار روز را می‌گوید', light.note);
+  ok(halt.plannedMinutes === 0 && /تعطیل کامل/.test(halt.note),
+    '[تعطیل] روز تعطیل خالی است و دلیلش نوشته شده', halt.note);
+  ok(!!normal.note || normal.note === '', '[عادی] روز عادی یادداشت نامربوط ندارد', JSON.stringify(normal.note));
+}
+
 /* ═══════════════ قطعیت و پایداری ═══════════════ */
 console.log('\n▌ قطعیت: دو بار ساخت با همان ورودی');
 {
