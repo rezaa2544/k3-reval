@@ -66,7 +66,12 @@ ok(auto.summary.timeMode === 'auto', 'برنامه حالت خودکار را گ
 ok(ai && ai.chosenHours > 0 && ai.chosenHours <= 8, 'ساعت انتخابی داخل سقف است (' + ai.chosenHours + ')');
 ok(auto.summary.coverage.coverageRatio >= 95,
   'با ساعتِ انتخابی، پوشش هدف محقق می‌شود (' + auto.summary.coverage.coverageRatio + '٪)');
-ok(ai.achieved === true, 'پرچم «رسید به هدف» درست است');
+/* از نسخهٔ ۲.۷ زمانِ لازم هر فصل واقع‌گرایانه‌تر شده؛ اگر سقف کاربر اجازه ندهد،
+   پرچم «رسید به هدف» به‌درستی false است — و برنامه باید راه‌حل بدهد. */
+ok(ai.achieved === (auto.summary.coverage.coverageRatio >= 98),
+  'پرچم «رسید به هدف» با پوشش واقعی هم‌خوان است (پوشش ' + auto.summary.coverage.coverageRatio + '٪)');
+ok(!ai.achieved ? (auto.summary.coverage.diagnostics || []).some((d) => d.id === 'auto-capped' && /سقف|ساعت/.test(d.fix || ''))
+  : true, 'اگر سقف مانع شد، هشدار با راه‌حل داده می‌شود');
 ok(ai.builds >= 2, 'برای پیدا کردن ساعت، چند ساخت انجام شده (' + ai.builds + ')');
 
 const tight = engine.createPlan(cfg({

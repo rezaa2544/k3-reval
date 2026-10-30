@@ -101,7 +101,12 @@ ok(ch.every((c) => c.progress >= 0 && c.progress <= 100), 'درصد پیشرفت
 ok(ch.every((c) => c.plannedMinutes <= c.needMinutes), 'زمان چیده‌شدهٔ فصل از نیاز واقعی بیشتر نشده');
 ok(ch.every((c) => c.testsDone <= c.testsNeed), 'تست انجام‌شدهٔ هر فصل از سقف نیاز رد نشده');
 ok(ch.every((c) => typeof c.status === 'string' && c.status.length), 'هر فصل وضعیت متنی دارد');
-ok(ch.filter((c) => c.mode === 'learn').every((c) => c.learnedOn !== null), 'همهٔ فصل‌های یادگیری‌شده تاریخ یادگیری دارند');
+/* از ۲.۷: فصلی که در افق برنامه جا نشده، صادقانه «ناتمام» می‌ماند؛
+   ولی هر فصلی که تاریخ یادگیری دارد باید واقعاً زمان گرفته باشد. */
+ok(ch.filter((c) => c.learnedOn !== null).every((c) => c.plannedMinutes > 0),
+  'هر فصلی که تاریخ یادگیری دارد، زمان واقعی گرفته است');
+ok(ch.filter((c) => c.mode === 'learn' && c.learnedOn === null).every((c) => c.remainingMinutes > 0),
+  'فصل‌های ناتمام، نیازِ باقی‌ماندهٔ ثبت‌شده دارند (بدون بستنِ الکی)');
 ok(ch.some((c) => c.nextReview !== null), 'برای فصل‌ها مرور بعدی ثبت شده');
 ok(ch.every((c) => c.remainingMinutes >= 0), 'باقی‌ماندهٔ فصل‌ها منفی نیست');
 const bookSum = {};

@@ -59,5 +59,22 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('dayView').scrollIntoView({block:'start'}), true`);
   await wait(500);
   await shot('ui-39-plan-goals.png');
+
+  /* ۵) پنجرهٔ «چه چیزی در این به‌روزرسانی عوض شد» (پس از به‌روزرسانی خودکار) */
+  await js(`document.getElementById('verChip') && document.getElementById('verChip').scrollIntoView({block:'center'}), true`);
+  const clDir = await js(`(function(){const e=window.__revalTest.changelogEntries('2.6.0'); window.__revalTest.showChangelog('2.6.0'); return e;})()`);
+  console.log('changelog entries →', JSON.stringify(clDir));
+  await wait(700);
+  await shot('ui-40-changelog-modal.png');
+  const closed = await js(`(function(){document.getElementById('clOk').click(); return !document.getElementById('clModal').classList.contains('show');})()`);
+  console.log('changelog closed →', closed);
+
+  /* ۶) نوار اسکرول در سمت راست */
+  await js(`document.querySelector('.nav[data-view="plan"]').click(), true`);
+  await wait(700);
+  const side = await js('window.__revalTest.scrollSide()');
+  console.log('scroll side →', JSON.stringify(side));
+  await shot('ui-41-scrollbar-right.png');
+
   win.destroy(); app.quit();
 });

@@ -1405,6 +1405,20 @@
         const i = firstTaskIndex(day);
         return (i == null || i < 0) ? null : day.date + '#' + i;
       },
+      /* v2.7: نمایش پنجرهٔ تغییرات برای اسکرین‌شات/تست */
+      showChangelog: (fromVersion) => showChangelog(CL.since(fromVersion || '2.6.0'), { title: 'برنامه به‌روزرسانی شد' }),
+      changelogEntries: (fromVersion) => CL.since(fromVersion || null).map((e) => e.version),
+      seenVersion: () => state.seenVersion || null,
+      /* ارتفاعِ محتوای صفحه و جای نوارِ اسکرول (برای تستِ «نوار سمت راست») */
+      scrollSide: () => {
+        const el = $('mainScroll');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        const sbw = el.offsetWidth - el.clientWidth;      // پهنای نوار اسکرول
+        const cs = getComputedStyle(el);
+        return { dir: cs.direction, scrollbarWidth: sbw, canScroll: el.scrollHeight > el.clientHeight + 2,
+          right: Math.round(window.innerWidth - r.right), gutterOnRight: sbw > 0 };
+      },
     };
   } catch (e) { /* بی‌صدا */ }
 
@@ -3816,6 +3830,9 @@
         routines: state.routines,
         routinePinned: state.routinePinned,
         wakeTime: state.wakeTime,
+        /* v2.7: آخرین نسخه‌ای که کاربر تغییراتش را دیده است */
+        seenVersion: state.seenVersion || null,
+        appVersion: state.appVersion || null,
       });
     } catch (e) { /* بی‌صدا */ }
   }
@@ -3838,6 +3855,8 @@
             if ($('routinePinned')) $('routinePinned').checked = data.routinePinned;
           }
           if (data.wakeTime) state.wakeTime = data.wakeTime;
+          if (data.seenVersion) state.seenVersion = data.seenVersion;
+          if (data.appVersion) state.appVersion = data.appVersion;
           if (data.plan) {
             state.plan = data.plan;
             renderPlan();
@@ -3848,6 +3867,111 @@
       } catch (e) { /* ادامه با پیش‌فرض */ }
     }
     applyConfigToForm(defaultConfig());
+  }
+
+  /* ══════════ v2.7: «چه چیزی در این به‌روزرسانی عوض شد» ══════════
+     متنِ تغییرات همراهِ خودِ نسخه می‌آید (src/changelog.js). بعد از هر
+     به‌روزرسانی — چه وصلهٔ کوچک و چه نصب کامل — یک بار به کاربر نشان داده
+     می‌شود و با دکمهٔ «خواندم، ببند» بسته می‌شود. */
+  const CL = window.RevalChangelog || null;
+
+  function clTag(kind) {
+    const m = { engine: ['engine', 'موتور برنامه‌ریزی'], ui: ['ui', 'رابط کاربری'], fix: ['fix', 'رفع اشکال'] };
+    const t = m[kind] || ['ui', 'بهبود'];
+    return '<span class="cl-tag ' + t[0] + '">' + t[1] + '</span>';
+  }
+
+  function clPersistSeen(ver) {
+    state.seenVersion = ver;
+    try { persist(); } catch (e) { /* بی‌صدا */ }
+  }
+
+  function showChangelog(entries, opts) {
+    const o = opts || {};
+    const box = $('clModal');
+    if (!box || !CL) return;
+    const list = (entries && entries.length) ? entries : [].concat(CL.latest());
+    const top = list[0];
+    const brand = (updateSnap && updateSnap.current) || (state.appVersion || '');
+    $('clTitle').textContent = o.title || 'برنامه به‌روزرسانی شد';
+    $('clSub').innerHTML = 'نسخهٔ فعلی <b>' + upVer(brand || (top && top.version) || '') + '</b>' +
+      (list.length > 1 ? ' · ' + upFa(list.length) + ' نسخه تغییر کرد' : '') +
+      ' · ' + ((top && top.date) || '');
+    const badgeSvg = top && top.kind === 'fix'
+      ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#15803d" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1 5 5l-8.6 8.6-4-1-1-4z"/><path d="m3 21 4-4"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#1d4ed8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 16.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>';
+    $('clBadge').innerHTML = badgeSvg;
+    $('clBody').innerHTML = list.map((e) => (
+      '<div class="cl-ver">' +
+        '<div class="cl-ver-top">' + clTag(e.kind) +
+          '<b>نسخهٔ ' + upVer(e.version) + '</b>' +
+          '<span class="date">' + esc(e.date || '') + '</span>' +
+        '</div>' +
+        (e.title ? '<div style="font-size:12.5px;font-weight:600;margin-bottom:6px;line-height:1.8">' + esc(e.title) + '</div>' : '') +
+        '<ul>' + (e.items || []).map((it) => '<li>' + esc(it) + '</li>').join('') + '</ul>' +
+      '</div>'
+    )).join('');
+    $('clHint').textContent = o.hint || 'این پیام فقط یک بار برای هر به‌روزرسانی نشان داده می‌شود.';
+    box.classList.add('show');
+    box.setAttribute('aria-hidden', 'false');
+    const ok = $('clOk');
+    const close = () => {
+      box.classList.remove('show');
+      box.setAttribute('aria-hidden', 'true');
+      clPersistSeen((top && top.version) || state.appVersion || '');
+      if (typeof o.onClose === 'function') o.onClose();
+    };
+    ok.onclick = close;
+    box.onclick = (ev) => { if (ev.target === box) close(); };
+    /* Esc هم ببندد، ولی «خواندم» ثبت شود */
+    box.dataset.mode = 'changelog';
+    if (o.autoCloseAfter) setTimeout(() => { if (box.classList.contains('show')) close(); }, o.autoCloseAfter);
+    return true;
+  }
+
+  /** پس از راه‌اندازی: اگر نسخهٔ فعلی از نسخهٔ دیده‌شده جدیدتر است، تغییرات را نشان بده */
+  function maybeShowChangelog() {
+    if (!CL) return false;
+    if (!api || !upd) return false;
+    const run = async () => {
+      let snap = null;
+      try { snap = await upd.state(); } catch (e) { snap = null; }
+      const cur = String((snap && snap.current) || state.appVersion || '').replace(/^v/i, '');
+      if (!cur) return;
+      state.appVersion = cur;
+      const seen = String(state.seenVersion || '').replace(/^v/i, '');
+      if (seen && CL.compare(cur, seen) <= 0) return;      // قبلاً دیده است
+      if (!seen) {
+        /* نسخهٔ قبلی ثبت نشده (نصب تازه یا اولین اجرای این نسخه):
+           فقط تغییرات همین نسخه را یک بار نشان بده. */
+        const returning = Boolean(state.config || state.plan);
+        showChangelog([].concat(CL.latest()), {
+          title: returning ? 'برنامه به‌روزرسانی شد' : 'به روال خوش آمدی',
+          hint: returning ? undefined : 'تازه‌ترین تغییرات این نسخه را ببین.',
+        });
+        return;
+      }
+      const entries = CL.since(seen);
+      if (!entries.length) return;
+      showChangelog(entries, { title: 'برنامه به‌روزرسانی شد' });
+    };
+    run();
+    return true;
+  }
+
+  if (api && api.updates) {
+    try {
+      api.updates.onEvent((payload) => {
+        /* پس از نصبِ وصله/به‌روزرسانی، تغییرات را نشان بده */
+        if (!payload) return;
+        const st = String(payload.status || '');
+        if (st === 'installed' || st === 'applied' || st === 'restart' || st === 'patch-applied') {
+          const v = String(payload.version || '').replace(/^v/i, '');
+          const entries = v ? CL.since((state.seenVersion || ''), CL.CHANGELOG).filter((e) => CL.compare(e.version, v) <= 0) : CL.since(state.seenVersion);
+          showChangelog(entries.length ? entries : [].concat(CL.latest()), { title: 'برنامه به‌روزرسانی شد' });
+        }
+      });
+    } catch (e) { /* بی‌صدا */ }
   }
 
   /* ---------------- به‌روزرسانی خودکار ---------------- */
@@ -4114,6 +4238,7 @@
   }
   restore().then(() => {
     try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }
+    try { maybeShowChangelog(); } catch (e) { /* بی‌صدا */ }
     try { reconcileSessions(); } catch (e) { /* بی‌صدا */ }
     try { renderHome(); } catch (e) { /* بی‌صدا */ }
   });
@@ -4121,6 +4246,7 @@
   /* بستن منوها با Esc یا کلیک بیرون */
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Escape') return;
+    if ($('clModal') && $('clModal').classList.contains('show')) { if ($('clOk')) $('clOk').click(); return; }
     if ($('emModal') && $('emModal').classList.contains('show')) { closeEmergencyModal(); return; }
     if ($('modal') && $('modal').classList.contains('show')) closeModal(false);
   });

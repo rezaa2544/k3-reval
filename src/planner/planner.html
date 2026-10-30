@@ -443,9 +443,23 @@
     transition:.25s; z-index:99; box-shadow:0 18px 40px rgba(15,23,42,.3);
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
-  ::-webkit-scrollbar{width:10px; height:10px}
-  ::-webkit-scrollbar-thumb{background:#cbd5e1; border-radius:999px}
+  /* ══════════ v2.7: نوارِ اسکرول در سمت راست ══════════
+     در چیدمانِ راست‌به‌چپ، کروم نوارِ عمودی را سمتِ چپ می‌گذارد. برای اینکه نوار
+     سمتِ راست باشد، ظرفِ اسکرول را LTR می‌کنیم و همهٔ فرزندانش را دوباره RTL
+     می‌کنیم؛ متن و چیدمان دقیقاً راست‌به‌چپ می‌ماند و فقط نوار جابه‌جا می‌شود. */
+  .sb-right{direction:ltr !important}
+  .sb-right > *{direction:rtl}
+  /* ظرف‌های اسکرولِ عمودی: نوار سمتِ راست می‌نشیند */
+  main, aside, .modal-card, .mbox, .view{direction:ltr}
+  main > *, aside > *, .modal-card > *, .mbox > *, .view > *{direction:rtl}
+  ::-webkit-scrollbar{width:11px; height:11px}
+  ::-webkit-scrollbar-thumb{
+    background:#c7d2e0; border-radius:999px; border:3px solid transparent;
+    background-clip:content-box; min-height:44px;
+  }
+  ::-webkit-scrollbar-thumb:hover{background:#9fb0c6; background-clip:content-box; border:3px solid transparent}
   ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-corner{background:transparent}
 
   /* ---------- ریسپانسیو: بدون نوار کنار ---------- */
   /* ---------- دکمهٔ منو برای عرض کم ---------- */
@@ -1403,6 +1417,35 @@
   .ci-low{background:#f8fafc; color:#64748b; border-color:#e2e8f0}
   .chk{display:inline-flex; align-items:center; gap:6px; font-size:11.5px}
 
+  /* ══════════ v2.7: پنجرهٔ «چه چیزی عوض شد» پس از به‌روزرسانی ══════════ */
+  #clModal .modal-card{width:min(620px,100%); padding:0; overflow:hidden; direction:rtl}
+  .cl-head{
+    display:flex; align-items:flex-start; gap:12px; padding:16px 18px 13px;
+    border-bottom:1px solid var(--line); background:linear-gradient(180deg,#f8fafc,#fff);
+  }
+  .cl-badge{
+    flex:0 0 auto; width:38px; height:38px; border-radius:12px; display:flex;
+    align-items:center; justify-content:center; font-size:18px;
+    background:#eef6ff; border:1px solid #d7e8ff;
+  }
+  .cl-head h3{margin:0; font-size:14.5px; line-height:1.6}
+  .cl-head .sub{font-size:11px; color:var(--faint); margin-top:3px}
+  .cl-body{max-height:min(56vh,430px); overflow-y:auto; padding:14px 18px 4px; direction:ltr}
+  .cl-body > *{direction:rtl}
+  .cl-ver{border:1px solid var(--line); border-radius:12px; padding:12px 13px; margin-bottom:11px; background:#fff}
+  .cl-ver-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:7px}
+  .cl-tag{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; background:#f1f5f9; color:#334155}
+  .cl-tag.engine{background:#eef2ff; color:#3730a3}
+  .cl-tag.ui{background:#eff6ff; color:#1d4ed8}
+  .cl-tag.fix{background:#f0fdf4; color:#15803d}
+  .cl-ver-top b{font-size:13px}
+  .cl-ver-top .date{font-size:10.5px; color:var(--faint); margin-inline-start:auto}
+  .cl-ver ul{margin:0; padding-inline-start:18px}
+  .cl-ver li{font-size:12px; line-height:1.95; color:var(--fg2); margin-bottom:2px}
+  .cl-foot{display:flex; align-items:center; gap:10px; padding:12px 18px 15px; border-top:1px solid var(--line); background:#fcfdff}
+  .cl-foot .hint{font-size:11px; color:var(--faint); margin-inline-start:auto}
+  .ver-chip.has{animation:pulseChip 1.8s ease-in-out infinite}
+
   /* ══════════ v2.6: منوی شناور، آلارم صوتی، اتمام فصل ══════════ */
   .btn.lg{font-size:14px; padding:12px 20px}
   .modal{position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
@@ -1438,6 +1481,24 @@
   </div>
 </div>
 
+<!-- پنجرهٔ «چه چیزی در این به‌روزرسانی عوض شد» -->
+<div class="modal" id="clModal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="clTitle">
+    <div class="cl-head">
+      <div class="cl-badge" id="clBadge">🎉</div>
+      <div style="min-width:0">
+        <h3 id="clTitle">برنامه به‌روزرسانی شد</h3>
+        <div class="sub" id="clSub">—</div>
+      </div>
+    </div>
+    <div class="cl-body" id="clBody"></div>
+    <div class="cl-foot">
+      <button class="btn primary" id="clOk">خواندم، ببند</button>
+      <span class="hint" id="clHint">این پیام فقط یک بار برای هر به‌روزرسانی نشان داده می‌شود.</span>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="emModal" aria-hidden="true">
   <div class="modal-card" role="dialog" aria-modal="true">
     <h3>ثبت آیتم اضطراری</h3>
@@ -1467,6 +1528,7 @@
 <script src="jalali.js"></script>
 <script src="chapter-weights.js"></script>
 <script src="dayplan.js"></script>
+<script src="changelog.js"></script>
 <script src="engine.js"></script>
 <script src="presets.js"></script>
 <script src="planner.js"></script>

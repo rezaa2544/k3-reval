@@ -87,8 +87,12 @@ const plan = engine.createPlan(baseCfg());
   const avg = (arr) => arr.reduce((a, c) => a + c.needMinutes, 0) / Math.max(1, arr.length);
   ok(avg(heavy) > avg(light) * 1.15,
     'فصل‌های مهم زیست زمان لازم بیشتری می‌گیرند (' + Math.round(avg(heavy)) + ' vs ' + Math.round(avg(light)) + ' دقیقه)');
-  ok(plan.summary.coverage.coverageRatio >= 90,
-    'پوشش فصل‌ها با ضرایب واقعی هم بالای ۹۰٪ می‌ماند (' + plan.summary.coverage.coverageRatio + '٪)');
+  /* ساعت اعلامی این سناریو (~۲۶ ساعت در هفته) با زمانِ واقعیِ لازم برای همهٔ فصل‌ها
+     جور نیست؛ از ۲.۷ انتظار درست این است: یا پوشش بالا، یا هشدارِ صادقانه با راه‌حل. */
+  const cv = plan.summary.coverage;
+  const honest = (cv.diagnostics || []).some((d) => d.id === 'low-capacity' && (d.fix || '').length > 10);
+  ok(cv.coverageRatio >= 90 || honest,
+    'پوشش با ضرایب واقعی یا ≥۹۰٪ است یا صادقانه با راه‌حل هشدار می‌دهد (' + cv.coverageRatio + '٪)');
 }
 
 /* ═══ ۳) ساعت بیداری: پیش‌فرض است، نه اجبار ═══ */
@@ -314,9 +318,9 @@ const plan = engine.createPlan(baseCfg());
 /* ═══ ۱۱) نسخه ═══ */
 {
   const pkg = JSON.parse(read('package.json'));
-  eq(pkg.version, '2.6.0', 'نسخهٔ بسته ۲.۶.۰ است');
+  eq(pkg.version, '2.7.0', 'نسخهٔ بسته ۲.۷.۰ است');
   const eng = read('src/planner/engine.js');
-  ok(/version: '2\.6\.0'/.test(eng), 'نسخهٔ موتور ۲.۶.۰ است');
+  ok(/version: '2\.7\.0'/.test(eng), 'نسخهٔ موتور ۲.۷.۰ است');
 }
 
 console.log('\n✅ ' + n + ' تست نسخهٔ ۲.۵ (شروع روز · توقف/ادامه · اضطراری · اهمیت فصل · آمادگی جدا) پاس شد');

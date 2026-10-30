@@ -220,9 +220,9 @@ const BLOCK = { minutes: 45, start: '09:00', end: '09:45', kind: 'learn', subjec
 /* ═══ ۱۴) نسخه ═══ */
 {
   const pkg = JSON.parse(read('package.json'));
-  eq(pkg.version, '2.6.0', 'نسخهٔ بسته ۲.۶.۰ است');
+  eq(pkg.version, '2.7.0', 'نسخهٔ بسته ۲.۷.۰ است');
   const eng = read('src/planner/engine.js');
-  ok(/version: '2\.6\.0'/.test(eng), 'نسخهٔ موتور ۲.۶.۰ است');
+  ok(/version: '2\.7\.0'/.test(eng), 'نسخهٔ موتور ۲.۷.۰ است');
 }
 
 console.log('\n✅ ' + n + ' تست نسخهٔ ۲.۶ (شروع روز یک‌دکمه‌ای · اضطراری منویی · پایان فصل · آلارم اضافه‌کاری · رنگ زنده/رزرو · اهمیت فصل · فونت) پاس شد');
