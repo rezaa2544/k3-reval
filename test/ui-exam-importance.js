@@ -119,7 +119,13 @@ app.whenReady().then(async () => {
     return q?q.getAttribute('title'):'';})()`);
   check(/ضریب/.test(help) && /بودجه/.test(help), 'راهنمای «؟» روش محاسبه (بودجه × ضریب) را می‌گوید', (help || '').slice(0, 80));
 
-  /* اسکرین‌شات مستندات */
+  /* اسکرین‌شات مستندات — اول هر پنجرهٔ باز (مثل تغییرات) بسته شود */
+  await js(`(function(){
+    const b=[...document.querySelectorAll('button')].find(function(x){return /خودم می‌بندم|بستن|باشه/.test(x.textContent);});
+    if(b) b.click();
+    document.querySelectorAll('.modal-back, .cl-modal, .modal').forEach(function(m){ if(m && m.style) m.style.display='none'; });
+    return true;})()`);
+  await wait(500);
   await js(`(function(){const c=document.getElementById('chapterCard'); if(c&&c.scrollIntoView) c.scrollIntoView({block:'start'}); return true;})()`);
   await wait(600);
   fs.writeFileSync(path.join(__dirname, '..', 'docs', 'screens', 'ui-60-exam-evidence-importance.png'),
