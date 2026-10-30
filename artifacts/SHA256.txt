@@ -1,0 +1,5 @@
+e8a0e1f1d0608ff5ead79b2d50ff9dd71e0c68e411ecc55fc4d28f362e0b70fd  artifacts/Reval-Setup-2.8.15.exe
+08431ed0f9e700f13876ed65a91717847c192362fd53cb1a56f40d5e85a8b4d5  artifacts/Reval-Setup-2.8.15.exe.blockmap
+6d27ae798d2fd589c072a4c92ffb21af0fdcf863d82c1d827f24f86d180fcf64  artifacts/reval-code-2.8.15.zip
+49fe821ca8ca1a94dec2c7f6eab5b27406c62132939ba3b0250306617f84e919  artifacts/reval-code-2.8.15.zip.sha256
+2c8416cc54d375ab6dbe1232dacbd9ac339c103c910c718b21eff3eb1de64403  artifacts/SHA256.txt

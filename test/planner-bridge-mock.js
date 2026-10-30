@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('revalPlanner', {
   },
   saveFile: async () => ({ ok: true }),
   close: async () => ({ ok: true }),
-  info: async () => ({ version: '2.8.13', test: true }),
+  info: async () => ({ version: '2.8.15', test: true }),
   ai: {
     config: async () => ({ configured: false }),
     saveConfig: async () => ({ ok: true }),
@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('revalPlanner', {
     chat: async () => ({ ok: false, error: 'تست' }),
   },
   updates: {
-    state: async () => ({ current: '2.8.13', latest: '2.8.13', status: 'idle' }),
+    state: async () => ({ current: '2.8.15', latest: '2.8.15', status: 'idle' }),
     check: async () => ({ ok: true }),
     download: async () => ({ ok: true }),
     install: async () => ({ ok: true }),

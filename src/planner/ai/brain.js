@@ -121,6 +121,51 @@
     return [text, extra[intent] || ''].filter(Boolean).join('\n\n');
   }
 
+  /* ─────────── «تغییرِ واقعیِ روز» ───────────
+     این بخش قلبِ دستیارِ اجرایی است: حرفِ کاربر را به یک تغییرِ واقعی در برنامه
+     تبدیل می‌کند و بعد «قبل/بعد» را نشان می‌دهد تا معلوم باشد واقعاً اعمال شده. */
+
+  const SUBJECT_FA = {
+    bio: 'زیست‌شناسی', chem: 'شیمی', math: 'ریاضی', phys: 'فیزیک', geo: 'زمین‌شناسی',
+    adab: 'ادبیات', arabi: 'عربی', dini: 'دین و زندگی', zaban: 'زبان انگلیسی',
+    hoviat: 'هویت اجتماعی', salamat: 'سلامت و بهداشت',
+  };
+
+  function subjectLabel(id, blocks) {
+    const hit = (blocks || []).find((b) => b.subjectId === id);
+    return (hit && hit.subjectName) || SUBJECT_FA[id] || id || '';
+  }
+
+  const blockKey = (b) => [b.start, b.end, b.subjectId, b.topic || '', b.kind].join('|');
+
+  function dayDiff(before, after) {
+    const beforeKeys = {};
+    (before && before.blocks ? before.blocks : []).forEach((b) => { beforeKeys[blockKey(b)] = true; });
+    const afterKeys = {};
+    (after && after.blocks ? after.blocks : []).forEach((b) => { afterKeys[blockKey(b)] = true; });
+    const added = (after && after.blocks ? after.blocks : []).filter((b) => !beforeKeys[blockKey(b)]);
+    const removed = (before && before.blocks ? before.blocks : []).filter((b) => !afterKeys[blockKey(b)]);
+    return {
+      added,
+      removed,
+      lines: (after && after.blocks ? after.blocks : []).map((b) => (beforeKeys[blockKey(b)] ? '· ' : '🆕 ') +
+        fa(b.start) + '–' + fa(b.end) + ' · ' + (b.kindLabel || b.kind) +
+        (b.topic ? ' · ' + b.topic : '') + ' (' + minutesText(b.minutes) + ')'),
+    };
+  }
+
+  function blockLine(b) {
+    return fa(b.start) + '–' + fa(b.end) + ' · ' + (b.kindLabel || b.kind) +
+      (b.topic ? ' · ' + b.topic : '') + ' (' + minutesText(b.minutes) + ')';
+  }
+
+  /** دقیقه‌های امروزِ یک درس (یادگیری/تمرین/مرور) */
+  function minutesOfSubject(plan, subjectId) {
+    return ((plan && plan.blocks) || [])
+      .filter((b) => b.subjectId === subjectId && ['exam', 'mock'].indexOf(b.kind) === -1)
+      .reduce((a, b) => a + (b.minutes || 0), 0);
+  }
+
   /* ─────────── مسیریابی ─────────── */
 
   /**
@@ -156,6 +201,263 @@
         t += '\nهنوز برنامه‌ای نساخته‌ای — بگو «برنامه بساز» تا شروع کنیم.';
       }
       return { text: t, actions, chips: CHIPS_DEFAULT, intent };
+    }
+
+    /* ۱.۴) کارهایی که «تغییرِ روز» نیستند، ولی باید واقعاً اجرا شوند:
+       ثبتِ ارزیابیِ فصل، «انجام شد»، نامِ دانش‌آموز، بازساختِ کلِ برنامه، برگردان. */
+    {
+      /* ۱.۴.۰) برگرداندنِ تغییرهای امروز (هر جمله‌ای که همین را بخواهد) */
+      if (/(برگردان|برگردون|بازگردان|لغو تغییر|همون قبلی|به حالت قبل)/.test(text) && ctx.clearDayOverrides) {
+        const res = call('undo_today_changes', {});
+        const after = ctx.readPlan ? ctx.readPlan('today') : null;
+        return {
+          text: res.ok
+            ? 'برگشت داده شد ✅\n\nبرنامهٔ امروز دوباره همان حالتِ قبل است:' + (after ? '\n' + after.blocks.map((b) => '· ' + blockLine(b)).join('\n') : '')
+            : (res.message || 'چیزی برای بازگرداندن نبود.'),
+          actions, chips: ['برنامهٔ امروز'], intent: 'undo_today',
+        };
+      }
+
+      /* ۱.۴.۱) ثبتِ ارزیابیِ فصل: «فصل ۳ زیست رو خوندم ۷۰٪» / «فصل ۲ شیمی را تمام کردم» */
+      const rateAsk = /(خوندم|خواندم|تموم کردم|تمام کردم|بلدم|تسلط|درصد|٪)/.test(text);
+      if (rateAsk && ent.subjects.length && !/(چطور|روش|برنامه|چی|چیه|کدوم|پیشنهاد)/.test(text) && ctx.applyChapterRating) {
+        const sp1 = NLU.parseSwapPlan ? NLU.parseSwapPlan(raw) : null;
+        const ch = (sp1 && sp1.to && sp1.to.chapter != null) ? sp1.to.chapter
+          : (sp1 && sp1.from && sp1.from.chapter != null ? sp1.from.chapter
+            : ((raw.match(/فصل\s*(\d{1,2})/) || [])[1] || null));
+        if (ch == null) {
+          return {
+            text: 'ثبتش می‌کنم — کدام فصل؟ مثال: «فصل ۳ زیست رو خوندم ۷۰٪».',
+            actions, chips: ['فصل ۳ زیست رو خوندم ۷۰٪', 'برنامهٔ امروز'], intent: 'rate_chapter',
+          };
+        }
+        const pct = NLU.parsePercent ? NLU.parsePercent(raw) : null;
+        const res = call('rate_chapter', { subjectId: ent.subjects[0], chapter: Number(ch), mastery: pct });
+        const r2 = ctx.readReport ? ctx.readReport() : null;
+        return {
+          text: (res.ok ? res.message : res.message) +
+            (res.ok && r2 ? '\n\nآمادگی فعلی: ' + fa(r2.konkurCurrent != null ? r2.konkurCurrent : r2.konkurProjected) + '٪ · پوشش فصل‌ها: ' + fa(r2.coverage) + '٪' : ''),
+          actions, chips: ['چقدر آماده‌ام؟', 'برنامهٔ امروز'], intent: 'rate_chapter',
+        };
+      }
+
+      /* ۱.۴.۲) «این کار را انجام دادم» */
+      if (ent.subjects.length && /(زدم|انجام دادم|انجام شد|تموم شد|تمام شد|تیک|چک کردم)/.test(text)
+        && !/(برنامه|چی|چیه|چرا)/.test(text) && ctx.finishBlock) {
+        const res = call('finish_block', { subjectId: ent.subjects[0] });
+        return { text: res.ok ? res.message : res.message, actions, chips: ['روز رو ببند', 'برنامهٔ امروز'], intent: 'finish_block' };
+      }
+
+      /* ۱.۴.۳) نامِ دانش‌آموز */
+      const nm = raw.match(/(?:اسمم|اسم من|نام من|بچه‌ها به من می‌گن)\s+([\u0600-\u06FF]{2,20})/);
+      if (nm && /(اسم|نام)/.test(text) && ctx.applyStudentName) {
+        const res = call('set_student_name', { name: nm[1] });
+        return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز'], intent: 'set_name' };
+      }
+
+      /* ۱.۴.۴) بازساختِ کلِ برنامه */
+      if (/(از نو|دوباره|مجدد).*(بساز|بچین|بسازه)|برنامه.*(از نو|دوباره).*(بساز|بچین)/.test(text)
+        && !/امروز/.test(text) && ctx.rebuild) {
+        const res = call('rebuild_plan', {});
+        return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز', 'چقدر آماده‌ام؟'], intent: 'rebuild' };
+      }
+    }
+
+    /* ۱.۵) تغییرِ واقعیِ امروز: «این تایم را به کتابِ دیگر بده» / «فصلِ X را حذف کن» */
+    /* این بلوک عمداً قبل از بقیهٔ نیت‌هاست: کاربر انتظار دارد جمله‌اش «اجرا» شود،
+       نه اینکه فهرستِ برنامه برایش خوانده شود. */
+    {
+      const sp = (NLU.parseSwapPlan ? NLU.parseSwapPlan(raw) : null);
+      const looksLikeChange = /(به ?جای|بجای|اختصاص|تخصیص|حذف|جابه ?جا|تبدیل|منتقل|آپدیت|عوض|کنار ?(بذار|بگذار|بنداز)|نخون)/.test(text);
+      const undoAsk = /(برگردان|برگردون|بازگردان|لغو|همون قبلی|پشیمون|به حالت قبل|تغییر.*(پاک|حذف))/ .test(text)
+        && /(تغییر|امروز|همه|روز)/.test(text);
+      if (undoAsk && ctx.clearDayOverrides) {
+        const res = call('undo_today_changes', {});
+        const after = ctx.readPlan ? ctx.readPlan('today') : null;
+        return {
+          text: res.ok
+            ? 'برگشت داده شد ✅\n\nبرنامهٔ امروز دوباره همان حالتِ قبل است:' + (after ? '\n' + after.blocks.map((b) => '· ' + blockLine(b)).join('\n') : '')
+            : (res.message || 'چیزی برای بازگرداندن نبود.'),
+          actions, chips: ['برنامهٔ امروز'], intent: 'undo_today',
+        };
+      }
+      const executable = sp && sp.mode && (intent === 'swap_today' || looksLikeChange || (sp.mode === 'focus' && sp.to && sp.to.chapter != null));
+      if (executable) {
+        const before = ctx.readPlan ? ctx.readPlan('today') : null;
+        if (!before) {
+          return { text: 'هنوز برنامه‌ای برای امروز نساخته‌ای؛ اول بگو «برنامه بساز» تا بعد این تغییر را در همان اعمال کنم.', actions, chips: ['برنامه بساز'], intent };
+        }
+        const fromId = sp.from && sp.from.subjectId;
+        const toId = sp.to && sp.to.subjectId;
+        const fromName = fromId ? subjectLabel(fromId, before.blocks) : '';
+        const toName = toId ? subjectLabel(toId, before.blocks) : '';
+
+        if (sp.mode === 'swap' && fromId && toId) {
+          const freed = minutesOfSubject(before, fromId) || 45;
+          const res = call('swap_today_time', {
+            fromSubjectId: fromId, fromChapter: sp.from.chapter,
+            toSubjectId: toId, toChapter: sp.to.chapter,
+            minutes: freed,
+          });
+          if (!res.ok) return { text: res.message, actions, chips: ['برنامهٔ امروز'], intent };
+          const after = ctx.readPlan ? ctx.readPlan('today') : null;
+          const d = dayDiff(before, after);
+          const gained = minutesOfSubject(after, toId) - minutesOfSubject(before, toId);
+          const lines = ['انجام شد ✅ — برنامهٔ امروز واقعاً عوض شد.', ''];
+          lines.push('قبل: ' + minutesText(minutesOfSubject(before, fromId)) + ' ' + fromName + ' · ' + minutesText(minutesOfSubject(before, toId)) + ' ' + toName);
+          lines.push('بعد: ' + minutesText(minutesOfSubject(after, fromId)) + ' ' + fromName + ' · ' + minutesText(minutesOfSubject(after, toId)) + ' ' + toName);
+          if (gained > 0) lines.push('', '→ ' + minutesText(gained) + ' بیشتر به ' + toName + ' رسید.');
+          if (freed === 0) {
+            lines.push('', 'نکته: امروز از ' + fromName + ' بلوکی در برنامه نداشتی؛ پس چیزی از دست نرفت — ' +
+              'خواستهٔ تو اعمال شد و ' + toName + ' همان فصل را گرفت.');
+          }
+          if (d.lines.length) lines.push('', 'برنامهٔ امروز بعد از تغییر:', d.lines.join('\n'));
+          lines.push('', 'فصل‌های ' + fromName + ' حذف نشدند؛ فقط امروز کنار رفتند و از فردا سرِ جای خودشان برمی‌گردند.');
+          if (sp.to.chapter != null) {
+            lines.push('اگر می‌خواهی همین فصلِ ' + toName + ' امروز تثبیت هم بشود، بگو «' + toName + ' فصل ' + fa(sp.to.chapter) + ' تست بده».');
+          }
+          return { text: lines.join('\n'), actions, chips: ['تغییر امروز را برگردان', 'برنامهٔ امروز'], intent };
+        }
+
+        if (sp.mode === 'skip' && fromId) {
+          const res = call('skip_today_subject', { subjectId: fromId });
+          if (!res.ok) return { text: res.message, actions, chips: ['برنامهٔ امروز'], intent };
+          const after = ctx.readPlan ? ctx.readPlan('today') : null;
+          const d = dayDiff(before, after);
+          return {
+            text: 'انجام شد ✅ — ' + fromName + ' امروز از برنامه برداشته شد.\n\n' +
+              'برنامهٔ امروز حالا:\n' + d.lines.join('\n') +
+              '\n\nفصل‌هایش حذف نشدند؛ از فردا سرِ جای خودشان برمی‌گردند.',
+            actions, chips: ['تغییر امروز را برگردان', 'برنامهٔ امروز'], intent,
+          };
+        }
+
+        if (sp.mode === 'focus' && toId) {
+          const res = call('focus_today_chapter', {
+            subjectId: toId, chapter: sp.to.chapter,
+            minutes: null,
+          });
+          if (!res.ok) return { text: res.message, actions, chips: ['برنامهٔ امروز'], intent };
+          const after = ctx.readPlan ? ctx.readPlan('today') : null;
+          const d = dayDiff(before, after);
+          const chTitle = (d.added[0] && d.added[0].topic) || '';
+          return {
+            text: 'انجام شد ✅ — ' + toName + (sp.to.chapter != null ? ' فصل ' + fa(sp.to.chapter) : '') +
+              (chTitle ? ' («' + chTitle + '»)' : '') + ' در برنامهٔ امروز گذاشته شد.' +
+              '\n\nبرنامهٔ امروز:\n' + d.lines.join('\n'),
+            actions, chips: ['تغییر امروز را برگردان', 'برنامهٔ امروز'], intent,
+          };
+        }
+
+        /* اگر مبدأ/مقصد ناقص بود، یک پرسشِ دقیق بپرس (نه پاسخِ روتین) */
+        return {
+          text: 'برای اینکه همین حالا اعمال کنم، فقط این را بگو: «کدام تایم را به کدام کتاب بدهم؟»\n' +
+            'مثال: «به جای زیست، شیمی فصل ۲» — یا اگر فقط می‌خواهی یک فصل امروز باشد: «شیمی فصل ۲ را امروز بگذار».',
+          actions, chips: ['به جای زیست، شیمی فصل ۲', 'برنامهٔ امروز'], intent,
+        };
+      }
+    }
+
+    /* ۱.۶) دستورهای ساختاری: هر بخشِ برنامه که کاربر با دست هم می‌تواند عوض کند */
+    /* این بلوک عمداً «قاعده‌محور» است و قبل از پاسخ‌های متنی اجرا می‌شود؛ چون اصلِ
+       خواستهٔ کاربر این است: «هر چیزی که گفتم در برنامه اعمال شود». */
+
+    /* ۱.۶.۱) آزمون جامعِ هفتگی روشن/خاموش */
+    if (/(آزمون|جامع)/.test(text) && /(هفتگی|جامع)/.test(text) && /(خاموش|روشن|غیرفعال|نکن|نمی ?خوام|نمی ?خواهم|فعال|بکن)/.test(text)) {
+      const off = /(خاموش|غیرفعال|نکن|نمی ?خوام|نمی ?خواهم)/.test(text);
+      const res = call('set_weekly_mock', { enabled: !off });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['آزمون هفتگی رو روشن کن', 'برنامهٔ امروز'], intent };
+    }
+
+    /* ۱.۶.۲) بستنِ روز */
+    if (/(روز|امروز)/.test(text) && /(ببند|بسته|پایان روز|بستن روز|روز تموم|روز تمام)/.test(text)) {
+      const before = ctx.readPlan ? ctx.readPlan('today') : null;
+      const res = call('close_day', {});
+      const after = ctx.readPlan ? ctx.readPlan('today') : null;
+      if (res.ok && before && after) {
+        const d = dayDiff(before, after);
+        return {
+          text: res.message + '\n\nبرنامهٔ امروز بعد از بستن:\n' + (d.lines.length ? d.lines.join('\n') : '— امروز خالی شد.'),
+          actions, chips: ['برنامهٔ فردا', 'چقدر آماده‌ام؟'], intent,
+        };
+      }
+      return { text: res.message, actions, chips: ['برنامهٔ امروز'], intent };
+    }
+
+    /* ۱.۶.۴) آزمون به تقویم اضافه کن */
+    if (/(آزمون|امتحان)/.test(text) && /(اضافه|بذار|بگذار|ثبت|بزن|دارم|هست)/.test(text)
+      && !/(هفتگی|جامع هفتگی|خاموش|روشن)/.test(text)) {
+      let iso = null;
+      let spec = null;
+      if (NLU.parseJalali) spec = NLU.parseJalali(raw);
+      if (spec) iso = ctx.toIsoDate ? ctx.toIsoDate({ jalali: spec }) : null;
+      if (!iso) {
+        const loose = NLU.parseDateLoose ? NLU.parseDateLoose(raw) : null;
+        if (loose) iso = ctx.toIsoDate ? ctx.toIsoDate(loose) : null;
+      }
+      if (!iso) {
+        return {
+          text: 'آزمون را اضافه می‌کنم — فقط تاریخش را بگو (مثلاً «آزمون ۱۵ آبان اضافه کن»).',
+          actions, chips: ['آزمون ۱۵ آبان اضافه کن', 'برنامهٔ امروز'], intent,
+        };
+      }
+      const clk = ent.clock;
+      const res = call('add_exam', {
+        date: iso,
+        title: /جامع/.test(text) ? 'آزمون جامع' : 'آزمون آزمایشی',
+        subjectIds: ent.subjects.slice(),
+        start: clk ? (String(clk.h).padStart(2, '0') + ':' + String(clk.m || 0).padStart(2, '0')) : null,
+      });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز', 'چقدر آماده‌ام؟'], intent };
+    }
+
+    /* ۱.۶.۵) روزِ تعطیل / روزِ سبک */
+    if (/(تعطیل|مرخصی|مسافر|سفر|بیمار)/.test(text) && !/استراحت هفتگی/.test(text)
+      && /(امروز|فردا|پس ?فردا|\d{1,2}\s*[آ-ی]+|شنبه|یکشنبه|دوشنبه|سه ?شنبه|چهارشنبه|پنجشنبه|جمعه)/.test(text)) {
+      const loose = NLU.parseDateLoose ? NLU.parseDateLoose(raw) : null;
+      const day = NLU.parseWeekday ? NLU.parseWeekday(raw) : null;
+      const spec2 = loose || null;
+      const res = call('add_off_day', {
+        date: spec2 && (spec2.jalali || spec2.offset != null) ? (ctx.toIsoDate ? ctx.toIsoDate(spec2) : null) : null,
+        weekday: (!spec2 && day) ? day.key : null,
+        kind: /سبک/.test(text) ? 'light' : 'halt',
+      });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز', 'چقدر آماده‌ام؟'], intent };
+    }
+
+    /* ۱.۶.۶) ساعت خواب و بیداری */
+    if (/(می ?خوابم|خوابم|ساعت خواب|بیدار)/.test(text) && ent.clock) {
+      const clk = ent.clock;
+      const hm = String(clk.h).padStart(2, '0') + ':' + String(clk.m || 0).padStart(2, '0');
+      const isWake = /(بیدار)/.test(text) && !/(می ?خوابم|خوابم)/.test(text);
+      const res = call('set_sleep', isWake ? { wake: hm } : { bedtime: hm });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز'], intent };
+    }
+
+    /* ۱.۶.۷) استراحتِ بین بلوک‌ها */
+    if (/(استراحت|فاصله|تنفس)/.test(text) && /(بلوک|بین)/.test(text)) {
+      const n = ent.number != null ? ent.number : null;
+      if (n == null) {
+        return { text: 'چند دقیقه استراحت بین بلوک‌ها می‌خواهی؟ (مثلاً «استراحت بین بلوک‌ها ۱۵ دقیقه»)', actions, chips: ['استراحت بین بلوک‌ها ۱۵ دقیقه'], intent };
+      }
+      const res = call('set_break_minutes', { minutes: n });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز'], intent };
+    }
+
+    /* ۱.۶.۸) ساعت شروع مطالعه */
+    if (/شروع/.test(text) && ent.clock && !/(شروع کن|شروعش|بریم)/.test(text)
+      && /(از|ساعت)/.test(text) && !/(کنکور|آزمون)/.test(text)) {
+      const clk = ent.clock;
+      const hm = String(clk.h).padStart(2, '0') + ':' + String(clk.m || 0).padStart(2, '0');
+      const wk = ent.weekday ? ent.weekday.key : null;
+      const res = call('set_start_time', { time: hm, weekday: wk });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز'], intent };
+    }
+
+    /* ۱.۶.۱۰) «با X شروع کن» — یک کارِ مشخص، نه فقط اولین کار */
+    if (ent.subjects.length && /(شروع کن|شروعش کن|بزن بریم|بریم)/.test(text)) {
+      const res = call('start_block', { subjectId: ent.subjects[0] });
+      return { text: res.ok ? res.message : res.message, actions, chips: ['برنامهٔ امروز'], intent: 'start_block' };
     }
 
     /* ۲) ساعت مطالعه */
@@ -246,11 +548,30 @@
       return { text: res.ok ? (res.message || 'شروع شد؛ تایمر روشن است.') : res.message, actions, chips: [], intent };
     }
 
-    /* ۷) کار ضروری */
-    if (intent === 'add_emergency' && ent.subjects.length && /\d|فصل|درس|بخونم/.test(text)) {
+    /* ۷) کار ضروری / «امروز این فصل» */
+    if ((intent === 'add_emergency' || intent === 'swap_today') && ent.subjects.length && /\d|فصل|درس|بخونم|بذار/.test(text)) {
       const subjectId = ent.subjects[0];
       const chap = text.match(/فصل\s*(\d{1,2})/);
-      const topic = chap ? ('فصل ' + chap[1]) : (ent.text.slice(0, 60));
+      /* اگر شمارهٔ فصل معلوم است، از مسیرِ «فصلِ حتمی» می‌رویم: آن مسیر نیازِ همان
+         فصل را واقعاً مصرف می‌کند و عنوانِ فصل هم در برنامه با نام می‌آید.
+         آیتمِ اضطراری برای وقتی است که فصل/موضوعِ مشخصی در کتاب‌ها نیست. */
+      if (chap) {
+        const before = ctx.readPlan ? ctx.readPlan('today') : null;
+        const res = call('focus_today_chapter', { subjectId, chapter: Number(chap[1]) });
+        const after = ctx.readPlan ? ctx.readPlan('today') : null;
+        if (res.ok) {
+          const d = dayDiff(before, after);
+          const added = d.added[0];
+          return {
+            text: 'انجام شد ✅ — «' + subjectLabel(subjectId, before ? before.blocks : []) + ' فصل ' + fa(chap[1]) + '»' +
+              (added && added.topic ? ' («' + added.topic + '»)' : '') + ' در برنامهٔ امروز گذاشته شد.' +
+              (after ? '\n\nبرنامهٔ امروز:\n' + d.lines.join('\n') : ''),
+            actions, chips: ['تغییر امروز را برگردان', 'برنامهٔ امروز'], intent,
+          };
+        }
+        return { text: res.message, actions, chips: ['برنامهٔ امروز'], intent };
+      }
+      const topic = ent.text.slice(0, 60);
       const res = call('add_urgent_item', { subjectId, topic, minutes: ent.number && ent.number <= 180 ? ent.number : 45 });
       return { text: res.ok ? (res.message || 'کار ضروری اضافه شد.') : res.message, actions, chips: ['برنامهٔ امروز'], intent };
     }
@@ -292,6 +613,29 @@
     /* ۱۱) روش مطالعه */
     if (intent === 'ask_method') {
       return { text: methodAnswer(text, ent), actions, chips: ['از کجا شروع کنم؟', 'برنامهٔ امروز'], intent };
+    }
+
+    /* ۱۱.۵) تورِ ایمنی: جملهٔ اجراییِ ناشناخته نباید به «راهنما» تبدیل شود */
+    /* اگر کاربر درس + فصل گفته و فعلِ خواستن دارد، حداقل کاری که می‌توانیم بکنیم
+       این است که همان فصل را امروز در برنامه بگذاریم — نه اینکه فهرستِ راهنما بدهیم. */
+    {
+      const wantsSomething = /(بذار|بگذار|بخونم|بخوانم|میخوام|می‌خوام|لازم دارم|باید|اضافه|کن)/.test(text);
+      const chap = text.match(/فصل\s*(\d{1,2})/);
+      if (wantsSomething && chap && ent.subjects.length) {
+        const before = ctx.readPlan ? ctx.readPlan('today') : null;
+        if (before) {
+          const res = call('focus_today_chapter', { subjectId: ent.subjects[0], chapter: Number(chap[1]) });
+          if (res.ok) {
+            const after = ctx.readPlan ? ctx.readPlan('today') : null;
+            const d = dayDiff(before, after);
+            return {
+              text: 'انجام شد ✅ — «' + subjectLabel(ent.subjects[0], before.blocks) + ' فصل ' + fa(chap[1]) +
+                '» در برنامهٔ امروز گذاشته شد.\n\nبرنامهٔ امروز:\n' + d.lines.join('\n'),
+              actions, chips: ['تغییر امروز را برگردان', 'برنامهٔ امروز'], intent,
+            };
+          }
+        }
+      }
     }
 
     /* ۱۲) کمک */

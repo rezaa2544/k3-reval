@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.13-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.13/Reval-Setup-2.8.13.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.13-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.13)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.15-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.15/Reval-Setup-2.8.15.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.15-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.15)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,58 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.13.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.13/Reval-Setup-2.8.13.exe)
+### [💾 Reval-Setup-2.8.15.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.15/Reval-Setup-2.8.15.exe)
 
-**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۳**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۵**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.13/Reval-Setup-2.8.13.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.15/Reval-Setup-2.8.15.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `2a555b7eb3ca4fb18117a39114fbb95f314249d4c8a8c066f206a4876849b572` |
-| **حجم دقیق** | ۸۰٬۱۶۴٬۰۳۴ بایت |
+| **SHA-256** | `e8a0e1f1d0608ff5ead79b2d50ff9dd71e0c68e411ecc55fc4d28f362e0b70fd` |
+| **حجم دقیق** | ۸۰٬۱۷۸٬۲۹۰ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.13.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.13.zip` — ۵۷۳ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.15.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.15.zip` — ۵۹۶ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۱۵ — مشاور هوشمند بر تمامِ برنامه مسلط شد (۲۷ ابزار)
+
+| | |
+|---|---|
+| **درخواست** | «هوش مصنوعی باید توانِ هر کاری و هر تغییری در برنامه را داشته باشد و بر تمام برنامه مسلط باشد؛ همهٔ حالت‌ها و سناریوها تست شوند» |
+| **ابزارها** | از ۱۶ به **۲۷** رسید: ارزیابیِ فصل · آزمونِ جدید · روزِ تعطیل/سبک · خواب و بیداری · ساعتِ شروع · استراحتِ بین بلوک · آزمونِ جامعِ هفتگی · نامِ دانش‌آموز · شروعِ یک کارِ مشخص · «انجام شد» · بستنِ روز |
+| **اثرِ واقعی** | هر تغییر همان لحظه در **فرم** و در **برنامهٔ ساخته‌شده** اعمال می‌شود؛ فرم و برنامه هرگز از هم جدا نمی‌مانند |
+| **باگ‌های رفع‌شده** | «بلوک ۴۰ دقیقه» بی‌صدا به ۴۵ برمی‌گشت · استراحتِ فارسی در فهرست خالی می‌شد · دادهٔ ناقص «موفق» گزارش می‌شد · «فصل ۳ زیست رو خوندم» به‌جای ثبت، فصل را در برنامه می‌گذاشت |
+| **تستِ تازه** | `ai-coverage` **۸۲۰ ✅** (۲۷ ابزار × دادهٔ درست/غلط × ۵۳ جمله × ۸ حالت) · `ui-ai-coverage` **۵۳ ✅** (همان ۲۷ ابزار در خودِ برنامه) |
+| **حالت‌های شبیه‌سازی** | روزِ ۲ · ۴ · ۱۰ ساعته · حالتِ خودکار · ریاضی · یازدهم · با تسلطِ قبلی · روزِ آزمون — در همه، ابزارِ درست یا پیامِ صادقانه (هرگز «نمی‌توانم») |
+| **برگشت‌پذیری** | تغییرهای روز با «برگردان»، ارزیابیِ فصل با ثبتِ دوباره، ساعت‌ها و آزمونِ هفتگی با دستورِ معکوس — هر سه ماشینی سنجیده شده‌اند |
+
+جزئیات: [یادداشت انتشار ۲.۸.۱۵](docs/release-notes-2.8.15.md)
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۱۴ — دستیار از «ادعا» به «اجرا»
+
+| | |
+|---|---|
+| **شکایت** | «مشاوره هوشمند در عمل هیچ کاری انجام نمیده و فقط ادعا است… هر چیزی رو که من بهش بگم باید در برنامه اعمال کنه» |
+| **ریشه** | موتور برنامه هیچ راهی برای «تغییرِ یک روز» نداشت؛ قصدِ `swap_today` شناخته می‌شد ولی به هیچ ابزاری وصل نبود؛ متنِ «انجام شد» تولید می‌شد و برنامه دست‌نخورده می‌ماند |
+| **حالا** | جملهٔ «الان زیست فصل ۴ … این تایم رو به شیمی فصل ۲ دهم اختصاص بده» واقعاً اجرا می‌شود: تایمِ زیستِ امروز آزاد، فصلِ ۲ شیمی در برنامهٔ همان روز چیده می‌شود، زیست از فردا سرِ جای خودش برمی‌گردد |
+| **سه ابزارِ تازه** | `swap_today_time` · `focus_today_chapter` · `skip_today_subject` (+ `undo_today_changes`) — مجموع ابزارهای دستیار: **۱۶** |
+| **اثبات، نه ادعا** | پاسخ از مقایسهٔ واقعیِ برنامهٔ «قبل» و «بعد» ساخته می‌شود: «قبل:»/«بعد:» با ساعت‌ها و بلوکِ تازه با 🆕؛ اگر تغییری رخ نداده باشد «انجام شد» نوشته نمی‌شود |
+| **رابط کاربری** | نوارِ «تغییرِ دستیِ این روز» در کارتِ روز: هر تغییر یک chip + دکمهٔ «برگردان» که با یک کلیک برنامهٔ روز را به حالتِ اول برمی‌گرداند |
+| **آزمون** | `ai-actions` **۳۶ ✅** (node) · `ui-ai-actions` **۱۵ ✅** (Electron) · `ui-full-flow` ۵۷ ✅ · `ui-day-variety` ۱۱ ✅ · `npm test` شاملِ ۱۲ سوئیت، همه سبز |
+
+جزئیات: [یادداشت انتشار ۲.۸.۱۴](docs/release-notes-2.8.14.md)
 
 ---
 
@@ -63,7 +95,7 @@
 
 ![](docs/screens/ui-60-exam-evidence-importance.png)
 
-جزئیات: [یادداشت انتشار ۲.۸.۱۳](docs/release-notes-2.8.12.md) · [روشِ محاسبه](docs/methodology-exam-importance.md)
+جزئیات: [یادداشت انتشار ۲.۸.۱۴](docs/release-notes-2.8.12.md) · [روشِ محاسبه](docs/methodology-exam-importance.md)
 
 ---
 

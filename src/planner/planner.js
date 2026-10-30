@@ -55,6 +55,7 @@
     sessions: {},            // v2.5: تایمر هر بلوک — 'date#i' → {plannedMinutes, accumMs, since, status}
     dayStarts: {},           // v2.5: شروع واقعی روزها — 'iso' → 'HH:MM'
     emergency: [],           // v2.5: آیتم‌های اضطراری
+    dayOverrides: [],        // v2.8.14: تغییرهای دستیِ روز (انتقال تایم/فصلِ حتمی/حذفِ درس)
     routines: null,          // v2.5: روال‌های ثابت روز
     routinePinned: false,
     wakeTime: '07:00',
@@ -1682,6 +1683,7 @@
     cfg = Object.assign({}, cfg, {
       dayStarts: Object.assign({}, state.dayStarts || {}),
       emergency: (state.emergency || []).slice(),
+      dayOverrides: (state.dayOverrides || []).slice(),
       routinePinned: state.routinePinned === true,
       routines: (state.routines || cfg.routines || []).slice(),
       wakeTime: state.wakeTime || cfg.wakeTime,
@@ -3343,6 +3345,7 @@
       routinePinned: state.routinePinned === true,
       routines: readRoutines(),
       emergency: (state.emergency || []).map((e) => Object.assign({}, e)),
+      dayOverrides: (state.dayOverrides || []).map((o) => Object.assign({}, o)),
     };
   }
 
@@ -3351,6 +3354,8 @@
       if (cfg.wakeTime) state.wakeTime = cfg.wakeTime;
       if (cfg.dayStarts) state.dayStarts = cfg.dayStarts;
       if (Array.isArray(cfg.emergency)) state.emergency = cfg.emergency;
+      if (Array.isArray(cfg.dayOverrides)) state.dayOverrides = cfg.dayOverrides;
+      else if (state.dayOverrides == null) state.dayOverrides = [];
       if (typeof cfg.routinePinned === 'boolean') state.routinePinned = cfg.routinePinned;
       if (Array.isArray(cfg.routines) && cfg.routines.length) state.routines = cfg.routines;
     } catch (e) { /* بی‌صدا */ }
@@ -3998,13 +4003,35 @@
         '<span class="vlabel">' + faNum(v.subjects) + ' درس در این روز:</span>' + chips + extra + '</div>';
     })();
 
+    /* ۲.۸.۱۴: اگر امروز تغییرِ دستی (از چت یا از خودِ کاربر) اعمال شده، اینجا واضح
+       نوشته می‌شود و یک دکمهٔ «برگردان» دارد تا معلوم باشد واقعاً تغییر کرده است. */
+    const overrideHtml = (function () {
+      const list = d.overrides || [];
+      if (!list.length) return '';
+      const nameOf = (id) => {
+        const sub = ((state.config && state.config.subjects) || []).find((x) => x.id === id);
+        if (sub) return sub.name;
+        return (d.blocks.find((b) => b.subjectId === id) || {}).subjectName || id || '';
+      };
+      const items = list.map((o) => {
+        if (o.action === 'swap' && o.from && o.to) {
+          return '<span class="ovchip">' + esc(nameOf(o.from.subjectId)) + ' ← ' + esc(nameOf(o.to.subjectId)) +
+            (o.to.chapter ? ' (فصل ' + faNum(o.to.chapter) + ')' : '') + '</span>';
+        }
+        if (o.action === 'skip') return '<span class="ovchip">حذفِ ' + esc(nameOf(o.to && o.to.subjectId ? o.to.subjectId : '')) + ' از این روز</span>';
+        return '<span class="ovchip">' + esc(nameOf(o.to && o.to.subjectId)) + (o.to && o.to.chapter ? ' · فصل ' + faNum(o.to.chapter) : '') + '</span>';
+      }).join('');
+      return '<div class="ovbar"><span class="ovlabel">تغییرِ دستیِ این روز:</span>' + items +
+        '<button class="ovundo" data-undo-day="' + esc(d.date) + '">برگردان</button></div>';
+    })();
+
     const head = '<div class="card" style="margin-bottom:10px;background:var(--panel2)">' +
       '<div class="row" style="justify-content:space-between">' +
       '<div><b style="font-size:13.5px">' + esc(jDateFull(d.date)) + '</b>' +
       '<div class="muted" style="font-size:11.5px;margin-top:3px">' + durationFa(d.plannedMinutes) +
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
       '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') +
-      varietyHtml + '</div>';
+      varietyHtml + overrideHtml + '</div>';
 
     const events = (d.events || []).map((e) =>
       '<div class="evt' + (e.type === 'exam' ? ' exam' : '') + '">' +
@@ -4034,6 +4061,13 @@
 
     const body = events + blocks;
     $('dayView').innerHTML = head + (body || '<div class="empty">این روز خالی است (استراحت).</div>');
+    $('dayView').querySelectorAll('[data-undo-day]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const res = aiCtx.clearDayOverrides(btn.dataset.undoDay);
+        toast(res.ok ? res.message : (res.message || 'برگشت انجام نشد.'));
+        try { renderWeek(); } catch (e) { /* بی‌صدا */ }
+      });
+    });
     $('dayView').querySelectorAll('[data-done]').forEach((chk) => {
       chk.addEventListener('change', () => {
         state.done[chk.dataset.done] = chk.checked;
@@ -4306,6 +4340,7 @@
         sessions: state.sessions,
         dayStarts: state.dayStarts,
         emergency: state.emergency,
+        dayOverrides: state.dayOverrides,
         routines: state.routines,
         routinePinned: state.routinePinned,
         wakeTime: state.wakeTime,
@@ -4740,6 +4775,13 @@
     providerModels: [],
   };
 
+  /** بلوک‌های یک روزِ مشخص از برنامهٔ فعلی (برای نمایشِ «بعد از تغییر») */
+  function planDayBlocks(dateIso) {
+    const day = findDay(state.plan, dateIso);
+    if (!day) return null;
+    return { blocks: (day.blocks || []).filter((b) => b.kind !== 'routine'), date: dateIso };
+  }
+
   /* ---------- ابزارهای اجرایی: دستیار با این‌ها واقعاً برنامه را عوض می‌کند ---------- */
   const aiCtx = {
     get studentName() { return (state.config && state.config.student && state.config.student.name) || null; },
@@ -4866,10 +4908,26 @@
       return { ok: true };
     },
 
+    /* انتخابِ یک مقدار در <select>؛ اگر آن گزینه نبود، خودش اضافه می‌شود تا مقدارِ
+       خواسته‌شده «بی‌صدا» به مقدارِ قبلی برنگردد (باگِ واقعی: ۴۰ دقیقه در فرم
+       گزینه نداشت و بازسازیِ بعدی دوباره ۴۵ می‌شد). */
+    _setSelectValue(id, value, label) {
+      const el = $(id);
+      if (!el) return null;
+      const v = String(value);
+      const has = Array.prototype.some.call(el.options || [], (o) => o.value === v);
+      if (!has && el.tagName === 'SELECT' && typeof Option === 'function') {
+        el.add(new Option(label || faNum(v), v));
+      }
+      el.value = v;
+      return el.value;
+    },
+
     applyBlockMinutes(m) {
-      if ($('blockMinutes')) $('blockMinutes').value = String(m);
-      rebuildWith((cfg) => { cfg.blockMinutes = m; });
-      return { ok: true };
+      const v = Math.max(10, Math.min(180, Number(m) || 45));
+      const shown = this._setSelectValue('blockMinutes', v, faNum(v) + ' دقیقه');
+      rebuildWith((cfg) => { cfg.blockMinutes = v; });
+      return { ok: shown === String(v), value: v, message: 'طولِ هر بلوک شد ' + faNum(v) + ' دقیقه و برنامه از نو ساخته شد.' };
     },
 
     applyExamDate(target) {
@@ -4954,6 +5012,322 @@
       state.emergency = (state.emergency || []).concat([it]);
       rebuildWith((cfg) => { cfg.emergency = (state.emergency || []).slice(); });
       return { ok: true, message: '«' + (it.subjectName ? it.subjectName + ' — ' : '') + it.topic + '» (' + faNum(it.minutes) + ' دقیقه) اضافه و برنامه بازچینی شد.' };
+    },
+
+    /* ---- ۲.۸.۱۴: تغییرِ دستیِ روز (انتقال تایم / فصلِ حتمی / حذفِ درس) ----
+       این‌ها همان چیزی است که کاربر با دست هم می‌تواند بکند: یک تغییرِ کوچک و
+       برگشت‌پذیر روی برنامهٔ «همان روز»، بدون بازچینشِ کلِ سال و بدون حذفِ فصل. */
+    applyDayOverride(spec) {
+      const o = spec || {};
+      const date = o.date || todayIso();
+      if (!state.plan) return { ok: false, message: 'اول برنامه را بساز.' };
+      const day = findDay(state.plan, date);
+      if (!day) return { ok: false, message: 'این تاریخ در بازهٔ برنامه نیست.' };
+      if (day.isOff) return { ok: false, message: 'این روز تعطیلِ کامل است؛ نمی‌توانم در آن بلوک بچینم.' };
+      const cfg = state.config || {};
+      const nameOf = (id) => {
+        const sub = (cfg.subjects || []).find((x) => x.id === id);
+        return sub ? sub.name : (id || '');
+      };
+      const entry = {
+        id: 'ov' + date.replace(/-/g, '') + Math.random().toString(36).slice(2, 6),
+        date,
+        action: o.action === 'swap' ? 'swap' : (o.action === 'skip' ? 'skip' : 'pin'),
+        fromSubjectId: o.fromSubjectId || null,
+        fromChapter: o.fromChapter != null ? Number(o.fromChapter) : null,
+        subjectId: o.subjectId || o.toSubjectId || null,
+        chapter: o.chapter != null ? Number(o.chapter) : (o.toChapter != null ? Number(o.toChapter) : null),
+        minutes: o.minutes != null ? Number(o.minutes) : null,
+        note: o.note || null,
+        createdAt: new Date().toISOString(),
+        source: 'ai',
+      };
+      if (!entry.subjectId && !entry.fromSubjectId) return { ok: false, message: 'درس مشخص نشد.' };
+      /* تغییرِ تکراری روی همان روز جایگزین می‌شود (نه اینکه روی هم انبار شود) */
+      const prev = (state.dayOverrides || []).filter((x) => !(x.date === date
+        && x.action === entry.action
+        && (x.subjectId || null) === entry.subjectId
+        && (x.fromSubjectId || null) === entry.fromSubjectId));
+      state.dayOverrides = prev.concat([entry]);
+      const ok = rebuildWith((c) => { c.dayOverrides = state.dayOverrides.slice(); });
+      if (!ok) return { ok: false, message: 'برنامه با این تغییر ساخته نشد.' };
+      const after = planDayBlocks(date);
+      const line = (b) => padHM(b.start) + ' تا ' + padHM(b.end) + ' · ' + b.kindLabel + (b.topic ? ' · ' + b.topic : '');
+      const parts = [];
+      if (entry.action === 'swap') {
+        parts.push('«' + nameOf(entry.fromSubjectId) + '» از امروز کنار رفت و وقتش به «' + nameOf(entry.subjectId) + '» رسید.');
+      } else if (entry.action === 'skip') {
+        parts.push('«' + nameOf(entry.subjectId) + '» امروز از برنامه برداشته شد.');
+      } else {
+        parts.push('«' + nameOf(entry.subjectId) + (entry.chapter ? ' فصل ' + faNum(entry.chapter) : '') + '» در برنامهٔ امروز گذاشته شد.');
+      }
+      if (after && after.blocks.length) {
+        parts.push('برنامهٔ امروز: ' + after.blocks.filter((b) => b.kind !== 'routine').map(line).join(' | '));
+      }
+      return { ok: true, message: parts.join(' '), day: date, override: entry };
+    },
+
+    clearDayOverrides(date) {
+      const d = date || todayIso();
+      const had = (state.dayOverrides || []).filter((x) => x.date === d);
+      if (!had.length) return { ok: false, message: 'امروز تغییری ثبت نشده بود.' };
+      state.dayOverrides = (state.dayOverrides || []).filter((x) => x.date !== d);
+      const ok = rebuildWith((c) => { c.dayOverrides = state.dayOverrides.slice(); });
+      if (!ok) return { ok: false, message: 'برگشت به حالت قبل ناموفق بود.' };
+      return { ok: true, message: 'همهٔ تغییرهای ' + faNum(had.length) + ' موردیِ این روز برگشت داده شد.' };
+    },
+
+    /* ---- ۲.۸.۱۵: تسلطِ کاملِ دستیار بر بقیهٔ بخش‌های برنامه ----
+       تا اینجا دستیار می‌توانست برنامه را بچیند؛ حالا همان کارهایی را می‌کند که
+       کاربر با دست در صفحه‌ها انجام می‌دهد: ثبتِ ارزیابی فصل، افزودنِ آزمون و
+       روزِ تعطیل، ساعتِ شروع/خواب/استراحت، آزمونِ هفتگی، شروع و پایانِ یک کارِ
+       مشخص، و بستنِ روز. */
+
+    /** تبدیلِ هر شکلِ تاریخ که لایهٔ زبان فهمیده به ISO میلادی */
+    toIsoDate(spec) {
+      const o = spec || {};
+      if (o.iso && /^\d{4}-\d{2}-\d{2}$/.test(String(o.iso))) return String(o.iso);
+      if (o.jalali) {
+        const j = o.jalali;
+        let y = j.y;
+        if (!y) {
+          const t = J.fromISO(todayIso()) || {};
+          y = t.jy || null;
+        }
+        try { return J.toISO(y, j.m, j.d); } catch (e) { return null; }
+      }
+      if (o.offset != null) {
+        const d = new Date(todayIso() + 'T00:00:00');
+        d.setDate(d.getDate() + Number(o.offset));
+        return J.dateToISO(d);
+      }
+      return todayIso();
+    },
+
+    /** ثبتِ ارزیابی یک فصل: خوانده/نخوانده و درصدِ تسلط */
+    applyChapterRating(spec) {
+      const o = spec || {};
+      const subs = assessSubjects();
+      let sub = subs.find((x) => x.id === o.subjectId) || null;
+      if (!sub && o.subjectName) {
+        const nm = String(o.subjectName);
+        sub = subs.find((x) => (x.name || '').indexOf(nm) !== -1 || nm.indexOf(x.name || '') !== -1) || null;
+      }
+      if (!sub) return { ok: false, message: 'این درس را در فهرست پیدا نکردم.' };
+      const rows = chapterRows(sub);
+      if (!rows.length) return { ok: false, message: 'برای این درس فصلی ثبت نشده.' };
+      const ch = clampNum(Number(o.chapter) || 1, 1, rows.length);
+      const row = rows[ch - 1];
+      const before = { read: !!row.read, mastery: Number(row.mastery) || 0 };
+      let m;
+      if (o.mastery != null && Number.isFinite(Number(o.mastery))) m = clampNum(Number(o.mastery), 0, 100);
+      else if (o.read === false) m = 0;
+      else m = 80;
+      row.read = m > 0;
+      row.mastery = m;
+      const ok = rebuildWith(null);
+      try { renderAssessment(); } catch (e) { /* بی‌صدا */ }
+      if (!ok) return { ok: false, message: 'ثبت شد ولی برنامه با آن ساخته نشد.' };
+      const label = (sub.name || '') + ' — فصل ' + faNum(ch) + (row.name ? ' («' + row.name + '»)' : '');
+      return {
+        ok: true,
+        message: label + ' ثبت شد: ' + (row.read ? 'خوانده‌شده با تسلط ' + faNum(m) + '٪' : 'نخوانده') +
+          ' · قبل از این: ' + (before.read ? 'تسلط ' + faNum(before.mastery) + '٪' : 'نخوانده') + '.',
+        before, after: { read: row.read, mastery: m },
+      };
+    },
+
+    /** افزودنِ آزمون/آزمونِ آزمایشی به تقویم */
+    applyExam(spec) {
+      const o = spec || {};
+      const isoDate = String(o.date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return { ok: false, message: 'تاریخِ آزمون را نتوانستم بخوانم؛ مثال: ۱۴۰۵/۰۹/۱۲' };
+      const rows = (typeof readExams === 'function' ? readExams() : []).slice();
+      const item = {
+        title: o.title || (o.kind === 'mock' ? 'آزمون جامع' : 'آزمون آزمایشی'),
+        date: isoDate,
+        start: o.start || '08:00',
+        end: o.end || '11:30',
+        subjectIds: Array.isArray(o.subjectIds) ? o.subjectIds.slice() : [],
+      };
+      rows.push(item);
+      if (typeof renderExamRows === 'function' && $('examRows')) renderExamRows(rows);
+      const ok = rebuildWith(null);
+      if (!ok) return { ok: false, message: 'آزمون ثبت شد ولی برنامه با آن ساخته نشد.' };
+      return {
+        ok: true,
+        message: '«' + item.title + '» در ' + faNum(J.fmt(isoDate)) + ' از ' + padHM(item.start) + ' تا ' +
+          padHM(item.end) + ' اضافه شد' + (item.subjectIds.length ? ' برای ' + faNum(item.subjectIds.length) + ' درس' : '') +
+          ' و برنامه از نو ساخته شد.',
+        exam: item,
+      };
+    },
+
+    /** افزودنِ یک روزِ تعطیل یا روزِ سبک به تقویم */
+    applyOffDay(spec) {
+      const o = spec || {};
+      let isoDate = null;
+      if (o.date && /^\d{4}-\d{2}-\d{2}$/.test(String(o.date))) isoDate = String(o.date);
+      else if (o.weekday) {
+        const t = new Date(todayIso() + 'T00:00:00');
+        const target = WEEKDAY_KEY.indexOf(o.weekday);
+        if (target === -1) return { ok: false, message: 'روز هفته را نشناختم.' };
+        for (let i = 0; i < 8; i += 1) {
+          const d = new Date(t.getTime() + i * 86400000);
+          if (WEEKDAY_KEY[(d.getDay() + 1) % 7] === o.weekday) { isoDate = J.dateToISO(d); break; }
+        }
+      }
+      if (!isoDate) return { ok: false, message: 'تاریخ یا روزِ هفته مشخص نشد.' };
+      const rows = (typeof readOffRows === 'function' ? readOffRows() : []).filter((x) => x.date !== isoDate);
+      rows.push({ date: isoDate, kind: o.kind === 'light' ? 'light' : 'halt', note: o.note || 'دستیار' });
+      if (typeof renderOffRows === 'function' && $('offRows')) renderOffRows(rows);
+      const ok = rebuildWith(null);
+      if (!ok) return { ok: false, message: 'ثبت شد ولی برنامه ساخته نشد.' };
+      const day = findDay(state.plan, isoDate);
+      const cnt = day ? (day.blocks || []).filter((b) => b.kind !== 'routine').length : 0;
+      return {
+        ok: true,
+        message: faNum(J.fmt(isoDate)) + (o.kind === 'light' ? ' به «روز سبک» تبدیل شد' : ' تعطیل شد') +
+          ' و برنامه از نو ساخته شد (این روز الان ' + faNum(cnt) + ' بلوک دارد).',
+        date: isoDate,
+      };
+    },
+
+    /** ساعت شروع مطالعهٔ روزها */
+    applyStartTime(spec) {
+      const o = spec || {};
+      const time = normTime(o.time);
+      if (!time) return { ok: false, message: 'ساعت را نشناختم؛ مثال: ۱۶:۰۰' };
+      const cur = readStartTimes ? Object.assign({}, DEFAULT_START_TIMES, state.startTimes || {}) : {};
+      const keys = o.weekday ? [o.weekday] : WEEKDAY_KEY.slice();
+      const before = {};
+      keys.forEach((k) => { before[k] = cur[k]; cur[k] = time; });
+      if (typeof renderStartTimes === 'function') renderStartTimes(cur);
+      state.startTimes = cur;
+      const ok = rebuildWith((cfg) => { cfg.startTimes = Object.assign({}, cur); });
+      if (!ok) return { ok: false, message: 'ثبت شد ولی برنامه ساخته نشد.' };
+      return {
+        ok: true,
+        message: 'ساعت شروعِ ' + (o.weekday ? (WEEKDAY_FA[WEEKDAY_KEY.indexOf(o.weekday)] || o.weekday) : 'همهٔ روزها') + ' شد ' + padHM(time) +
+          ' (قبلاً ' + padHM(before[keys[0]] || '—') + ') و برنامه از نو ساخته شد.',
+      };
+    },
+
+    /** ساعت خواب و بیداری */
+    applySleep(spec) {
+      const o = spec || {};
+      const bt = o.bedtime ? normTime(o.bedtime) : null;
+      const wk = o.wake ? normTime(o.wake) : null;
+      if (!bt && !wk) return { ok: false, message: 'ساعت خواب یا بیداری مشخص نشد.' };
+      if (bt && $('bedtime')) $('bedtime').value = timeFa(bt);
+      if (wk && $('wake')) { $('wake').value = timeFa(wk); state.wakeTime = wk; }
+      const ok = rebuildWith((cfg) => {
+        cfg.sleep = { bedtime: bt || (cfg.sleep && cfg.sleep.bedtime) || '23:30', wake: wk || (cfg.sleep && cfg.sleep.wake) || '07:00' };
+      });
+      if (!ok) return { ok: false, message: 'ثبت شد ولی برنامه ساخته نشد.' };
+      return { ok: true, message: 'ساعت خواب ' + padHM(bt || (state.config.sleep && state.config.sleep.bedtime) || '23:30') +
+        ' و بیداری ' + padHM(wk || (state.config.sleep && state.config.sleep.wake) || '07:00') + ' ثبت شد و برنامه از نو ساخته شد.' };
+    },
+
+    /** استراحت بین بلوک‌ها */
+    applyBreakMinutes(m) {
+      const v = clampNum(Number(m) || 0, 0, 60);
+      this._setSelectValue('breakMinutes', v, faNum(v) + ' دقیقه');
+      const ok = rebuildWith((cfg) => { cfg.breakMinutes = v; });
+      if (!ok) return { ok: false, message: 'ثبت شد ولی برنامه ساخته نشد.' };
+      return { ok: true, message: 'استراحتِ بین بلوک‌ها شد ' + faNum(v) + ' دقیقه و برنامه از نو ساخته شد.' };
+    },
+
+    /** آزمون جامع هفتگی روشن/خاموش */
+    applyWeeklyMock(on) {
+      const v = on !== false;
+      if ($('weeklyMock')) $('weeklyMock').value = v ? '1' : '0';
+      const ok = rebuildWith((cfg) => { cfg.weeklyMock = v; });
+      if (!ok) return { ok: false, message: 'ثبت شد ولی برنامه ساخته نشد.' };
+      return { ok: true, message: 'آزمون جامعِ هفتگی ' + (v ? 'روشن' : 'خاموش') + ' شد و برنامه از نو ساخته شد.' };
+    },
+
+    /** نامِ دانش‌آموز */
+    applyStudentName(name) {
+      const nm = String(name || '').trim();
+      if (!nm) return { ok: false, message: 'نام مشخص نشد.' };
+      const before = (state.config && state.config.student && state.config.student.name) || '';
+      rebuildWith((cfg) => { cfg.student = Object.assign({}, cfg.student || {}, { name: nm }); });
+      const inp = document.querySelector('[data-student="name"]');
+      if (inp) inp.value = nm;
+      try { renderHome(); } catch (e) { /* بی‌صدا */ }
+      return { ok: true, message: 'نامِ دانش‌آموز شد «' + nm + '»' + (before ? ' (قبلاً «' + before + '»)' : '') + '.' };
+    },
+
+    /** پیدا کردن ایندکسِ بلوکِ امروز بر اساس درس/شماره */
+    _blockIndex(sel) {
+      const day = findDay(state.plan, todayIso());
+      if (!day) return { ok: false, message: 'برای امروز برنامه‌ای نیست.' };
+      const list = day.blocks || [];
+      let idx = -1;
+      if (sel && sel.index != null) idx = Number(sel.index);
+      else if (sel && sel.subjectId) idx = list.findIndex((b) => b.subjectId === sel.subjectId && b.kind !== 'routine');
+      if (idx < 0 || idx >= list.length) return { ok: false, message: 'این کار را در برنامهٔ امروز پیدا نکردم.' };
+      return { ok: true, day, list, block: list[idx], idx };
+    },
+
+    /** شروعِ تایمرِ یک کارِ مشخص (نه فقط اولین کار) */
+    startBlock(sel) {
+      const f = this._blockIndex(sel || {});
+      if (!f.ok) return f;
+      if (f.block.kind === 'routine') return { ok: false, message: 'این بلوک روالِ ثابت است، تایمر ندارد.' };
+      const key = f.day.date + '#' + f.idx;
+      const cur = sessionOf(f.day, f.idx, f.block);
+      sessions()[key] = DP ? DP.start(cur, nowMs()) : cur;
+      try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+      try { renderWeek(); } catch (e) { /* بی‌صدا */ }
+      persist();
+      return {
+        ok: true,
+        message: 'شروع شد: «' + (f.block.subjectName || '') + (f.block.topic ? ' — ' + f.block.topic : '') + '» از ساعت ' + padHM(f.block.start) + '.',
+      };
+    },
+
+    /** «این کار را انجام دادم» */
+    finishBlock(sel) {
+      const f = this._blockIndex(sel || {});
+      if (!f.ok) return f;
+      const key = f.day.date + '#' + f.idx;
+      const cur = sessionOf(f.day, f.idx, f.block);
+      sessions()[key] = Object.assign({}, cur, { status: 'done', doneAt: new Date().toISOString() });
+      state.done = state.done || {};
+      state.done[key] = true;
+      try { renderHomeToday(); } catch (e) { /* بی‌صدا */ }
+      try { renderWeek(); } catch (e) { /* بی‌صدا */ }
+      persist();
+      return {
+        ok: true,
+        message: '«' + (f.block.subjectName || '') + (f.block.topic ? ' — ' + f.block.topic : '') + '» انجام‌شده تیک خورد.',
+      };
+    },
+
+    /** بستنِ روز: کارهای جامانده با اولویت به روزهای بعد منتقل می‌شوند */
+    closeDay() {
+      if (!state.plan) return { ok: false, message: 'اول برنامه را بساز.' };
+      const t = todayIso();
+      const day = findDay(state.plan, t);
+      if (!day) return { ok: false, message: 'امروز در بازهٔ برنامه نیست.' };
+      const unf = DP ? DP.unfinished(day, state.sessions || {}, { skipUntouched: false }) : [];
+      if (!unf.length) return { ok: true, message: 'کار جامانده‌ای امروز نبود — همه‌چیز انجام شده بود.' };
+      const carry = DP ? DP.toCarryOver(unf) : [];
+      if (!carry.length) return { ok: false, message: 'چیزی برای انتقال پیدا نشد.' };
+      unf.forEach((x) => { if (state.sessions) delete state.sessions[x.key]; });
+      const ok = rebuildWith((cfg) => {
+        cfg.carryOver = (cfg.carryOver || []).concat(carry);
+        if (cfg.startDate > t) cfg.startDate = t;
+      });
+      if (!ok) return { ok: false, message: 'انتقال انجام شد ولی برنامه ساخته نشد.' };
+      const mins = carry.reduce((a, c) => a + (c.minutes || 0), 0);
+      return {
+        ok: true,
+        message: 'روز بسته شد: ' + faNum(carry.length) + ' کارِ جامانده (مجموع ' + faNum(Math.round(mins / 60 * 10) / 10) +
+          ' ساعت) به روزهای بعد منتقل شد و برنامه از نو ساخته شد.',
+      };
     },
 
     applyTool(name, args) {
@@ -5099,6 +5473,11 @@
       'تو «مشاور هوشمند روال» هستی: یک مشاور کنکور و برنامه‌ریزِ متخصص برای دانش‌آموزان ایرانی، مسلط بر روان‌شناسی یادگیری و تجربهٔ کنکورهای گذشته.',
       'همیشه فارسی و راست‌به‌چپ پاسخ بده. کوتاه، دقیق و قابل اجرا باش (معمولاً کمتر از ۱۵۰ کلمه، مگر کاربر توضیح بخواهد).',
       'اگر کاربر تغییری در برنامه می‌خواهد، حتماً از ابزارها (function calling) استفاده کن؛ دربارهٔ انجام کار حرف نزن، انجامش بده.',
+      'اگر کاربر گفت «این تایم را به کتاب/فصل دیگری بده» یا «به جای X، Y بخوانم»، ابزار swap_today_time را با درسِ مبدأ و مقصد (و شمارهٔ فصل اگر گفته) صدا بزن؛ اگر فقط یک فصل را برای امروز خواست، focus_today_chapter؛ اگر گفت یک درس را امروز حذف کن، skip_today_subject.',
+      'بعد از هر تغییر، خیلی کوتاه بگو چه عوض شد و برنامهٔ امروز را همان‌طور که هست (ساعت و عنوان فصل) نشان بده؛ هیچ‌وقت ادعای تغییر بدون فراخوانی ابزار نکن.',
+      'تو بر تمامِ برنامه مسلطی و هر بخشی از آن را می‌توانی عوض کنی. برای هر درخواستِ تغییر، ابزارِ متناظر را صدا بزن — نه توضیح: ساعتِ مطالعه (set_daily_study_hours)، روزِ استراحت (set_rest_day)، اندازهٔ بلوک (set_block_minutes)، استراحت بین بلوک‌ها (set_break_minutes)، ساعت خواب/بیداری (set_sleep)، ساعت شروعِ مطالعه (set_start_time)، تاریخِ کنکور (set_exam_date)، حالتِ زمانی/سقفِ ساعت (set_time_mode)، آزمونِ جامعِ هفتگی (set_weekly_mock)، نامِ دانش‌آموز (set_student_name).',
+      'برای تقویم: آزمونِ جدید (add_exam)، روزِ تعطیل یا روزِ سبک (add_off_day). برای ارزیابی: ثبتِ خوانده‌شدن/درصدِ تسلطِ یک فصل (rate_chapter). برای کارِ امروز: شروعِ یک کارِ مشخص (start_block)، «انجام شد» (finish_block)، بستنِ روز و انتقالِ جامانده‌ها (close_day)، کارِ ضروری (add_urgent_item).',
+      'اگر کاربر سؤال کرد «کدام فصل مهم است / ضعیف‌ترین‌ها / برنامه / گزارش»، ابزارهای خواندن (top_chapters، get_plan، get_report) را صدا بزن و از دادهٔ همان‌ها جواب بده.',
       'عدد و آمار را از context بگیر و از خودت نساز. اگر داده‌ای نداری، بگو نداری.',
       'اگر درخواست مبهم است، فقط یک سؤال روشن‌کننده بپرس.',
       'در توصیه‌ها به اصول علمی تکیه کن: بازیابی فعال، مرور فاصله‌دار (۱-۳-۷-۱۶-۳۵)، تمرین درهم، خودتوضیحی، خواب کافی، تحلیل خطا.',

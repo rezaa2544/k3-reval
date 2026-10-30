@@ -124,7 +124,11 @@
         required: ['mode'],
       },
       run(args, ctx) {
-        const mode = args && args.mode === 'auto' ? 'auto' : 'fixed';
+        const req = String((args && args.mode) || '').toLowerCase();
+        if (req !== 'auto' && req !== 'fixed' && req !== 'دستی' && req !== 'خودکار') {
+          return bad('حالتِ زمان‌بندی را نشناختم؛ «خودکار» یا «دستی».');
+        }
+        const mode = (req === 'auto' || req === 'خودکار') ? 'auto' : 'fixed';
         const cap = args && args.capHours != null ? Number(args.capHours) : null;
         const res = ctx.applyTimeMode(mode, cap);
         if (mode === 'auto') {
@@ -181,6 +185,7 @@
       },
       run(args, ctx) {
         const a = args || {};
+        if (!a.topic || !String(a.topic).trim()) return bad('موضوعِ کارِ ضروری مشخص نشد (مثلاً «فصل ۴ زیست»).');
         const res = ctx.addUrgent({
           subjectId: a.subjectId || null,
           topic: String(a.topic || '').slice(0, 120),
@@ -189,6 +194,272 @@
           scope: a.scope === 'week' ? 'week' : 'today',
         });
         return ok((res && res.message) || 'کار ضروری اضافه و برنامه بازچینی شد.', res);
+      },
+    },
+    {
+      name: 'swap_today_time',
+      title: 'انتقال تایمِ امروز به کتاب دیگر',
+      description: 'وقتی کاربر می‌گوید «این تایم را به فلان کتاب/فصل بده» یا «به جای زیست، شیمی بخوانم»، سهمِ امروزِ کتابِ مبدأ را آزاد می‌کند و همان وقت را به فصلِ خواسته‌شدهٔ کتابِ مقصد می‌دهد. فقط برنامهٔ همان روز عوض می‌شود؛ فصل‌ها حذف نمی‌شوند و فردا سرِ جایشان برمی‌گردند.',
+      parameters: {
+        type: 'object',
+        properties: {
+          fromSubjectId: { type: 'string', description: 'کد درسِ مبدأ (bio | chem | math | phys | geo | ...)' },
+          fromChapter: { type: 'number', description: 'شمارهٔ فصلِ مبدأ (اختیاری)' },
+          toSubjectId: { type: 'string', description: 'کد درسِ مقصد' },
+          toChapter: { type: 'number', description: 'شمارهٔ فصلِ مقصد' },
+          minutes: { type: 'number', description: 'دقیقه‌ای که باید به مقصد برسد (اگر خالی باشد، کلِ سهمِ امروزِ مبدأ)' },
+          date: { type: 'string', description: 'تاریخ میلادی YYYY-MM-DD (پیش‌فرض: امروز)' },
+        },
+        required: ['fromSubjectId', 'toSubjectId'],
+      },
+      run(args, ctx) {
+        const a = args || {};
+        if (!a.fromSubjectId || !a.toSubjectId) return bad('درسِ مبدأ و مقصد مشخص نشد.');
+        const res = ctx.applyDayOverride({
+          action: 'swap',
+          date: a.date || null,
+          fromSubjectId: a.fromSubjectId,
+          fromChapter: a.fromChapter != null ? Number(a.fromChapter) : null,
+          toSubjectId: a.toSubjectId,
+          toChapter: a.toChapter != null ? Number(a.toChapter) : null,
+          minutes: a.minutes != null ? Number(a.minutes) : null,
+        });
+        if (!res || !res.ok) return bad((res && res.message) || 'اعمال نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'focus_today_chapter',
+      title: 'فصلِ حتمیِ امروز',
+      description: 'یک فصلِ مشخص را امروز در برنامه می‌گذارد (اگر نخوانده باشد یادگیری، اگر خوانده باشد تست/تمرین همان فصل).',
+      parameters: {
+        type: 'object',
+        properties: {
+          subjectId: { type: 'string' },
+          chapter: { type: 'number' },
+          minutes: { type: 'number' },
+          date: { type: 'string', description: 'YYYY-MM-DD (پیش‌فرض امروز)' },
+        },
+        required: ['subjectId'],
+      },
+      run(args, ctx) {
+        const a = args || {};
+        const res = ctx.applyDayOverride({
+          action: 'pin',
+          date: a.date || null,
+          subjectId: a.subjectId,
+          chapter: a.chapter != null ? Number(a.chapter) : null,
+          minutes: a.minutes != null ? Number(a.minutes) : null,
+        });
+        if (!res || !res.ok) return bad((res && res.message) || 'اعمال نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'skip_today_subject',
+      title: 'حذفِ یک درس از امروز',
+      description: 'یک درس را فقط برای امروز از برنامه بیرون می‌گذارد (فصل‌هایش حذف نمی‌شوند و فردا برمی‌گردند).',
+      parameters: {
+        type: 'object',
+        properties: {
+          subjectId: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD (پیش‌فرض امروز)' },
+        },
+        required: ['subjectId'],
+      },
+      run(args, ctx) {
+        const a = args || {};
+        const res = ctx.applyDayOverride({ action: 'skip', date: a.date || null, subjectId: a.subjectId });
+        if (!res || !res.ok) return bad((res && res.message) || 'اعمال نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'undo_today_changes',
+      title: 'بازگرداندنِ تغییرهای امروز',
+      description: 'همهٔ تغییرهای دستیِ امروز (انتقال تایم، فصلِ حتمی، حذف درس) را برمی‌گرداند و برنامهٔ اصلی را بازسازی می‌کند.',
+      parameters: {
+        type: 'object',
+        properties: { date: { type: 'string', description: 'YYYY-MM-DD (پیش‌فرض امروز)' } },
+      },
+      run(args, ctx) {
+        const res = ctx.clearDayOverrides((args && args.date) || null);
+        if (!res || !res.ok) return bad((res && res.message) || 'چیزی برای بازگرداندن نبود.');
+        return ok(res.message, res);
+      },
+    },
+    /* ── ۲.۸.۱۵: ابزارهایی که بقیهٔ بخش‌های برنامه را هم در اختیارِ دستیار می‌گذارند ── */
+    {
+      name: 'rate_chapter',
+      title: 'ثبت ارزیابی فصل',
+      description: 'وضعیت یک فصل را ثبت می‌کند: خوانده/نخوانده و درصد تسلط. مثال کاربر: «فصل ۳ زیست را خواندم، ۷۰٪» یا «فصل ۲ شیمی را تمام کردم».',
+      parameters: {
+        type: 'object',
+        properties: {
+          subjectId: { type: 'string', description: 'code درس (bio | chem | math | phys | geo | adab | arabi | dini | zaban)' },
+          chapter: { type: 'number', description: 'شمارهٔ فصل' },
+          mastery: { type: 'number', description: 'درصد تسلط ۰..۱۰۰ (اختیاری؛ پیش‌فرض ۸۰)' },
+          read: { type: 'boolean', description: 'اگر false باشد فصل «نخوانده» ثبت می‌شود' },
+        },
+        required: ['subjectId'],
+      },
+      run(args, ctx) {
+        const res = ctx.applyChapterRating({
+          subjectId: (args && args.subjectId) || null,
+          chapter: args && args.chapter != null ? Number(args.chapter) : 1,
+          mastery: args && args.mastery != null ? Number(args.mastery) : null,
+          read: args && args.read !== undefined ? Boolean(args.read) : undefined,
+        });
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'add_exam',
+      title: 'افزودن آزمون به تقویم',
+      description: 'یک آزمون/آزمونِ آزمایشی در یک تاریخ اضافه می‌کند و برنامه را از نو می‌سازد. مثال: «آزمون ۱۵ آبان اضافه کن».',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'تاریخ میلادی YYYY-MM-DD' },
+          title: { type: 'string' },
+          start: { type: 'string', description: 'HH:MM (پیش‌فرض 08:00)' },
+          end: { type: 'string', description: 'HH:MM (پیش‌فرض 11:30)' },
+          kind: { type: 'string', enum: ['exam', 'mock'] },
+          subjectIds: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['date'],
+      },
+      run(args, ctx) {
+        const res = ctx.applyExam(args || {});
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'add_off_day',
+      title: 'روز تعطیل / روز سبک',
+      description: 'یک تاریخ مشخص را تعطیل کامل یا روزِ سبک می‌کند و برنامه را از نو می‌سازد. مثال: «۱۵ آبان تعطیلم»، «پنجشنبه سبک باشه».',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'YYYY-MM-DD (اولویت دارد)' },
+          weekday: { type: 'string', enum: DAY_KEYS, description: 'اگر تاریخ نبود، نزدیک‌ترین همان روزِ هفته' },
+          kind: { type: 'string', enum: ['halt', 'light'], description: 'halt = تعطیل کامل، light = روز سبک' },
+          note: { type: 'string' },
+        },
+      },
+      run(args, ctx) {
+        const res = ctx.applyOffDay(args || {});
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'set_start_time',
+      title: 'ساعت شروع مطالعه',
+      description: 'ساعتِ شروعِ مطالعه را برای همهٔ روزها یا یک روزِ هفته تنظیم می‌کند. مثال: «از ساعت ۱۶ شروع می‌کنم».',
+      parameters: {
+        type: 'object',
+        properties: {
+          time: { type: 'string', description: 'HH:MM' },
+          weekday: { type: 'string', enum: DAY_KEYS, description: 'اختیاری' },
+        },
+        required: ['time'],
+      },
+      run(args, ctx) {
+        const res = ctx.applyStartTime({ time: args && args.time, weekday: (args && args.weekday) || null });
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'set_sleep',
+      title: 'ساعت خواب و بیداری',
+      description: 'ساعت خواب و بیداری را تنظیم می‌کند (برنامه از آن‌ها برای چیدنِ روز استفاده می‌کند).',
+      parameters: {
+        type: 'object',
+        properties: { bedtime: { type: 'string', description: 'HH:MM' }, wake: { type: 'string', description: 'HH:MM' } },
+      },
+      run(args, ctx) {
+        const res = ctx.applySleep({ bedtime: args && args.bedtime, wake: args && args.wake });
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'set_break_minutes',
+      title: 'استراحت بین بلوک‌ها',
+      description: 'مدتِ استراحتِ بین بلوک‌ها را تنظیم می‌کند (پیش‌فرض ۱۰ دقیقه).',
+      parameters: { type: 'object', properties: { minutes: { type: 'number' } }, required: ['minutes'] },
+      run(args, ctx) {
+        const m = Number(args && args.minutes);
+        if (!Number.isFinite(m) || m < 0 || m > 60) return bad('استراحت باید بین ۰ تا ۶۰ دقیقه باشد.');
+        const res = ctx.applyBreakMinutes(m);
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'set_weekly_mock',
+      title: 'آزمون جامع هفتگی',
+      description: 'آزمون جامعِ هفتگی را روشن یا خاموش می‌کند.',
+      parameters: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'] },
+      run(args, ctx) {
+        if (!args || typeof args.enabled !== 'boolean') return bad('مشخص کن روشن شود یا خاموش (enabled: true/false).');
+        const res = ctx.applyWeeklyMock(args.enabled);
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'set_student_name',
+      title: 'نام دانش‌آموز',
+      description: 'نامِ دانش‌آموز را در برنامه ثبت می‌کند.',
+      parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      run(args, ctx) {
+        const res = ctx.applyStudentName(args && args.name);
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'start_block',
+      title: 'شروع یک کارِ مشخص',
+      description: 'تایمرِ یک بلوکِ مشخص امروز را روشن می‌کند (با کدِ درس یا شمارهٔ بلوک). مثال: «با شیمی شروع کن».',
+      parameters: {
+        type: 'object',
+        properties: { subjectId: { type: 'string' }, index: { type: 'number' } },
+      },
+      run(args, ctx) {
+        const res = ctx.startBlock({ subjectId: (args && args.subjectId) || null, index: args && args.index != null ? Number(args.index) : null });
+        if (!res || !res.ok) return bad((res && res.message) || 'شروع نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'finish_block',
+      title: 'انجام‌شدن یک کار',
+      description: 'یک بلوکِ امروز را «انجام شد» علامت می‌زند. مثال: «زیست را زدم».',
+      parameters: {
+        type: 'object',
+        properties: { subjectId: { type: 'string' }, index: { type: 'number' } },
+      },
+      run(args, ctx) {
+        const res = ctx.finishBlock({ subjectId: (args && args.subjectId) || null, index: args && args.index != null ? Number(args.index) : null });
+        if (!res || !res.ok) return bad((res && res.message) || 'ثبت نشد.');
+        return ok(res.message, res);
+      },
+    },
+    {
+      name: 'close_day',
+      title: 'بستنِ روز',
+      description: 'روز را می‌بندد و کارهای جامانده را با اولویت به روزهای بعد منتقل می‌کند.',
+      parameters: { type: 'object', properties: {} },
+      run(_args, ctx) {
+        const res = ctx.closeDay();
+        if (!res || !res.ok) return bad((res && res.message) || 'بسته نشد.');
+        return ok(res.message, res);
       },
     },
     {
@@ -203,7 +474,8 @@
         const scope = (args && args.scope) || 'today';
         const data = ctx.readPlan(scope);
         if (!data) return bad('هنوز برنامه‌ای ساخته نشده است.');
-        return ok('', data);
+        const head = scope === 'week' ? 'برنامهٔ هفته' : (scope === 'tomorrow' ? 'برنامهٔ فردا' : 'برنامهٔ امروز');
+        return ok(head + ': ' + fa(data.count) + ' بلوک' + (data.date ? ' در ' + data.date : ''), data);
       },
     },
     {
@@ -214,7 +486,8 @@
       run(_args, ctx) {
         const data = ctx.readReport();
         if (!data) return bad('هنوز برنامه‌ای ساخته نشده است.');
-        return ok('', data);
+        return ok('گزارش: پوشش ' + fa(data.coverage) + '٪ · کنکور ' + fa(data.konkurProjected) + '٪ · نهایی ' +
+          fa(data.finalsProjected) + '٪ · ' + fa(Math.round(data.hours)) + ' ساعت', data);
       },
     },
     {
@@ -236,7 +509,8 @@
           weakest: Boolean(args && args.weakest),
         });
         if (!data) return bad('اطلاعات فصل‌ها در دسترس نیست.');
-        return ok('', data);
+        return ok((args && args.weakest ? 'ضعیف‌ترین' : 'مهم‌ترین') + ' فصل‌ها: ' +
+          data.items.map((c) => c.subjectName + ' · ' + c.label).join(' | '), data);
       },
     },
   ];
@@ -274,6 +548,12 @@
       '• تاریخ کنکور را عوض کنم',
       '• امروز را از این ساعت بازبچینم یا اولین کار را شروع کنم',
       '• یک کار ضروری اضافه کنم («امروز فصل ۴ زیست»)',
+      '• تایمِ امروز را به کتاب دیگری بدهم («به جای زیست، شیمی فصل ۲»)',
+      '• یک فصلِ مشخص را حتمیِ امروز کنم یا یک درس را امروز کنار بگذارم',
+      '• تغییرهای امروز را برگردانم',
+      '• ارزیابی یک فصل را ثبت کنم («فصل ۳ زیست را خواندم ۷۰٪»)',
+      '• آزمون یا روزِ تعطیل به تقویم اضافه کنم و ساعتِ شروع/خواب/استراحت را عوض کنم',
+      '• یک کارِ مشخص را شروع یا «انجام شد» کنم و روز را ببندم',
       '• بگویم مهم‌ترین فصل‌ها یا ضعیف‌ترین‌ها کدام‌اند',
       '• گزارش آمادگی و پوشش بدهم',
       'و دربارهٔ روش مطالعه، استرس، خستگی و برنامه‌ریزی حرف بزنم.',

@@ -125,6 +125,33 @@
     return null;
   }
 
+  /** درصد تسلط: «۷۰٪»، «۷۰ درصد»، «هفتاد» */
+  function parsePercent(text) {
+    const s = norm(text);
+    const m = s.match(/(\d{1,3})\s*(٪|%|درصد)/) || s.match(/(٪|%)\s*(\d{1,3})/);
+    if (m) {
+      const v = Number(m[1] && /\d/.test(m[1]) ? m[1] : m[2]);
+      return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : null;
+    }
+    const w = s.match(/(صفر|ده|بیست|سی|چهل|پنجاه|شصت|هفتاد|هشتاد|نود|صد)\s*(درصد|٪)?/);
+    if (w) {
+      const map = { 'صفر': 0, 'ده': 10, 'بیست': 20, 'سی': 30, 'چهل': 40, 'پنجاه': 50, 'شصت': 60, 'هفتاد': 70, 'هشتاد': 80, 'نود': 90, 'صد': 100 };
+      if (map[w[1]] != null) return map[w[1]];
+    }
+    return null;
+  }
+
+  /** تاریخ نسبی: «امروز / فردا / پس‌فردا / ۱۰ آبان / ۱۴۰۵/۰۸/۱۰» → {y,m,d} یا {offset} */
+  function parseDateLoose(text) {
+    const s = norm(text);
+    const j = parseJalali(text);
+    if (j) return { jalali: j };
+    if (/پس ?فردا/.test(s)) return { offset: 2 };
+    if (/فردا/.test(s)) return { offset: 1 };
+    if (/امروز|امشب/.test(s)) return { offset: 0 };
+    return null;
+  }
+
   /* ─────────── نیت‌ها ───────────
      هر نیت: regex برای «مطمئن» + کلمات کلیدی برای امتیازدهی. */
   const INTENTS = [
@@ -162,6 +189,12 @@
       id: 'start_task',
       re: /(شروع|بزن بریم|بریم|بشروع|شروع کن)/,
       words: ['شروع', 'بریم'],
+    },
+    {
+      /* ۲.۸.۱۴: «این تایم را به کتابِ دیگر بده» — اجرایی‌ترین درخواستِ کاربر */
+      id: 'swap_today',
+      re: /(به ?جای|بجای|به ?جاش|جایش|اختصاص|تخصیص|تبدیل|جابه ?جا|انتقال).*(بدم|بدهم|بده|بذار|بگذار|کن|بخونم|بخوانم|کنم)|(این ?(تایم|زمان|ساعت|بلوک|وقت)).*(به|برای).*(بدم|بدهم|بده|اختصاص)|(آپدیت|به ?روز).*(کن|بشه)|(حذف|کنار).*(بذار|بگذار|کن)/,
+      words: ['به جای', 'اختصاص', 'جابه جا', 'تایم', 'آپدیت', 'منتقل'],
     },
     {
       id: 'ask_plan',
@@ -219,6 +252,57 @@
       words: ['تست', 'کمتر'],
     },
     {
+      /* ۲.۸.۱۵: ثبت ارزیابی فصل */
+      id: 'rate_chapter',
+      re: /(فصل\s*\d{1,2}).*(خوندم|خواندم|تموم|تمام|زدم|بلدم|تسلط|درصد)|(خوندم|خواندم|تموم کردم|تمام کردم|زدم).*(فصل\s*\d{1,2})/,
+      words: ['خوندم', 'خواندم', 'تموم', 'تمام', 'تسلط', 'زدم'],
+    },
+    {
+      id: 'add_exam',
+      re: /(آزمون|امتحان|جامع).*(اضافه|بذار|بگذار|ثبت|بزن|دارم)|(اضافه|بذار|ثبت).*(آزمون|امتحان)/,
+      words: ['آزمون', 'امتحان', 'اضافه'],
+    },
+    {
+      id: 'add_off',
+      re: /(تعطیل|مرخصی|مسافرت|سفر|بیمار).*(باشه|بشه|هستم|هستم|ام)|(امروز|فردا|پس فردا|\d{1,2}\s*[آ-ی]+).*(تعطیل|مرخصی)/,
+      words: ['تعطیل', 'مرخصی', 'سفر'],
+    },
+    {
+      id: 'set_start_time',
+      re: /(از|ساعت|شروع).*(شروع|بیدار شوم|بیدار شم|میروم مدرسه)|ساعت شروع/,
+      words: ['شروع', 'ساعت شروع', 'از ساعت'],
+    },
+    {
+      id: 'set_sleep',
+      re: /(می ?خوابم|می ?خوابم|خوابم|بیدار|ساعت خواب|ساعت بیداری)/,
+      words: ['خواب', 'بیدار', 'خوابم'],
+    },
+    {
+      id: 'set_break',
+      re: /(استراحت|فاصله|تنفس).*(بلوک|بین|دقیقه)/,
+      words: ['استراحت', 'فاصله', 'بلوک'],
+    },
+    {
+      id: 'set_weekly_mock',
+      re: /(آزمون).*(هفتگی|جامع).*(خاموش|روشن|نکن|نمی ?خوام|نمی ?خواهم|بکن|فعال|غیرفعال)|(خاموش|روشن|غیرفعال|فعال).*(آزمون)/,
+      words: ['آزمون هفتگی', 'جامع', 'خاموش', 'روشن'],
+    },
+    {
+      id: 'finish_block',
+      re: /(زدم|انجام شد|تموم شد|تمام شد|انجام دادم|تیک|چک کردم|رد کردم)/,
+      words: ['زدم', 'انجام شد', 'تموم شد', 'تیک'],
+    },
+    {
+      id: 'start_block',
+      re: /(شروع کن|شروعش کن|شروع می ?کنم).*(زیست|شیمی|ریاضی|فیزیک|زمین|ادبیات|عربی|دین|زبان)/,
+      words: ['شروع کن', 'شروعش'],
+    },
+    {
+      id: 'close_day',
+      re: /(روز|امروز).*(ببند|بسته|تموم|تمام|پایان)|(بستن|پایان)\s*روز/,
+      words: ['ببند', 'بستن روز', 'پایان روز'],
+    },
+    {
       id: 'help',
       re: /(کمک|راهنما|چیکار می ?تونی|چی می ?تونی|چه کاری می ?تونی|help)/,
       words: ['کمک', 'راهنما', 'می تونی'],
@@ -243,6 +327,107 @@
     return list.length ? list[0].id : 'unknown';
   }
 
+  /* ─────────── پارسِ «این تایم را به کتابِ دیگر بده» ───────────
+     ورودی‌های واقعیِ کاربر:
+       «الان زیست فصل ۴ را دارم، می‌خوام این تایم رو به شیمی فصل ۲ بدم»
+       «به جای زیست، شیمی فصل ۲ بخونم»
+       «زیست رو حذف کن، شیمی فصل ۲ بذار»
+       «این تایم رو به شیمی فصل ۲ اختصاص بده»
+     خروجی: { from:{subjectId,chapter}, to:{subjectId,chapter}, mode:'swap'|'focus'|null }
+     اگر فقط یک درس/فصل گفته شده باشد و صحبتِ «به جای/اختصاص» نباشد، mode='focus'. */
+  function parseSwapPlan(text) {
+    const s = norm(text);
+    const subjHits = [];
+    SUBJECT_WORDS.forEach((sp) => {
+      sp.words.forEach((w) => {
+        const nw = norm(w);
+        let at = s.indexOf(nw);
+        while (at !== -1) { subjHits.push({ id: sp.id, at, len: nw.length }); at = s.indexOf(nw, at + 1); }
+      });
+    });
+    subjHits.sort((a, b) => a.at - b.at);
+    /* درس‌های تکراریِ پشتِ‌سرهم (مثل «زیست شناسی» = «زیست» + «شناسی») یکی می‌شوند */
+    const subjects = [];
+    subjHits.forEach((h) => {
+      const last = subjects[subjects.length - 1];
+      if (last && last.id === h.id && h.at - (last.at + last.len) <= 2) { last.len = (h.at + h.len) - last.at; return; }
+      subjects.push({ id: h.id, at: h.at, len: h.len });
+    });
+
+    const chHits = [];
+    const re = /فصل\s*(\d{1,2})/g;
+    let m;
+    while ((m = re.exec(s)) !== null) chHits.push({ at: m.index, chapter: Number(m[1]) });
+
+    /* هر «فصل N» به نزدیک‌ترین درسِ قبل از خودش (وگرنه بعدش) می‌چسبد */
+    const withChapter = {};
+    chHits.forEach((c) => {
+      let best = null;
+      subjects.forEach((sj) => {
+        const after = sj.at <= c.at;
+        const dist = after ? (c.at - (sj.at + sj.len)) : (sj.at - c.at);
+        if (!best || dist < best.dist) best = { id: sj.id, dist, after };
+      });
+      if (best && (withChapter[best.id] == null)) withChapter[best.id] = c.chapter;
+    });
+
+    const ids = subjects.map((x) => x.id).filter((v, i, a) => a.indexOf(v) === i);
+    /* سه نوع «محور» در جمله:
+       ۱) «به جای X»  → X مبدأ است (اولین درسِ بعد از محور)
+       ۲) «X را حذف کن» → X مبدأ است (آخرین درسِ قبل از محور)
+       ۳) «... را به Y اختصاص بده» → Y مقصد است (اولین درسِ بعد از محور) */
+    const pivotReplace = s.search(/به ?جای|بجای|به ?جاش|جایش/);
+    const pivotRemove = s.search(/حذف|کنار ?(بذار|بگذار|بنداز)|نخون/);
+    const pivotTo = s.search(/اختصاص|تخصیص|تبدیل|جابه ?جا|انتقال/);
+
+    let fromId = null; let toId = null;
+    const firstAfter = (pos) => { const x = subjects.filter((y) => y.at >= pos); return x.length ? x[0].id : null; };
+    const lastBefore = (pos) => { const x = subjects.filter((y) => y.at < pos); return x.length ? x[x.length - 1].id : null; };
+    /* نزدیک‌ترین درس به یک نقطهٔ جمله (با ترجیحِ بعد از محور) — برای جمله‌هایی که
+       نامِ درس دقیقاً قبل از فعلِ «اختصاص بدم» آمده است. */
+    const nearest = (pos) => {
+      let best = null;
+      subjects.forEach((y) => {
+        const dist = y.at >= pos ? (y.at - pos) : (pos - (y.at + y.len));
+        const score = dist * (y.at >= pos ? 1 : 1.4);
+        if (!best || score < best.score) best = { id: y.id, score };
+      });
+      return best ? best.id : null;
+    };
+
+    if (ids.length >= 2) {
+      if (pivotRemove !== -1) {
+        fromId = lastBefore(pivotRemove) || ids[0];
+        toId = firstAfter(pivotRemove) || ids.filter((id) => id !== fromId)[0] || null;
+      } else if (pivotReplace !== -1) {
+        fromId = firstAfter(pivotReplace) || ids[0];
+        toId = ids.filter((id) => id !== fromId)[0] || null;
+      } else if (pivotTo !== -1) {
+        toId = nearest(pivotTo) || ids[ids.length - 1];
+        fromId = ids.filter((id) => id !== toId)[0] || null;
+      } else {
+        fromId = ids[0]; toId = ids[1];
+      }
+      if (fromId === toId) toId = ids.filter((id) => id !== fromId)[0] || null;
+    } else if (ids.length === 1) {
+      toId = ids[0];
+      if (pivotRemove !== -1 && pivotReplace === -1) { fromId = ids[0]; toId = null; }
+    }
+
+    const wantsSwap = /(به ?جای|بجای|به ?جاش|اختصاص|تخصیص|تبدیل|جابه ?جا|انتقال|حذف|کنار)/.test(s);
+    let mode = null;
+    if (fromId && toId && fromId !== toId && wantsSwap) mode = 'swap';
+    else if (fromId && !toId) mode = 'skip';
+    else if (toId) mode = 'focus';
+
+    return {
+      from: fromId ? { subjectId: fromId, chapter: withChapter[fromId] != null ? withChapter[fromId] : null } : null,
+      to: toId ? { subjectId: toId, chapter: withChapter[toId] != null ? withChapter[toId] : null } : null,
+      mode,
+      subjects: ids,
+    };
+  }
+
   /** استخراج همهٔ موجودیت‌ها یک‌جا */
   function entities(text) {
     return {
@@ -256,6 +441,6 @@
     };
   }
 
-  return { norm, parseNumber, parseWeekday, parseSubjects, parseClock, parseJalali,
-    intents, primary, entities, WEEKDAYS, SUBJECT_WORDS, JMONTHS };
+  return { norm, parseNumber, parseWeekday, parseSubjects, parseClock, parseJalali, parsePercent, parseDateLoose,
+    parseSwapPlan, intents, primary, entities, WEEKDAYS, SUBJECT_WORDS, JMONTHS };
 }));

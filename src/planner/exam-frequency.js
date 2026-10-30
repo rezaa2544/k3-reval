@@ -482,6 +482,6 @@
     FIELD_COEF, FIELD_VERIFIED, DATA, GROWTH,
     chapters, hasData, subjectMeta, seriesText, analyze,
     coefOf, fieldMax: fMax, fa,
-    version: '2.8.13',
+    version: '2.8.15',
   };
 });

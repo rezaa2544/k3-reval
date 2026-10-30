@@ -267,6 +267,31 @@
         };
       })
       .filter((e) => !e.done && (e.title || e.subjectId));
+    /* ---------------- تغییرهای دستیِ روز (۲.۸.۱۴) ----------------
+       کاربر یا دستیار می‌گوید «الان زیست فصل ۴ را دارم؛ این تایم را به شیمی فصل ۲ بده».
+       این تغییر فقط برای همان تاریخ اعمال می‌شود، فصلِ کنارگذاشته‌شده حذف نمی‌شود
+       (فردا جای خودش برمی‌گردد) و بقیهٔ برنامه دست‌نخورده می‌ماند. */
+    cfg.dayOverrides = (Array.isArray(cfg.dayOverrides) ? cfg.dayOverrides : [])
+      .map((o, i) => {
+        const src = o || {};
+        const action = ['swap', 'pin', 'skip'].indexOf(src.action) !== -1 ? src.action : 'pin';
+        const num = (v) => (v == null || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+        return {
+          id: src.id ? String(src.id) : 'OV' + (i + 1),
+          date: /^\d{4}-\d{2}-\d{2}$/.test(String(src.date || '')) ? String(src.date) : null,
+          action,
+          subjectId: src.subjectId || null,
+          chapter: num(src.chapter),
+          fromSubjectId: src.fromSubjectId || null,
+          fromChapter: num(src.fromChapter),
+          toSubjectId: src.toSubjectId || src.subjectId || null,
+          toChapter: src.toChapter != null ? num(src.toChapter) : num(src.chapter),
+          minutes: src.minutes ? clamp(Number(src.minutes), 15, 240) : null,
+          note: src.note ? String(src.note).slice(0, 120) : null,
+        };
+      })
+      .filter((o) => o.date && (o.subjectId || o.toSubjectId || o.fromSubjectId));
+
     cfg.student = Object.assign({ name: 'دانش‌آموز', grade: 'دوازدهم', field: 'tajrobi', chronotype: 'neutral' }, cfg.student || {});
     cfg.blockMinutes = clamp(Number(cfg.blockMinutes) || 45, 20, 120);
     cfg.breakMinutes = clamp(Number(cfg.breakMinutes) || 10, 0, 30);
@@ -1647,6 +1672,50 @@
       capacityTotal += load.minutes;
       const tasks = [];
 
+      /* ── ۲.۸.۱۴: تغییرِ دستیِ همین روز ──────────────────────────────
+         «این تایم را به کتابِ دیگری بده» بدون حذفِ فصل و بدون بازچینشِ کل سال:
+         فصلِ مبدأ امروز کنار می‌رود (در پایان روز سرِ جایش برمی‌گردد) و فصلِ
+         مقصد اولِ صفِ درسش می‌شود؛ باقیِ روز هم مثل همیشه چیده می‌شود. */
+      const ovToday = (cfg.dayOverrides || []).filter((o) => o.date === iso);
+      const stashTopics = [];
+      const blockedToday = new Set();   // درس‌هایی که امروز به‌خواستِ کاربر کنار رفته‌اند
+      let pinnedSpec = null;
+      if (ovToday.length) {
+        const pickTopic = (sid, ch) => {
+          const q = learnBySubject[sid] || [];
+          if (ch != null) return q.find((t) => Number(t.chapter) === Number(ch)) || null;
+          return q[0] || null;
+        };
+        const restOfSubject = (sid) => {
+          const q = learnBySubject[sid] || [];
+          q.forEach((t, idx) => stashTopics.push({ sid, at: idx, topic: t }));
+          learnBySubject[sid] = [];
+        };
+        ovToday.forEach((o) => {
+          if (o.action === 'skip' && o.subjectId) { blockedToday.add(o.subjectId); restOfSubject(o.subjectId); return; }
+          if (o.action === 'swap' && o.fromSubjectId && o.fromSubjectId !== o.toSubjectId) {
+            /* «این تایم را به کتابِ دیگر بده» = کلِ سهمِ آن کتاب از امروز آزاد می‌شود
+               (نه فقط یک فصل)، وگرنه همان کتاب بلافاصله با فصلِ دیگری برمی‌گردد و
+               تغییرِ کاربر عملاً دیده نمی‌شود. فصل‌ها حذف نمی‌شوند؛ فردا برمی‌گردند. */
+            blockedToday.add(o.fromSubjectId);
+            restOfSubject(o.fromSubjectId);
+          }
+          if (o.toSubjectId) {
+            const target = pickTopic(o.toSubjectId, o.toChapter);
+            if (target) {
+              const q = learnBySubject[o.toSubjectId] || (learnBySubject[o.toSubjectId] = []);
+              const at = q.indexOf(target);
+              if (at > 0) { q.splice(at, 1); q.unshift(target); }
+              if (o.minutes) target.needMinutes = Math.max(Number(target.needMinutes) || 0, o.minutes);
+              pinnedSpec = { subjectId: o.toSubjectId, chapter: target.chapter, minutes: o.minutes || null, known: true };
+            } else {
+              pinnedSpec = { subjectId: o.toSubjectId, chapter: o.toChapter, minutes: o.minutes || null, known: false };
+            }
+          }
+        });
+      }
+      let pinnedServed = false;
+
       /* ---- ۰) خودِ آزمون‌های آزمایشیِ امروز (رویداد ثابت) ---- */
       busy.filter((b) => b.type === 'exam').forEach((b) => {
         tasks.push({
@@ -2056,6 +2125,11 @@
             });
             if (alt && deadlinePressure(chosenId, dayIndex, load.minutes) < 0.5) chosenId = alt;
           }
+          /* ۲.۸.۱۴: فصلی که کاربر خودش امروز خواسته، اول از همه */
+          if (pinnedSpec && !pinnedServed && learnBySubject[pinnedSpec.subjectId]
+            && learnBySubject[pinnedSpec.subjectId].length) {
+            chosenId = pinnedSpec.subjectId;
+          }
           if (!chosenId) {
             /* سقفِ تنوع، زمانِ یادگیری را نمی‌بلعد: یک پله شل کن و دوباره امتحان کن */
             if (capRelax < 2.6 && used < budget - minChunkOf('learn')) { capRelax *= 1.6; continue; }
@@ -2136,6 +2210,7 @@
           used += chunk;
           subjectUsedToday[topic.subjectId] = (subjectUsedToday[topic.subjectId] || 0) + chunk;
           sessionsToday[topic.subjectId] = (sessionsToday[topic.subjectId] || 0) + 1;
+          if (pinnedSpec && topic.subjectId === pinnedSpec.subjectId) pinnedServed = true;
           learnSpent[topic.subjectId] = (learnSpent[topic.subjectId] || 0) + chunk;
           topic.needMinutes -= chunk;
           if (topic.needMinutes <= 0) {
@@ -2188,6 +2263,28 @@
          فصلی که هرگز خوانده نشده «مرور» می‌خواست.) */
       yesterdayLearned = [];
 
+      /* ---- ۶.۹) فصلِ خواسته‌شده اگر یادگیری‌اش تمام شده: بلوکِ تمرینِ هدفمند ---- */
+      /* کاربر گفته «امروز شیمی فصل ۲». اگر آن فصل قبلاً خوانده شده و نیازِ یادگیری‌اش
+         صفر است، به‌جای هیچ، یک بلوکِ تست/تمرینِ همان فصل می‌چینیم تا خواسته‌اش
+         واقعاً در برنامه دیده شود. */
+      if (pinnedSpec && !pinnedServed && !noNewLearning && !isFinalExam) {
+        const tp = topics.find((t) => t.subjectId === pinnedSpec.subjectId
+          && (pinnedSpec.chapter == null || Number(t.chapter) === Number(pinnedSpec.chapter)));
+        if (tp) {
+          const mins = Math.round(Math.min(cfg.blockMinutes,
+            Math.max(DEFAULTS.MIN_CHUNK.practice, pinnedSpec.minutes || cfg.blockMinutes)));
+          const subj = cfg.subjects.find((x) => x.id === tp.subjectId) || {};
+          tasks.push({
+            kind: 'practice', subjectId: tp.subjectId, subjectName: tp.subjectName,
+            topicLabel: tp.label, topic: tp, minutesLeft: mins, priority: 245,
+            practiceCount: Math.max(5, Math.round(mins / (subj.type === 'problem' ? 2.6 : 1.6))),
+            requested: true,
+          });
+          pinnedServed = true;
+          pinnedSpec = null;
+        }
+      }
+
       /* ---- ۷) پر کردن ظرفیت باقی‌مانده با تمرین درهم ---- */
       const plannedSoFar = sum(tasks.map((t) => t.minutesLeft));
       let spare = load.minutes - plannedSoFar;
@@ -2202,6 +2299,7 @@
       if (spare >= 20 && !isFinalExam) {
         const ordered = cfg.subjects
           .filter((s) => !scope || scope.has(s.id))
+          .filter((s) => !blockedToday.has(s.id) || (pinnedSpec && pinnedSpec.subjectId === s.id))
           .slice()
           .sort((a, b) => (b.weight * (1 - b.mastery / 100)) - (a.weight * (1 - a.mastery / 100)));
         const todaySubjects = new Set(tasks.map((t) => t.subjectId));
@@ -2500,6 +2598,17 @@
         }
       });
 
+      /* فصل‌هایی که امروز به‌خواستِ کاربر کنار گذاشته شدند، سرِ جایشان برمی‌گردند */
+      if (stashTopics.length) {
+        const bySid = {};
+        stashTopics.forEach((x) => { (bySid[x.sid] = bySid[x.sid] || []).push(x); });
+        Object.keys(bySid).forEach((sid) => {
+          const back = bySid[sid].sort((a, b) => a.at - b.at).map((x) => x.topic);
+          const rest = (learnBySubject[sid] || []).filter((t) => back.indexOf(t) === -1);
+          learnBySubject[sid] = back.concat(rest);
+        });
+      }
+
       const dayMinutes = sum(outBlocks.filter((b) => b.kind !== 'exam').map((b) => b.minutes));
       outBlocks.forEach((b) => {
         if (stats[b.subjectId]) { stats[b.subjectId].minutes += b.minutes; stats[b.subjectId].blocks += 1; }
@@ -2522,6 +2631,14 @@
         isDeload: load.isDeload,
         studyMinutes: dayMinutes,
         plannedMinutes: dayMinutes,
+        /* ۲.۸.۱۴: تغییرهای دستیِ همین روز (برای نمایش و بازگشتِ یک‌کلیکی) */
+        overrides: ovToday.map((o) => ({
+          id: o.id, action: o.action,
+          from: o.fromSubjectId ? { subjectId: o.fromSubjectId, chapter: o.fromChapter } : null,
+          to: o.toSubjectId ? { subjectId: o.toSubjectId, chapter: o.toChapter } : null,
+          minutes: o.minutes, note: o.note,
+          applied: Boolean(pinnedServed),
+        })),
         /* ۲.۸.۱۱: تنوعِ همان روز — چند درس و سهم هر کدام (برای نمایش و سنجش) */
         variety: (function () {
           const by = {};
@@ -3084,7 +3201,7 @@
 
     return {
       meta: {
-        version: '2.8.13', createdAt: new Date().toISOString(),
+        version: '2.8.15', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
