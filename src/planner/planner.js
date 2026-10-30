@@ -1405,6 +1405,28 @@
         const i = firstTaskIndex(day);
         return (i == null || i < 0) ? null : day.date + '#' + i;
       },
+      /* v2.8.3: شبیه‌سازی دادهٔ قدیمی — درس‌ها بدون topicNames و بدون سطر ارزیابی.
+         برای تست اینکه عنوان‌های کتاب از منبع رسمی پر می‌شوند. */
+      oldDataDemo: () => {
+        (state.coreSubjects || []).forEach((x) => { x.topicNames = null; x.chapterShort = null; x.chapterGrades = null; });
+        (state.general || []).forEach((x) => { x.topicNames = null; x.chapterShort = null; x.chapterGrades = null; });
+        Object.keys(state.chapters || {}).forEach((k) => { delete state.chapters[k]; });
+        renderAssessment();
+        const rows = (state.chapters || {})[((state.coreSubjects || [])[0] || {}).id] || [];
+        return JSON.stringify({ subjects: assessSubjects().map((x) => ({ id: x.id, n: (x.topicNames || []).length })),
+          first: rows.slice(0, 3).map((r) => r.name) });
+      },
+      /* عنوان‌هایی که در ارزیابی رندر شده‌اند (برای تست) */
+      assessRows: (sid) => {
+        const card = document.querySelector('[data-sid="' + sid + '"]');
+        if (!card) return '[]';
+        const trs = [...card.querySelectorAll('tbody tr')];
+        return JSON.stringify(trs.slice(0, 4).map((tr) => ({
+          badge: (tr.querySelector('.cn-badge') || {}).textContent || '',
+          value: (tr.querySelector('input[data-cf=name]') || {}).value || '',
+          ph: (tr.querySelector('input[data-cf=name]') || {}).placeholder || '',
+        })));
+      },
       /* v2.8.2: بازسازی سطرهای بدون عنوان با عنوان واقعی کتاب (برای تست) */
       repairDemo: () => {
         const sub = { id: 'x', general: false, grade: 'دوازدهم',
@@ -2384,14 +2406,112 @@
     return String(t).replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
   }
 
+  /* ══════════ عنوان رسمی فصل‌ها (منبع: فهرست کتاب‌های درسی در presets) ══════════
+     «فصل ۱» به‌تنهایی چیزی از محتوا نمی‌گوید. برای همین برای هر درس، فهرست
+     رسمی سرفصل‌های کتاب درسی نگه داشته می‌شود و هر جا فصل نمایش داده شود —
+     ارزیابی، بلوک‌های برنامه، گزارش، جدول نهایی، مهلت‌ها — همان عنوان می‌آید. */
+
+  const GENERIC_CHAP = /^\s*(فصل|درس)\s*[۰-۹0-9٠-٩]+\s*$/;
+
+  /** فهرست [{grade,name}] برای یک درس؛ اگر پایه‌اش معلوم باشد همان پایه */
+  function canonChapterList(sub) {
+    const id = sub && sub.id;
+    if (!id) return null;
+    let list = null;
+    try { list = (presets && presets.chaptersFor) ? presets.chaptersFor(id) : null; } catch (e) { list = null; }
+    if (!list || !list.length) return null;
+    return list;
+  }
+
+  /** عنوان‌های استاندارد به ترتیب کتاب، محدود به پایه‌های همان درس */
+  function canonTopicNames(sub, count) {
+    const list = canonChapterList(sub);
+    if (!list) return null;
+    const wanted = [];
+    if (Array.isArray(sub.grades)) sub.grades.forEach((g) => wanted.push(String(g)));
+    if (sub.grade) wanted.push(String(sub.grade));
+    const valid = wanted.filter((g) => /دهم|یازدهم|دوازدهم/.test(g));
+    let picked = list;
+    if (valid.length) {
+      const f = list.filter((c) => valid.some((g) => c.grade === g || (g === 'فارغ‌التحصیل' && c.grade === 'دوازدهم')));
+      if (f.length) picked = f;
+    }
+    if (count && picked.length > count && valid.length === 0) picked = picked.slice(0, count);
+    return picked.map((c) => (c.grade === '—' ? c.name : c.grade + ' · ' + c.name));
+  }
+
+  /** topicNames یک درس را (در صورت نبود یا بی‌معنی بودن) با عناوین رسمی پر می‌کند */
+  function ensureTopicNames(sub) {
+    if (!sub || !sub.id) return sub;
+    const canon = canonTopicNames(sub);
+    if (!canon) return sub;
+    const need = Math.max(clampNum(sub.chapters, 1, 120), Array.isArray(sub.topicNames) ? sub.topicNames.length : 0);
+    const cur = Array.isArray(sub.topicNames) ? sub.topicNames.slice() : [];
+    const out = [];
+    let changed = 0;
+    for (let i = 0; i < Math.max(need, canon.length && need ? need : canon.length); i += 1) {
+      const c = cur[i];
+      const generic = !c || GENERIC_CHAP.test(String(c).trim());
+      if (generic) {
+        const pick = canon[i] || canon[canon.length - 1] || null;
+        out.push(pick || ('فصل ' + faNum(i + 1)));
+        if (pick) changed += 1;
+      } else {
+        out.push(String(c));
+      }
+    }
+    if (!out.length) return sub;
+    sub.topicNames = out;
+    sub.chapters = out.length;
+    if (!Array.isArray(sub.chapterGrades) || sub.chapterGrades.length !== out.length) {
+      const list = canonChapterList(sub) || [];
+      sub.chapterGrades = out.map((n, i) => (list[i] && list[i].grade) || gradeFromName(n) || sub.grade || '');
+    }
+    if (!Array.isArray(sub.chapterShort) || sub.chapterShort.length !== out.length) {
+      sub.chapterShort = out.map((n) => String(n).replace(/^\s*(دهم|یازدهم|دوازدهم)\s*[·:.\-–]\s*/, ''));
+    }
+    return sub;
+  }
+
+  /** نقشهٔ «درس.فصل ← عنوان» برای هر چیزی که در برنامه ساخته شده */
+  function chapterTitleMap() {
+    const map = {};
+    const all = (state.coreSubjects || []).concat((state.general || []).filter((x) => x.include !== false));
+    all.forEach((sub) => {
+      const s2 = ensureTopicNames(Object.assign({}, sub));
+      (s2.topicNames || []).forEach((name, i) => { map[sub.id + '.c' + (i + 1)] = String(name); });
+    });
+    return map;
+  }
+
+  /** عنوان‌های «فصل N» در برنامهٔ ساخته‌شده را با عنوان واقعی کتاب عوض می‌کند. */
+  function migratePlanChapterNames(plan) {
+    if (!plan) return 0;
+    const map = chapterTitleMap();
+    let fixed = 0;
+    (plan.days || []).forEach((d) => {
+      (d.blocks || []).forEach((b) => {
+        if (!b || !b.topicId || !map[b.topicId]) return;
+        if (!b.topic || GENERIC_CHAP.test(String(b.topic).trim())) { b.topic = map[b.topicId]; fixed += 1; }
+      });
+    });
+    const stats = (plan.summary && plan.summary.chapterStats) || [];
+    stats.forEach((c) => {
+      const t = map[c.subjectId + '.c' + c.chapter];
+      if (t && (!c.label || GENERIC_CHAP.test(String(c.label).trim()))) { c.label = t; fixed += 1; }
+    });
+    return fixed;
+  }
+
   /** فهرست پیش‌فرض فصل‌های یک درس (نخوانده) */
   function defaultChapterRows(sub) {
-    const names = sub && Array.isArray(sub.topicNames) && sub.topicNames.length ? sub.topicNames : null;
+    const s2 = ensureTopicNames(Object.assign({}, sub || {}));
+    const names = Array.isArray(s2.topicNames) && s2.topicNames.length ? s2.topicNames : null;
     const n = names ? names.length : clampNum(sub && sub.chapters, 1, 120);
     const out = [];
     for (let i = 0; i < n; i++) {
       out.push({
-        name: names ? String(names[i]) : ((sub && sub.topicLabel) || 'فصل') + ' ' + faNum(i + 1),
+        name: names && !GENERIC_CHAP.test(String(names[i])) ? String(names[i]) : ((s2 && s2.topicLabel) || 'فصل') + ' ' + faNum(i + 1),
         read: false,
         mastery: 0,
       });
@@ -2431,12 +2551,15 @@
       اگر هنوز هم عنوانی نبود، «فصل N» به‌عنوان جای‌نگهدار می‌ماند تا سطر خالی نماند. */
   function repairChapterRows(sub, rows, canon) {
     const label = (sub && sub.general) ? 'درس' : 'فصل';
+    /* منبع عنوان: اول فهرست رسمی کتاب (canon)، بعد فهرست خودِ درس */
+    const official = (canon && canon.length ? canon : null) || canonTopicNames(sub) || null;
     rows.forEach((r, i) => {
       if (!r) return;
       const nm = String(r.name == null ? '' : r.name).trim();
-      const isGeneric = !nm || nm === label + ' ' + faNum(i + 1) || nm === label + ' ' + (i + 1);
-      if (!nm || (isGeneric && canon && canon[i])) {
-        r.name = (canon && canon[i]) ? canon[i] : (label + ' ' + faNum(i + 1));
+      const isGeneric = !nm || GENERIC_CHAP.test(nm) || nm === label + ' ' + faNum(i + 1) || nm === label + ' ' + (i + 1);
+      if (isGeneric) {
+        const pick = (official && official[i]) || (official && official[official.length - 1]) || null;
+        r.name = pick && !GENERIC_CHAP.test(String(pick)) ? String(pick) : (label + ' ' + faNum(i + 1));
       }
       if (!r.grade) {
         const g = gradeFromName(r.name) || (sub && sub.grade) || '';
@@ -2459,32 +2582,41 @@
 
   /** دروس قابل ارزیابی = اختصاصی‌ها + عمومی‌های فعال */
   function assessSubjects() {
-    const core = (state.coreSubjects || []).map((x) => ({
+    const core = (state.coreSubjects || []).map((x) => ensureTopicNames({
       id: x.id, name: x.name, weight: x.weight, chapters: x.chapters,
-      topicLabel: x.topicLabel, topicNames: x.topicNames, general: false,
+      topicLabel: x.topicLabel, topicNames: x.topicNames, chapterGrades: x.chapterGrades,
+      grade: x.grade, grades: x.grades, general: false,
     }));
-    const gen = (state.general || []).filter((x) => x.include !== false).map((x) => ({
+    const gen = (state.general || []).filter((x) => x.include !== false).map((x) => ensureTopicNames({
       id: x.id, name: x.name, weight: x.weight, chapters: x.chapters,
-      topicLabel: x.topicLabel, topicNames: x.topicNames, general: true, grade: x.grade,
+      topicLabel: x.topicLabel, topicNames: x.topicNames, chapterGrades: x.chapterGrades,
+      general: true, grade: x.grade, grades: x.grades,
     }));
     return core.concat(gen);
+  }
+
+  /** عنوان رسمی همان فصل (برای جای‌نگهدار و راهنما) */
+  function officialTitle(sub, i) {
+    const list = canonTopicNames(sub) || [];
+    return list[i] || '';
   }
 
   function assessmentRowHtml(row, i, sub) {
     const label = (sub && sub.general) ? 'درس' : 'فصل';
     const num = label + ' ' + faNum(i + 1);
-    const nm = String(row.name == null ? '' : row.name).trim() || num;
-    /* شمارهٔ فصل همیشه خوانا و جدا از عنوان است؛ عنوان واقعی کتاب در ورودی می‌آید.
-       اگر عنوانی برای کتاب ثبت نشده باشد، خودِ «فصل N» در ورودی می‌نشیند تا سطر خالی نماند. */
-    const hasTitle = nm !== num;
-    const grade = row.grade || gradeFromName(nm);
+    const official = officialTitle(sub, i);
+    const raw = String(row.name == null ? '' : row.name).trim();
+    /* اگر نام ذخیره‌شده نبود یا فقط «فصل N» بود، عنوان رسمی کتاب جایش می‌نشیند */
+    const nm = (!raw || GENERIC_CHAP.test(raw)) ? (official || num) : raw;
+    const hasTitle = nm !== num && !GENERIC_CHAP.test(nm);
+    const grade = row.grade || gradeFromName(nm) || (sub && sub.grade) || '';
     const badge = hasTitle ? '<span class="cn-badge">' + esc(num) + '</span>' : '';
     const gradeChip = (hasTitle && grade && !NM_HAS_GRADE(nm) && grade !== nm)
       ? '<span class="cn-grade">' + esc(grade) + '</span>' : '';
     return '<tr data-ci="' + i + '">' +
       '<td class="cname"><div class="cn-wrap">' + badge + gradeChip +
         '<input data-cf="name" value="' + esc(nm) + '"' +
-          ' placeholder="' + esc(num) + ' — عنوان از کتاب درسی (مثلاً «مثلثات»)" />' +
+          ' placeholder="' + esc(official || num) + '" title="' + esc(num + (official ? ' — ' + official : '')) + '" />' +
       '</div></td>' +
       '<td style="text-align:center"><input type="checkbox" data-cf="read"' + (row.read ? ' checked' : '') + ' /></td>' +
       '<td><div class="mrow">' +
@@ -2688,6 +2820,7 @@
 
   /** چسباندن داده‌های ارزیابی فصل‌به‌فصل به یک درس در config */
   function withChapters(sub) {
+    ensureTopicNames(sub);
     const rows = state.chapters[sub.id];
     if (!rows || !rows.length) return sub;
     const s2 = assessSummary(rows);
@@ -2938,7 +3071,8 @@
     });
     const subjects = readSubjects()
       .concat(readGeneral().filter((x) => x.include))
-      .map(withChapters);
+      .map(withChapters)
+      .map((x) => ensureTopicNames(x));
     const schoolDays = { sat: '16:00', sun: '16:00', mon: '16:00', tue: '16:00', wed: '16:00', thu: '09:00', fri: '09:00' };
     return {
       student: {
@@ -3176,6 +3310,8 @@
       } catch (e) { /* بی‌صدا */ }
       state.config = cfg;
       state.plan = plan;
+      /* هر عنوان «فصل N» که از دادهٔ قدیمی مانده، با عنوان رسمی کتاب عوض می‌شود */
+      try { migratePlanChapterNames(plan); } catch (e) { /* بی‌صدا */ }
       state.week = 0;
       state.selectedDay = null;
       state.scores = {};
@@ -3915,6 +4051,7 @@
           if (data.appVersion) state.appVersion = data.appVersion;
           if (data.plan) {
             state.plan = data.plan;
+            try { migratePlanChapterNames(state.plan); } catch (e) { /* بی‌صدا */ }
             renderPlan();
             return;
           }

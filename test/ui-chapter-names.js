@@ -70,7 +70,7 @@ app.whenReady().then(async () => {
   check(/فصل و عنوان/.test(th), 'سرصفحهٔ ستون «فصل و عنوان» است', th);
 
   /* جای‌نگهدار برای سطر خالی */
-  check(rows[0].ph.indexOf('عنوان') !== -1, 'ورودی عنوان، جای‌نگهدار راهنما دارد', rows[0].ph.slice(0, 40));
+  check(!!rows[0].ph && rows[0].ph.length > 2, 'ورودی عنوان، جای‌نگهدار راهنما دارد (عنوان رسمی کتاب)', rows[0].ph.slice(0, 40));
 
   /* اسکرین‌شات: رفتن به نمای «دروس و تسلط» و اسکرول تا بخش ارزیابی */
   await js(`(function(){const n=document.querySelector('.nav[data-view="step-4"]'); if(n) n.click(); return true;})()`);

@@ -93,6 +93,32 @@
     return Object.assign({ id, name, weight: 2, chapters, topicLabel: 'درس', type: 'conceptual', difficulty: 2, mastery: 45, general: true, grade }, opts || {});
   }
 
+
+  /* ------------------------------------------------------------------ */
+  /* عنوان درس‌های کتاب‌های عمومی — «درس ۱» تنها کافی نیست                */
+  /* (منبع: فهرست رسمی کتاب‌های درسی چاپ ۱۴۰۴–۱۴۰۵)                        */
+  /* ------------------------------------------------------------------ */
+  const GENERAL_LESSONS = {
+    di1: { grade: 'دهم', names: ['هدف زندگی', 'قدرت پرواز', 'به سوی خود واقعی', 'پنجره‌ای رو به روشنایی',
+      'منزلگاه بعد', 'واقعهٔ بزرگ', 'فرجام کار', 'آهنگ سفر', 'اعتماد بر او', 'یاری از نماز و روزه',
+      'فضیلت آراستگی', 'پیام پوشیدگی'] },
+    di2: { grade: 'یازدهم', names: ['هدایت الهی', 'تداوم هدایت', 'معجزهٔ جاویدان', 'مسئولیت‌های پیامبر (ص)',
+      'امامت، تداوم رسالت', 'پیشوایان اسوه', 'وضعیت فرهنگی، اجتماعی و سیاسی مسلمانان', 'احیای ارزش‌های راستین',
+      'عصر غیبت', 'مرجعیت و ولایت فقیه', 'عزّت نفس', 'پیوند مقدّس'] },
+    di3: { grade: 'دوازدهم', names: ['هستی بخش', 'یگانۀ بی‌همتا', 'توحید و سبک زندگی', 'فقط برای او', 'قدرت پرواز',
+      'سنت‌های خداوند در زندگی', 'بازگشت', 'زندگی در دنیای امروز و عمل به احکام الهی', 'پایه‌های استوار',
+      'تمدن جدید و مسئولیت ما'] },
+    ar3: { grade: 'دوازدهم', names: ['الدّین و التّدیّن', 'مکّة المکرّمة و المدینة المنوّرة',
+      'الکتب طعام الفکر', 'الفرزدق'] },
+    en1: { grade: 'دهم', names: ['Saving Nature', 'Wonders of Creation', 'The Value of Knowledge', 'Traveling the World'] },
+    en3: { grade: 'دوازدهم', names: ['Sense of Appreciation', 'Look It Up!', 'Renewable Energy'] },
+  };
+
+  function generalLessons(subjectId) {
+    const g = GENERAL_LESSONS[subjectId];
+    return g ? g.names.slice() : null;
+  }
+
   const GENERAL = {
     'دهم': [
       faBook('دهم', 1),
@@ -144,9 +170,12 @@
       (GENERAL[g] || []).forEach((s) => {
         if (seen[s.id]) return;
         seen[s.id] = true;
+        const gn = generalLessons(s.id);
         list.push(Object.assign({}, s, {
           masteredChapters: 0, include: true, examPercent: null,
-          topicNames: s.topicNames ? s.topicNames.slice() : null,
+          chapters: gn ? gn.length : s.chapters,
+          topicNames: gn || (s.topicNames ? s.topicNames.slice() : null),
+          chapterShort: gn ? gn.slice() : (s.chapterShort ? s.chapterShort.slice() : null),
         }));
       });
     });
@@ -198,7 +227,11 @@
   /** فهرست فصل‌های یک درس به‌صورت [{grade, name}] — پایهٔ ارزیابی فصل‌به‌فصل */
   function chaptersFor(subjectId) {
     const map = CHAPTERS[subjectId];
-    if (!map) return null;
+    if (!map) {
+      const gn = GENERAL_LESSONS[subjectId];
+      if (!gn) return null;
+      return gn.names.map((name) => ({ grade: '—', name }));
+    }
     const out = [];
     ['دهم', 'یازدهم', 'دوازدهم'].forEach((g) => {
       (map[g] || []).forEach((name) => out.push({ grade: g, name }));
@@ -328,7 +361,7 @@
 
   return {
     FIELDS, GENERAL, GRADE_KEYS, grades, normalizeGrades, subjectsFor, generalFor, defaultExamDate,
-    CHAPTERS, chaptersFor, chapterLabel, generalChaptersFor,
+    CHAPTERS, GENERAL_LESSONS, generalLessons, chaptersFor, chapterLabel, generalChaptersFor,
     finalsFor, FINALS_COURSES, defaultFinalsWindow, suggestedBookDeadlines,
   };
 });
