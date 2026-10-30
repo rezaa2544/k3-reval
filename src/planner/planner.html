@@ -1417,6 +1417,30 @@
   .dyn-row .del{background:#fff;border:1px solid #f5c2c2;color:#dc2626;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
   .dyn-row .del:hover{background:#fef2f2}
   .dyn-row select[multiple]{height:76px; font-size:11.5px; padding:6px}
+  /* انتخاب درس‌ها با تیک (جای <select multiple>) */
+  .dyn-row > div.wide{grid-column:1 / -1}
+  /* چیدمان تازهٔ ردیف آزمون: ۴ فیلد در سطر اول، انتخاب درس‌ها یک سطر کامل زیرش */
+  .dyn-row.exam{grid-template-columns:repeat(4,minmax(0,1fr)) auto; align-items:end}
+  .dyn-row.exam > div:nth-child(4){grid-column:4; grid-row:1}
+  .dyn-row.exam > div.wide{grid-column:1 / -1; grid-row:2}
+  .dyn-row.exam > .del{grid-column:5; grid-row:1; align-self:end}
+  .dyn-row.mock > .mock-subjects.wide{grid-column:1 / -1; grid-row:2}
+  .dyn-row.mock > .mock-del{grid-column:5; grid-row:1}
+  .subj-checks{border:1px solid var(--line); border-radius:12px; padding:8px 9px; background:#fbfcff}
+  .sc-bar{display:flex; align-items:center; gap:6px; margin-bottom:7px}
+  .sc-bar .mini{font-size:10.5px; padding:3px 9px}
+  .sc-hint{font-size:10px; color:var(--faint); margin-inline-start:auto}
+  .sc-grid{display:flex; flex-wrap:wrap; gap:6px}
+  .sc{
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    border:1px solid #e2e8f0; background:#fff; border-radius:999px; padding:5px 11px 5px 9px;
+    font-size:11.5px; color:#475569; user-select:none; transition:all .12s ease;
+  }
+  .sc:hover{border-color:#c7d2fe; background:#f8faff}
+  .sc input{width:14px; height:14px; margin:0; accent-color:#4f46e5; cursor:pointer}
+  .sc:has(input:checked){background:#eef2ff; border-color:#c7d2fe; color:#3730a3; font-weight:700}
+  .sc input:checked + span{color:#3730a3}
+
   .dyn-row .del{background:#fff;border:1px solid #f5c2c2;color:var(--danger);border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;font-size:12px}
   @media(max-width:900px){.dyn-row.class,.dyn-row.exam,.dyn-row.mock,.dyn-row.dlbook,.dyn-row.dlexam,.dyn-row.off{grid-template-columns:1fr 1fr}}
   .grade-chip{

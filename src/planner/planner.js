@@ -602,6 +602,70 @@
 
   /* ---------------- آزمون‌های دوره‌ای (هر روز هفته، هر N هفته) ---------------- */
 
+  /** فهرست دروس (اختصاصی فعال + عمومی فعال) برای انتخاب در آزمون‌ها */
+  function allSubjectsForPick() {
+    const core = (state.coreSubjects && state.coreSubjects.length)
+      ? state.coreSubjects
+      : presets.subjectsFor($('field').value || 'tajrobi');
+    const gen = (state.general || []).filter((x) => x.include !== false);
+    const seen = {};
+    return core.concat(gen).filter((x) => {
+      if (!x || !x.id || seen[x.id]) return false;
+      seen[x.id] = true;
+      return true;
+    });
+  }
+
+  /**
+   * انتخاب درس‌ها با تیک — جای <select multiple> که کاربر مجبور بود
+   * Ctrl+کلیک کند (روی ویندوز تقریباً غیرقابل‌استفاده بود).
+   * هر درس یک چیپِ تیک‌دار است؛ «همه/هیچ» هم دارد.
+   */
+  function subjectChecksHtml(attr, selected) {
+    const list = allSubjectsForPick();
+    const sel = Array.isArray(selected) ? selected : [];
+    const chips = list.map((x) =>
+      '<label class="sc" title="' + esc(x.name) + '">' +
+        '<input type="checkbox" value="' + esc(x.id) + '"' + (sel.indexOf(x.id) !== -1 ? ' checked' : '') + '>' +
+        '<span>' + esc(x.name) + '</span>' +
+      '</label>').join('');
+    return '<div class="subj-checks" data-subj-checks="' + esc(attr) + '">' +
+      '<div class="sc-bar">' +
+        '<button type="button" class="mini" data-sc-all="1">همه</button>' +
+        '<button type="button" class="mini" data-sc-all="0">هیچ</button>' +
+        '<span class="sc-hint">خالی = همهٔ درس‌ها</span>' +
+      '</div>' +
+      '<div class="sc-grid" data-sc-grid="' + esc(attr) + '">' + chips + '</div>' +
+    '</div>';
+  }
+
+  /** درس‌های تیک‌خوردهٔ یک ردیف */
+  function readSubjectChecks(row) {
+    if (!row) return [];
+    return Array.prototype.map.call(row.querySelectorAll('.subj-checks input[type=checkbox]:checked'), (i) => i.value);
+  }
+
+  /** دکمه‌های «همه/هیچ» و بازرسمی‌کردن تیک‌ها؛ یک‌بار برای کل سند */
+  function wireSubjectChecks() {
+    document.addEventListener('click', (ev) => {
+      const btn = ev.target.closest && ev.target.closest('[data-sc-all]');
+      if (!btn) return;
+      ev.preventDefault();
+      const wrap = btn.closest('.subj-checks');
+      if (!wrap) return;
+      const on = btn.getAttribute('data-sc-all') === '1';
+      wrap.querySelectorAll('input[type=checkbox]').forEach((i) => { i.checked = on; });
+      wrap.classList.toggle('has-any', on);
+    });
+    document.addEventListener('change', (ev) => {
+      const cb = ev.target;
+      if (!cb || cb.type !== 'checkbox') return;
+      const wrap = cb.closest && cb.closest('.subj-checks');
+      if (!wrap) return;
+      wrap.classList.toggle('has-any', !!wrap.querySelector('input:checked'));
+    });
+  }
+
   function subjectOptionsAll(selected) {
     const list = (state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi'));
     return list.map((s) => '<option value="' + s.id + '"' +
@@ -629,7 +693,8 @@
           [60, 90, 100, 120, 150, 180, 210]
             .map((v) => '<option value="' + v + '"' + (Number(m.minutes || 100) === v ? ' selected' : '') + '>' + faNum(v) + '</option>').join('') +
         '</select></div>' +
-        '<div class="mock-subjects"><label>دروس (خالی = همه)</label><select data-mk="subjectIds" multiple size="4">' + subjectOptionsAll(m.subjectIds) + '</select></div>' +
+        '<div class="mock-subjects wide"><label>دروس آزمون (با تیک انتخاب کن — خالی = همه)</label>' +
+          subjectChecksHtml('mk', m.subjectIds || []) + '</div>' +
         '<button class="del mock-del" title="حذف">✕</button>';
       div.querySelector('.del').addEventListener('click', () => div.remove());
       box.appendChild(div);
@@ -649,7 +714,7 @@
       const every = Number(row.querySelector('[data-mk="everyNWeeks"]').value) || 1;
       const start = normTime(row.querySelector('[data-mk="start"]').value) || null;
       const minutes = Number(row.querySelector('[data-mk="minutes"]').value) || 100;
-      const subjectIds = Array.from(row.querySelector('[data-mk="subjectIds"]').selectedOptions).map((o) => o.value);
+      const subjectIds = readSubjectChecks(row);
       if (!title && !subjectIds.length) return;
       out.push({ title: title || 'آزمون دوره‌ای', day, everyNWeeks: every, start, minutes, subjectIds });
     });
@@ -1405,6 +1470,8 @@
         const i = firstTaskIndex(day);
         return (i == null || i < 0) ? null : day.date + '#' + i;
       },
+      /* v2.8.6: خواندن درس‌های تیک‌خوردهٔ ردیف آزمون (برای تست) */
+      readExamsDemo: () => JSON.stringify((readExams() || []).map((e) => (e.subjectIds || []).join(',')).filter(Boolean).join('|').split(',')),
       /* v2.8.3: شبیه‌سازی دادهٔ قدیمی — درس‌ها بدون topicNames و بدون سطر ارزیابی.
          برای تست اینکه عنوان‌های کتاب از منبع رسمی پر می‌شوند. */
       oldDataDemo: () => {
@@ -3081,10 +3148,8 @@
         '<div><label>تاریخ (شمسی)</label><input data-ef="date" data-jdate data-iso="' + esc(e.date || '') + '" placeholder="۱۴۰۵/۰۹/۱۲" /></div>' +
         '<div><label>از</label>' + timeInput('data-ef="start"', e.start, '08:00') + '</div>' +
         '<div><label>تا</label>' + timeInput('data-ef="end"', e.end, '11:30') + '</div>' +
-        '<div><label>درس‌های آزمون</label><select multiple data-ef="subjectIds">' +
-          (state.config ? state.config.subjects : []).concat(state.general || []).map((x) =>
-            '<option value="' + esc(x.id) + '"' + ((e.subjectIds || []).indexOf(x.id) !== -1 ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
-        '</select></div>' +
+        '<div class="wide"><label>درس‌های آزمون (با تیک انتخاب کن)</label>' +
+          subjectChecksHtml('ef', e.subjectIds || []) + '</div>' +
         '<button class="del" title="حذف">✕</button>';
       div.querySelector('.del').addEventListener('click', () => { div.remove(); toast('آزمون حذف شد — برای اعمال، برنامه را دوباره بساز.'); });
       box.appendChild(div);
@@ -3115,13 +3180,12 @@
       const dateInput = get('date');
       const date = dateInput.dataset.iso || (J ? J.parse(dateInput.value) : null);
       if (!date) return;
-      const sel = get('subjectIds');
       out.push({
         title: get('title').value.trim() || 'آزمون آزمایشی',
         date,
         start: readTime(get('start'), '08:00'),
         end: readTime(get('end'), '11:30'),
-        subjectIds: Array.prototype.map.call(sel.selectedOptions, (o) => o.value),
+        subjectIds: readSubjectChecks(row),
       });
     });
     return out;
@@ -5193,6 +5257,8 @@
   aiLoadConfig().then(() => {
     if (aiLoadHistory()) aiRender();
   });
+
+  try { wireSubjectChecks(); } catch (e) { /* بی‌صدا */ }
 
   restore().then(() => {
     try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }

@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.5-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.5/Reval-Setup-2.8.5.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.5-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.5)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.6-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.6/Reval-Setup-2.8.6.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.6-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.6)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,42 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.5.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.5/Reval-Setup-2.8.5.exe)
+### [💾 Reval-Setup-2.8.6.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.6/Reval-Setup-2.8.6.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۵**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۶**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.5/Reval-Setup-2.8.5.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.6/Reval-Setup-2.8.6.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `cf03dab31696da9c1c40957657bc3b7008c19d8a2c49ff5e69fd2496eb35621b` |
-| **حجم دقیق** | ۸۰٬۱۴۵٬۴۵۹ بایت |
+| **SHA-256** | `9c5926b5b2e4e11167edcd105ff5ae0c96c3de07264de7a3f40dd779a220d862` |
+| **حجم دقیق** | ۸۰٬۱۴۶٬۴۸۶ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.5.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.5.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.6.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.6.zip` — ۵۵۴ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۶ — درس‌های آزمون با تیک انتخاب می‌شوند
+
+| | |
+|---|---|
+| **جای کادر آبی** | فیلد «درس‌های آزمون» دیگر `<select multiple>` ویندوز نیست؛ هر درس یک **چیپِ تیک‌دار** است — هر تعداد درس با یک کلیک، بدون Ctrl |
+| **همه / هیچ** | دو دکمهٔ میان‌بر بالای فهرست؛ خالی = همهٔ درس‌ها |
+| **کجا** | آزمون‌های آزمایشی تاریخ‌دار (قدم ۳) و آزمون‌های دوره‌ای هفتگی (قدم ۶) |
+| **برنامه‌های قبلی** | همان `subjectIds` خوانده می‌شود؛ برنامه‌های ذخیره‌شده بدون تغییر باز می‌شوند |
+| **آزمون** | `test/ui-exam-subject-checks.js` — **۱۱ ✅** در Electron (کلیک واقعی، همه/هیچ، خواندن توسط موتور) |
+
+![](docs/screens/ui-53-exam-subject-checkbox.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۶](docs/release-notes-2.8.6.md)
 
 ---
 
