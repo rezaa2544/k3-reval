@@ -230,6 +230,13 @@
 
   /* ---------- نشانگرها ---------- */
   .badge{display:inline-block; font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:600}
+  /* ۲.۸.۱۱ — نوارِ تنوعِ روز: چند درس در این روز و سهم هر کدام */
+  .variety{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:9px; padding-top:8px; border-top:1px dashed var(--line, #e2e2e2)}
+  .variety .vlabel{font-size:11px; color:var(--muted, #6b7280); font-weight:600}
+  .vchip{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; padding:2.5px 9px;
+    border-radius:999px; background:var(--accent-soft, #eef2ff); color:var(--text, #1f2937); font-weight:600}
+  .vchip b{font-weight:800; opacity:.72; font-size:10px}
+  .vchip.more{background:transparent; border:1px dashed var(--line, #d7d7d7); color:var(--muted, #6b7280)}
   .b-learn{background:#eef0ff; color:#4338ca}
   .b-reteach{background:#fef2f2; color:#b91c1c}
   .b-boost{background:#fff7ed; color:#b45309}

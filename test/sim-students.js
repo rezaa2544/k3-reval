@@ -383,6 +383,76 @@ console.log('\n▌ روز سبک و تعطیل کامل');
   ok(!!normal.note || normal.note === '', '[عادی] روز عادی یادداشت نامربوط ندارد', JSON.stringify(normal.note));
 }
 
+/* ═══════════════ تنوع روزانه: روز یک‌کتابی ممنوع ═══════════════
+   شواهد: درهم‌آمیزی و فاصله‌گذاری (Cepeda 2006؛ Rohrer 2007؛ Kornell & Bjork 2008)
+   یادگیری را عمیق‌تر و خستگی را کمتر می‌کند؛ این در حالی است که مرور و تثبیتِ هر فصل
+   دقیقاً سرِ جای خودش می‌ماند. پس: هیچ روزِ درسی نباید «یک کتاب» باشد. */
+console.log('\n▌ تنوع روزانه: هیچ روزی تک‌کتابی نیست');
+{
+  /* همان تعریفی که موتور برای «درس‌های روز» دارد: فقط درس‌های واقعی (آزمون/کلاس/جمع‌بندی نه) */
+  const studyDay = (d) => (d.blocks || []).filter((b) => b.subjectId
+    && ['EXAM', 'MOCK', 'ALL', 'CLASS', 'CUM'].indexOf(b.subjectId) === -1);
+  const variety = (d) => {
+    const by = {};
+    studyDay(d).forEach((b) => { by[b.subjectId] = (by[b.subjectId] || 0) + (b.minutes || 0); });
+    return by;
+  };
+  const report = (name, plan) => {
+    const days = plan.days.filter((d) => studyDay(d).length >= 2);
+    let single = 0; let big60 = 0; let sumSubs = 0;
+    days.forEach((d) => {
+      const by = variety(d);
+      const ids = Object.keys(by);
+      const tot = Object.values(by).reduce((a, b) => a + b, 0) || 1;
+      sumSubs += ids.length;
+      if (ids.length === 1) single += 1;
+      if (ids.some((id) => by[id] / tot > 0.6)) big60 += 1;
+    });
+    return { n: days.length, single, big60, avgSubs: sumSubs / Math.max(1, days.length) };
+  };
+  const r1 = report('آرمان', p1);
+  /* استثنا: هفته‌های آخر — وقتی فقط یک درس فصلِ نخوانده دارد (یا کلاس همان درس است)
+     روز طبیعتاً تک‌درس می‌شود. «تنوعِ ساختگی» بهتر از تمرکز نیست. */
+  ok(r1.single / r1.n <= 0.05, '[آرمان] روزهای تک‌درس کمتر از ۵٪ روزهای درسی است',
+    r1.single + '/' + r1.n);
+  ok(r1.avgSubs >= 2.5, '[آرمان] میانگین درس‌های هر روز ≥ ۲.۵', r1.avgSubs.toFixed(2));
+  ok(r1.big60 / r1.n <= 0.2, '[آرمان] کمتر از ۲۰٪ روزها یک درس بیش از ۶۰٪ وقت را می‌گیرد',
+    r1.big60 + '/' + r1.n);
+
+  const r4 = report('رضا ۲ ساعتی', p4);
+  ok(r4.single / r4.n <= 0.06, '[۲ ساعتی] روز تک‌درس تقریباً وجود ندارد', r4.single + '/' + r4.n);
+
+  /* فیلد variety باید با بلوک‌های واقعی همان روز بخواند (نه عددِ جدا از واقعیت) */
+  let mismatch = 0;
+  p1.days.forEach((d) => {
+    if (!d.variety) { mismatch += 1; return; }
+    const by = variety(d);
+    const ids = Object.keys(by).sort();
+    const vIds = (d.variety.list || []).map((x) => x.id).sort();
+    if (ids.join(',') !== vIds.join(',')) mismatch += 1;
+    if (d.variety.subjects !== vIds.length) mismatch += 1;
+    (d.variety.list || []).forEach((x) => { if (!x.name || !(x.minutes > 0)) mismatch += 1; });
+  });
+  ok(mismatch === 0, '[آرمان] فیلد «تنوع روز» با بلوک‌های واقعی همان روز می‌خواند', mismatch);
+
+  /* قاعدهٔ «تثبیت جریمه نمی‌شود»: هر روزِ درسی که یادگیری دارد باید مرور/تست هم داشته باشد */
+  let noConsolidation = 0;
+  p1.days.forEach((d) => {
+    const kinds = (d.blocks || []).map((b) => b.kind);
+    if (kinds.indexOf('learn') !== -1 && kinds.indexOf('practice') === -1
+      && kinds.indexOf('review') === -1 && kinds.indexOf('warmup') === -1) noConsolidation += 1;
+  });
+  ok(noConsolidation <= Math.round(p1.days.length * 0.02),
+    '[آرمان] روزِ یادگیری بدون مرور/تست تقریباً وجود ندارد (تثبیت حفظ شده)', noConsolidation);
+
+  /* روزنامهٔ تنوع باید قطعی باشد: همان ورودی → همان ترکیب روزها */
+  const a = engine.createPlan(JSON.parse(JSON.stringify(p1cfg)));
+  const b = engine.createPlan(JSON.parse(JSON.stringify(p1cfg)));
+  const vSig = (p) => p.days.map((d) => d.date + ':' + ((d.variety && d.variety.list) || [])
+    .map((x) => x.id + x.minutes).join('+')).join(';');
+  ok(vSig(a) === vSig(b), 'تنوعِ روزها قطعی و تکرارپذیر است (بدون تصادف)');
+}
+
 /* ═══════════════ قطعیت و پایداری ═══════════════ */
 console.log('\n▌ قطعیت: دو بار ساخت با همان ورودی');
 {

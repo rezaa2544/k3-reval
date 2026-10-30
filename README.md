@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.10-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.10/Reval-Setup-2.8.10.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.10-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.10)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.11-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.11/Reval-Setup-2.8.11.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.11-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.11)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,44 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.10.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.10/Reval-Setup-2.8.10.exe)
+### [💾 Reval-Setup-2.8.11.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.11/Reval-Setup-2.8.11.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۰**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۱**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.10/Reval-Setup-2.8.10.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.11/Reval-Setup-2.8.11.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `4c78e0ea0cede9d729e698df079ebf93c41443f2eedd03f9e9c195c9d2b971b7` |
-| **حجم دقیق** | ۸۰٬۱۴۸٬۶۱۸ بایت |
+| **SHA-256** | `bb7d244bfe35624cecc25f9cc25f9bb7a6a0ac4af306b495d0a7fd3602674c6c` |
+| **حجم دقیق** | ۸۰٬۱۵۱٬۹۵۱ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.10.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.10.zip` — ۵۵۷ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.11.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.11.zip` — ۵۶۱ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۱۱ — برنامهٔ روز دیگر «یک‌کتابی» نیست
+
+| | |
+|---|---|
+| **شکایت** | «هر روز فقط یک کتاب؛ یکنواخت و خسته‌کننده» |
+| **حالا** | هر روز چند درس درهم می‌آید: درسِ شروعِ روز می‌چرخد · هیچ درسی >۵۰٪ وقتِ روز را نمی‌گیرد · بلوکِ دومِ تست به درس دیگر می‌رود |
+| **دست‌نخورده** | نردبانِ مرورِ فاصله‌دار، تثبیت و تستِ همان فصل، مرور ۲۴ساعته، آزمون/کلاس/مهلت‌ها — دقیقاً سرِ جای خودشان |
+| **شواهد** | درهم‌آمیزی و فاصله‌گذاری: Cepeda 2006 · Rohrer 2007 · Kornell & Bjork 2008 · Dunlosky 2013 · Rasch & Born 2013 |
+| **رابط کاربری** | نوارِ «تنوع» در کارتِ هر روز: «۳ درس در این روز: ریاضی ۴۵٪ · زیست ۳۵٪ · شیمی ۲۰٪» + تعدادِ درس در دکمهٔ روزها |
+| **سنجش** | ۳ ساعتی: روزهای یک‌درسِ‌غالب از ۲۰٪ به **۱۰٪** · پوشش فصل‌ها (آرمان ۸ ساعته) از ۹۰٪ به **۹۵٪** |
+| **آزمون** | `sim-students` از ۱۴۵ به **۱۵۲** ✅ · `ui-day-variety` **۱۱ ✅** · `ui-full-flow` ۵۷ ✅ |
+
+![](docs/screens/ui-58-day-variety.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۱۱](docs/release-notes-2.8.11.md)
 
 ---
 

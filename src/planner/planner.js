@@ -1492,6 +1492,15 @@
         state.sessions[key] = Object.assign({}, DP.toAwaiting(st, nowMs()), { awaitAsked: true });
         return true;
       },
+      /* ۲.۸.۱۱: باز کردن «برنامهٔ من» روی یک روزِ مشخص (برای تست و اسکرین‌شات) */
+      openDayIndex: (idx) => {
+        const plan = state.plan;
+        if (!plan || !plan.days[idx]) return false;
+        state.week = Math.floor(idx / 7);
+        state.selectedDay = idx;
+        renderWeek();
+        return true;
+      },
       /* نمای «برنامهٔ من» را روی امروز باز می‌کند (برای اسکرین‌شات) */
       openToday: () => {
         const plan = state.plan;
@@ -3915,7 +3924,8 @@
       const d = plan.days[i];
       pills.push('<button class="day-pill' + (String(i) === String(state.selectedDay) ? ' active' : '') + '" data-day="' + i + '">' +
         esc(d.weekday) + '<small class="xp-day">' + jDayMonth(d.date) + '</small>' +
-        '<small>' + faNum(Math.round(d.plannedMinutes / 60 * 10) / 10) + ' ساعت</small></button>');
+        '<small>' + faNum(Math.round(d.plannedMinutes / 60 * 10) / 10) + ' ساعت' +
+        (d.variety && d.variety.subjects >= 2 ? ' · ' + faNum(d.variety.subjects) + ' درس' : '') + '</small></button>');
     }
     $('dayPills').innerHTML = pills.join('');
     $('dayPills').querySelectorAll('[data-day]').forEach((b) => {
@@ -3935,12 +3945,28 @@
     const d = plan.days[idx];
     if (!d) { $('dayView').innerHTML = ''; return; }
 
+    /* ۲.۸.۱۱ — «چند درس در این روز؟» با درصدِ سهم هر درس.
+       چرا: برنامهٔ یک‌کتابی هم خسته‌کننده است و هم برخلاف شواهد «تمرین درهم» و
+       «فاصله‌گذاری» (Rohrer 2007؛ Cepeda 2006؛ Kornell & Bjork 2008) است.
+       با این نوار، دانش‌آموز در یک نگاه می‌بیند که امروز چند کتاب/درس در کار است. */
+    const varietyHtml = (function () {
+      const v = d.variety;
+      if (!v || !v.list || v.list.length < 2) return '';
+      const chips = v.list.slice(0, 5).map((x) =>
+        '<span class="vchip">' + esc(x.name) + ' <b>' + faNum(x.percent) + '٪</b></span>').join('');
+      const extra = v.list.length > 5
+        ? '<span class="vchip more">+' + faNum(v.list.length - 5) + ' درس</span>' : '';
+      return '<div class="variety" title="تنوعِ درس‌ها عمدی است: درهم‌آمیزی و فاصله‌گذاری، بازیابی را قوی‌تر و خستگی را کمتر می‌کند؛ مرور و تثبیتِ هر فصل سرِ جای خودش می‌ماند.">' +
+        '<span class="vlabel">' + faNum(v.subjects) + ' درس در این روز:</span>' + chips + extra + '</div>';
+    })();
+
     const head = '<div class="card" style="margin-bottom:10px;background:var(--panel2)">' +
       '<div class="row" style="justify-content:space-between">' +
       '<div><b style="font-size:13.5px">' + esc(jDateFull(d.date)) + '</b>' +
       '<div class="muted" style="font-size:11.5px;margin-top:3px">' + durationFa(d.plannedMinutes) +
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
-      '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') + '</div>';
+      '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') +
+      varietyHtml + '</div>';
 
     const events = (d.events || []).map((e) =>
       '<div class="evt' + (e.type === 'exam' ? ' exam' : '') + '">' +

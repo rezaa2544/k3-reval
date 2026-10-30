@@ -17,3 +17,7 @@ dist/*
 .DS_Store
 Thumbs.db
 *.log
+
+# debug scratch
+test/_dbg*.js
+test/_smoke*.js

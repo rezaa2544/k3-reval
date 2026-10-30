@@ -803,7 +803,7 @@
    *   ۳) synchrony: تسک سنگین‌تر در بازهٔ اوجِ کاربر
    * @returns {{blocks:Array, unplacedMinutes:number}}
    */
-  function scheduleTasks(cfg, tasks, segments) {
+  function scheduleTasks(cfg, tasks, segments, dayIndex) {
     if (!segments.length) return { blocks: [], unplacedMinutes: sum(tasks.map((t) => t.minutesLeft || 0)) };
 
     const maxSame = cfg.MAX_CONSECUTIVE_SAME != null ? cfg.MAX_CONSECUTIVE_SAME : DEFAULTS.MAX_CONSECUTIVE_SAME;
@@ -813,6 +813,37 @@
     const state = segments.map((s) => ({ start: s.start, end: s.end, cursor: s.start, last: [] }));
     const blocks = [];
     const pool = tasks.filter((t) => (t.minutesLeft || 0) > 0);
+
+    /* ── تنوعِ روزانه (نسخهٔ ۲.۸.۱۱) ──────────────────────────────
+       شواهد: یک‌جانشینیِ طولانی با یک درس (massed practice) هم کسل‌کننده است و هم
+       یادگیری را کم‌عمق می‌کند؛ «تمرین درهم» (Cepeda 2006، Rohrer 2007،
+       Kornell & Bjork 2008) و «تغییرِ بافت» (Sweller) بازیابی را قوی‌تر می‌کند.
+       پس: (۱) هیچ درسی بیش از نیمی از روز را نمی‌گیرد، (۲) وقتی چند درس در
+       انتظارند، درسِ تازه‌کارکرده جریمه می‌شود، (۳) ترتیبِ شروع هر روز می‌چرخد. */
+    const capMin = Math.max(1, sum(segments.map((x) => x.end - x.start)));
+    const usedBySubject = {};
+    const blocksBySubject = {};
+    const dayNo = Number.isFinite(dayIndex) ? dayIndex : 0;
+    /* درهم‌سازیِ قطعی (بدون تصادفِ واقعی): همان ورودی همیشه همان برنامه را می‌دهد */
+    const jitterOf = (id) => {
+      const str = String(dayNo) + '|' + String(id || '');
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i += 1) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return (h >>> 0) % 97;
+    };
+    const subjectOrder = {};
+    (function buildOrder() {
+      const ids = [];
+      pool.forEach((t) => { if (t.subjectId && ids.indexOf(t.subjectId) === -1) ids.push(t.subjectId); });
+      /* ترتیب هر روز با «چرخش» عوض می‌شود تا درس اولِ روز همیشه یکی نباشد */
+      ids.sort((a, b) => (jitterOf(a) - jitterOf(b)));
+      ids.forEach((id, i) => { subjectOrder[id] = i; });
+    })();
+    const pendingSubjects = () => {
+      const out = [];
+      pool.forEach((t) => { if (t.minutesLeft > 0 && t.subjectId && out.indexOf(t.subjectId) === -1) out.push(t.subjectId); });
+      return out;
+    };
 
     let guard = 0;
     while (pool.length && guard++ < 500) {
@@ -852,6 +883,34 @@
             const run = trailingRun(last, task.subjectId);
             if (run >= maxSame) score -= 100000;        // نقض interleaving
             else if (run > 0) score -= 220;             // ترجیح تنوع
+          }
+
+          /* ── قیدهای تنوعِ بین‌درسی ──
+             فقط برای کارهای درسیِ عادی اعمال می‌شود؛ آزمون/تثبیت کلاس/سوابق لنگرِ روزند
+             و جابه‌جایشان برنامه را خراب می‌کند. */
+          const VARIETY_KINDS = ['learn', 'reteach', 'boost', 'practice', 'review', 'warmup', 'cumreview', 'carry', 'carryreview'];
+          if (VARIETY_KINDS.indexOf(task.kind) !== -1) {
+            const others = pendingSubjects().filter((x) => x !== task.subjectId);
+            if (others.length) {
+              /* یادگیریِ فصل جدید هرگز پشتِ «تست/مرورِ درس دیگر» قربانی نمی‌شود؛
+                 جریمهٔ تنوع برای یادگیری ملایم‌تر است تا فقط ترتیب عوض شود. */
+              const isLearnKind = task.kind === 'learn' || task.kind === 'reteach' || task.kind === 'boost';
+              const w = isLearnKind ? 0.02 : 1;
+              const share = (usedBySubject[task.subjectId] || 0) / capMin;
+              /* سقفِ سهم: هیچ درسی بیشتر از نیمی از روز را نگیرد */
+              if (share >= 0.5) score -= 4000 * w;
+              else if (share >= 0.36) score -= 900 * w;
+              /* درسِ سوم به بعد در یک روز: تا وقتی درسِ کم‌کار در انتظار است، عقب بمان */
+              const used = blocksBySubject[task.subjectId] || 0;
+              const maxBlocks = Math.max(2, Math.ceil((blocks.length + 1) / 2));
+              if (used >= maxBlocks) score -= 2500 * w;
+              /* درسی که امروز اصلاً نوبت نگرفته، جلو می‌افتد (شروعِ درسِ تازه) */
+              /* ⚠ درسِ تازه‌کار فقط در «هم‌نوع‌های خودش» جلو می‌افتد؛ هرگز از یادگیریِ فصل
+                 جدید جلو نمی‌زند (وگرنه تست، جای یادگیری را می‌گرفت و پوشش فصل‌ها می‌افتاد). */
+              if (!used) score += isLearnKind ? 80 : 0;
+              /* چرخشِ روزانهٔ ترتیب: درسِ دیرتر در ترتیبِ امروز، کمی جلو می‌افتد */
+              score += (subjectOrder[task.subjectId] || 0) * 0.6 * jitterOf(task.subjectId) / 100;
+            }
           }
           if (!best || score > best.score) best = { score, task, ti, seg, si, useLen, start: from };
         });
@@ -907,6 +966,8 @@
         examId: task.examId || null,
       });
 
+      usedBySubject[task.subjectId] = (usedBySubject[task.subjectId] || 0) + useLen;
+      blocksBySubject[task.subjectId] = (blocksBySubject[task.subjectId] || 0) + 1;
       seg.cursor = start + useLen;
       seg.last.push(task.subjectId);
       task.minutesLeft -= useLen;
@@ -1453,6 +1514,7 @@
           index: dayIndex, date: iso, weekday: WEEKDAY_FA[wd], events: [],
           isMockDay: false, isExamDay: false, isRestDay: true, isDeload: false, isOff: true,
           offKind: 'halt', studyMinutes: 0, plannedMinutes: 0, blocks: [],
+          variety: { subjects: 0, topShare: 0, list: [] },
           note: 'خارج از برنامه — تعطیل کامل' + (off.note ? ' (' + off.note + ')' : ''),
         });
         continue;
@@ -1814,11 +1876,20 @@
       };
 
       const addLearnChunks = (budget) => {
-        const perSubjectCap = Math.max(cfg.blockMinutes, Math.round(load.minutes * (daysLeft <= 7 ? 0.3 : 0.5)));
+        /* ۲.۸.۱۱: سقف درسِ واحد در روز از ۵۰٪ به ۳۵٪ آمد. یک درس نباید نیمی از روز را
+           ببلعد؛ شواهد «تمرین درهم» (Rohrer 2007؛ Kornell & Bjork 2008) می‌گوید
+           چرخش بین درس‌ها هم بازده یادگیری را بالا می‌برد و هم از یکنواختی می‌کاهد. */
+        const perSubjectCap = Math.max(cfg.blockMinutes, Math.round(load.minutes * (daysLeft <= 7 ? 0.3 : 0.35)));
+        /* درس‌هایی که امروز «گرم‌کردن/مرور دیروز» گرفته‌اند — یادگیریِ تازه به درس دیگر برود */
+        const warmupSubjects = new Set(tasks.filter((t) => t.kind === 'warmup' || t.kind === 'review').map((t) => t.subjectId));
         /* کف تعهد روزانهٔ هر درس بابت مهلت‌هایش */
         const reserve = deadlineReserve(dayIndex);
         let used = 0;
         let guard = 0;
+        /* ۲.۸.۱۱: سقفِ سهمِ هر درس در روز، «ترجیح» است نه «قید مطلق».
+           اگر همهٔ درس‌ها به سقف رسیدند ولی بودجهٔ یادگیری هنوز مانده، سقف شل می‌شود
+           تا زمانِ یادگیری هدر نرود و پوشش فصل‌ها پایین نیاید. */
+        let capRelax = 1;
         while (used < budget && guard++ < 40) {
           // درس را بر اساس کمترین نسبت «زمان داده‌شده ÷ سهم هدف» انتخاب کن
           let chosenId = null;
@@ -1839,14 +1910,42 @@
             /* درس دارای مهلت نزدیک: سقف روزانه‌اش بازتر است */
             const capBoost = 1 + 0.6 * Math.min(1, deadlinePressure(id, dayIndex, load.minutes))
               + (dueId === id ? 1.2 : 0);
-            if ((subjectUsedToday[id] || 0) + take > perSubjectCap * capBoost) return;
+            if ((subjectUsedToday[id] || 0) + take > perSubjectCap * capBoost * capRelax) return;
             /* فشار مهلت: درسی که باید تا تاریخ مشخصی تمام شود، سهم بیشتری می‌گیرد */
             const pressure = deadlinePressure(id, dayIndex, load.minutes);
             const target = Math.max(1, (stats[id] ? stats[id].share : 0) * learnNeedTotal * (1 + 1.8 * pressure));
-            const ratio = (learnSpent[id] || 0) / target;
+            let ratio = (learnSpent[id] || 0) / target;
+            /* تنوع: اگر این درس امروز جلسه گرفته و درسِ دیگری هم در انتظار است،
+               نوبت به آن یکی می‌رسد (به‌جز روزهایی که مهلتش فوریت دارد). */
+            const othersWaiting = Object.keys(learnBySubject).some((oid) => oid !== id
+              && learnBySubject[oid].length
+              && (!scope || learnBySubject[oid].some((t) => scope.has(t.subjectId)))
+              && (subjectUsedToday[oid] || 0) < perSubjectCap);
+            if (othersWaiting && (subjectUsedToday[id] || 0) > 0 && pressure < 0.5) ratio += 0.6;
             if (-ratio > chosenDeficit) { chosenDeficit = -ratio; chosenId = id; }
           });
-          if (!chosenId) break;
+          /* ۲.۸.۱۱: درسِ یادگیریِ امروز نباید همان درسِ «گرم‌کردن/مرور دیروز» باشد؛
+             وگرنه کل روز حولِ یک کتاب می‌چرخد و یکنواخت می‌شود. */
+          if (chosenId && warmupSubjects.has(chosenId)) {
+            let alt = null; let altDeficit = -Infinity;
+            Object.keys(learnBySubject).forEach((id) => {
+              if (id === chosenId || warmupSubjects.has(id)) return;
+              if (!learnBySubject[id].length) return;
+              if (!scope || !learnBySubject[id].some((t) => scope.has(t.subjectId))) return;
+              const t2 = Math.min(cfg.blockMinutes, learnBySubject[id][0].needMinutes);
+              if ((subjectUsedToday[id] || 0) + t2 > perSubjectCap * 1.6) return;
+              const p2 = deadlinePressure(id, dayIndex, load.minutes);
+              const target2 = Math.max(1, (stats[id] ? stats[id].share : 0) * learnNeedTotal * (1 + 1.8 * p2));
+              const d2 = -((learnSpent[id] || 0) / target2);
+              if (d2 > altDeficit) { altDeficit = d2; alt = id; }
+            });
+            if (alt && deadlinePressure(chosenId, dayIndex, load.minutes) < 0.5) chosenId = alt;
+          }
+          if (!chosenId) {
+            /* سقفِ تنوع، زمانِ یادگیری را نمی‌بلعد: یک پله شل کن و دوباره امتحان کن */
+            if (capRelax < 2.6 && used < budget - minChunkOf('learn')) { capRelax *= 1.6; continue; }
+            break;
+          }
           /* اگر درسی به کف تعهد مهلتش نرسیده، همین حالا نوبتش است */
           if (dueId && learnBySubject[dueId] && learnBySubject[dueId].length) chosenId = dueId;
           const topic = learnBySubject[chosenId][0];
@@ -1990,7 +2089,31 @@
           /* به‌محض رسیدن به هدف تست روز، پر کردن متوقف می‌شود تا وقت یادگیری بماند */
           if (cfg.testTarget.daily > 0 && testsNow() >= targetToday) break;
           if (practiceUsed >= spare + 15) break;
-          const s = ordered[i % ordered.length];
+          /* ── تنوعِ تست در روز (۲.۸.۱۱) ──
+             قاعدهٔ آموزشی: «تستِ همان فصلِ امروز» تثبیتِ درست پس از یادگیری است و جای
+             خودش را دارد؛ اما اگر تمامِ تست‌های روز هم به همان کتاب برسد، روز یک‌کتابی
+             می‌شود. پس فقط از بلوکِ دومِ تست به بعد (یا در روزِ کوتاه که بلوکِ دومی
+             نیست) به درسِ دیگری می‌رویم. شواهدِ «تمرین درهم»: Rohrer 2007،
+             Kornell & Bjork 2008 — تنوعِ بافت بازیابی را قوی‌تر می‌کند.
+             درسِ جانشین به‌صورت قطعی (hash روزانه) انتخاب می‌شود، نه تصادفی. */
+          let s = ordered[i % ordered.length];
+          const testMinutesSoFar = (id) => tasks.filter((t) => t.kind === 'practice' && t.subjectId === id)
+            .reduce((a, t) => a + t.minutesLeft, 0);
+          const practiceBlocksPlaced = tasks.filter((t) => t.kind === 'practice').length;
+          const shortDay = load.minutes <= 180;
+          const studySubjectsSoFar = {};
+          tasks.forEach((t) => { if (t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost' || t.kind === 'practice') studySubjectsSoFar[t.subjectId] = 1; });
+          const onlyOneSubjectSoFar = Object.keys(studySubjectsSoFar).length <= 1 && studySubjectsSoFar[s.id];
+          if ((practiceBlocksPlaced > 0 && testMinutesSoFar(s.id) > 0) || (shortDay && onlyOneSubjectSoFar)) {
+            const freeAlt = ordered.filter((x) => testMinutesSoFar(x.id) === 0 && poolOf(x.id).length);
+            if (freeAlt.length) {
+              let hsh = 2166136261;
+              const key = String(dayIndex) + '|p' + String(practiceBlocksPlaced);
+              for (let ci = 0; ci < key.length; ci += 1) { hsh ^= key.charCodeAt(ci); hsh = Math.imul(hsh, 16777619); }
+              const k = ((hsh >>> 0) + dayIndex * 7 + practiceBlocksPlaced * 3) % freeAlt.length;
+              s = freeAlt[k];
+            }
+          }
           const w = weakestOf(s.id);
           const minutes = Math.min(cfg.blockMinutes, roundTo5(spare));
           /* کارِ کوتاه‌تر از حداقلِ بلوکِ تمرین ساخته نمی‌شود؛ پیش‌تر ساخته می‌شد و
@@ -2085,7 +2208,7 @@
         if (cur < s.end) examSegments.push({ start: cur, end: s.end });
       });
 
-      const placed = scheduleTasks(cfg, movable, examSegments.length ? examSegments : segments);
+      const placed = scheduleTasks(cfg, movable, examSegments.length ? examSegments : segments, dayIndex);
       /* فقط زمانی «از دست رفته» حساب می‌شود که راهِ بازگشتی نداشته باشد.
          تسک‌های یادگیری همین پایین به نیاز فصل برمی‌گردند و فردا جلسهٔ کامل می‌گیرند. */
       unplacedTotal += (placed.unplacedTasks || [])
@@ -2211,6 +2334,26 @@
         isDeload: load.isDeload,
         studyMinutes: dayMinutes,
         plannedMinutes: dayMinutes,
+        /* ۲.۸.۱۱: تنوعِ همان روز — چند درس و سهم هر کدام (برای نمایش و سنجش) */
+        variety: (function () {
+          const by = {};
+          outBlocks.forEach((b) => {
+            /* «CUM» درس نیست (جمع‌بندیِ چنددرس)؛ در شمردنِ تنوع حساب نمی‌شود */
+            if (!b.subjectId || ['EXAM', 'MOCK', 'ALL', 'CLASS', 'CUM'].indexOf(b.subjectId) !== -1) return;
+            by[b.subjectId] = (by[b.subjectId] || 0) + (b.minutes || 0);
+          });
+          const ids = Object.keys(by).sort((a, b) => by[b] - by[a]);
+          return {
+            subjects: ids.length,
+            topShare: ids.length ? Math.round((by[ids[0]] / Math.max(1, dayMinutes)) * 100) : 0,
+            list: ids.map((id) => ({
+              id,
+              name: (outBlocks.find((b) => b.subjectId === id) || {}).subjectName || id,
+              minutes: by[id],
+              percent: Math.round((by[id] / Math.max(1, dayMinutes)) * 100),
+            })),
+          };
+        })(),
         blocks: outBlocks,
         isLightDay: isLightDay,
         note: dayNote({
@@ -2739,7 +2882,7 @@
 
     return {
       meta: {
-        version: '2.8.10', createdAt: new Date().toISOString(),
+        version: '2.8.11', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
