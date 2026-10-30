@@ -1405,6 +1405,17 @@
         const i = firstTaskIndex(day);
         return (i == null || i < 0) ? null : day.date + '#' + i;
       },
+      /* v2.8.2: بازسازی سطرهای بدون عنوان با عنوان واقعی کتاب (برای تست) */
+      repairDemo: () => {
+        const sub = { id: 'x', general: false, grade: 'دوازدهم',
+          topicNames: ['دهم · الگو و دنباله', 'دهم · مثلثات', 'دهم · توان‌ها و عبارت‌های جبری'] };
+        const rows = [{ name: '', read: false, mastery: 0 },
+          { name: 'فصل ۲', read: true, mastery: 50 },
+          { read: false, mastery: 0 }];
+        const before = rows.map((r) => String(r.name || ''));
+        repairChapterRows(sub, rows, sub.topicNames);
+        return JSON.stringify({ before, after: rows.map((r) => String(r.name || '')) });
+      },
       /* v2.7: نمایش پنجرهٔ تغییرات برای اسکرین‌شات/تست */
       showChangelog: (fromVersion) => showChangelog(CL.since(fromVersion || '2.6.0'), { title: 'برنامه به‌روزرسانی شد' }),
       changelogEntries: (fromVersion) => CL.since(fromVersion || null).map((e) => e.version),
@@ -2394,13 +2405,45 @@
     return Math.max(lo, Math.min(hi, n));
   }
 
+  /** آیا خودِ عنوان، پایه را در خود دارد؟ («دهم · مثلثات») */
+  const NM_HAS_GRADE = (name) => /^\s*(دهم|یازدهم|دوازدهم|پایه)\s*[·:.\-–]/.test(String(name || ''));
+
+  /** پایهٔ هر فصل را از عنوانش درمی‌آورد: «دهم · مثلثات» ← «دهم» */
+  function gradeFromName(name) {
+    const m = String(name || '').match(/^\s*(دهم|یازدهم|دوازدهم|پایه\s*(?:یازدهم|دوازدهم|دهم)?)\s*[·:.\-–]/);
+    return m ? String(m[1]).replace(/\s+/g, ' ').trim() : '';
+  }
+
   /** سطرهای ارزیابی یک درس (منبع حقیقت: state.chapters) */
   function chapterRows(sub) {
     if (!sub || !sub.id) return [];
+    /* فهرست رسمی عنوان‌های کتاب (از دادهٔ پیش‌فرض) */
+    const canon = (sub && Array.isArray(sub.topicNames) && sub.topicNames.length)
+      ? sub.topicNames.map((x) => String(x)) : null;
     if (!state.chapters[sub.id] || !state.chapters[sub.id].length) {
       state.chapters[sub.id] = defaultChapterRows(sub);
     }
+    repairChapterRows(sub, state.chapters[sub.id], canon);
     return state.chapters[sub.id];
+  }
+
+  /** سطرهایی که از نسخه‌های قدیمی بدون عنوان ذخیره شده‌اند با عنوان واقعی کتاب پر می‌شوند؛
+      اگر هنوز هم عنوانی نبود، «فصل N» به‌عنوان جای‌نگهدار می‌ماند تا سطر خالی نماند. */
+  function repairChapterRows(sub, rows, canon) {
+    const label = (sub && sub.general) ? 'درس' : 'فصل';
+    rows.forEach((r, i) => {
+      if (!r) return;
+      const nm = String(r.name == null ? '' : r.name).trim();
+      const isGeneric = !nm || nm === label + ' ' + faNum(i + 1) || nm === label + ' ' + (i + 1);
+      if (!nm || (isGeneric && canon && canon[i])) {
+        r.name = (canon && canon[i]) ? canon[i] : (label + ' ' + faNum(i + 1));
+      }
+      if (!r.grade) {
+        const g = gradeFromName(r.name) || (sub && sub.grade) || '';
+        if (g) r.grade = g;
+      }
+    });
+    return rows;
   }
 
   /** خلاصهٔ ارزیابی یک درس */
@@ -2427,9 +2470,22 @@
     return core.concat(gen);
   }
 
-  function assessmentRowHtml(row, i) {
+  function assessmentRowHtml(row, i, sub) {
+    const label = (sub && sub.general) ? 'درس' : 'فصل';
+    const num = label + ' ' + faNum(i + 1);
+    const nm = String(row.name == null ? '' : row.name).trim() || num;
+    /* شمارهٔ فصل همیشه خوانا و جدا از عنوان است؛ عنوان واقعی کتاب در ورودی می‌آید.
+       اگر عنوانی برای کتاب ثبت نشده باشد، خودِ «فصل N» در ورودی می‌نشیند تا سطر خالی نماند. */
+    const hasTitle = nm !== num;
+    const grade = row.grade || gradeFromName(nm);
+    const badge = hasTitle ? '<span class="cn-badge">' + esc(num) + '</span>' : '';
+    const gradeChip = (hasTitle && grade && !NM_HAS_GRADE(nm) && grade !== nm)
+      ? '<span class="cn-grade">' + esc(grade) + '</span>' : '';
     return '<tr data-ci="' + i + '">' +
-      '<td><input data-cf="name" value="' + esc(row.name) + '" /></td>' +
+      '<td class="cname"><div class="cn-wrap">' + badge + gradeChip +
+        '<input data-cf="name" value="' + esc(nm) + '"' +
+          ' placeholder="' + esc(num) + ' — عنوان از کتاب درسی (مثلاً «مثلثات»)" />' +
+      '</div></td>' +
       '<td style="text-align:center"><input type="checkbox" data-cf="read"' + (row.read ? ' checked' : '') + ' /></td>' +
       '<td><div class="mrow">' +
         '<input type="number" min="0" max="100" step="5" data-cf="mastery" value="' + (row.read ? row.mastery : 0) + '"' +
@@ -2492,9 +2548,9 @@
               '<button class="btn ghost small" data-fill="' + esc(sub.id) + '" data-val="0">همه را نخوانده‌ام</button>' +
               '<button class="btn ghost small" data-add="' + esc(sub.id) + '">+ افزودن مبحث</button>' +
             '</div>' +
-            '<table class="chap"><thead><tr><th>' + esc(sub.general ? 'درس' : 'فصل / مبحث') +
+            '<table class="chap"><thead><tr><th>' + esc(sub.general ? 'درس و عنوان' : 'فصل و عنوان') +
               '</th><th style="width:74px">خوانده‌ام</th><th style="width:270px">تسلط</th><th style="width:36px"></th></tr></thead><tbody>' +
-              rows.map(assessmentRowHtml).join('') +
+              rows.map((row, i) => assessmentRowHtml(row, i, sub)).join('') +
             '</tbody></table>' +
           '</div>' +
         '</div>';

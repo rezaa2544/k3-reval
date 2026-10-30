@@ -1,0 +1,30 @@
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
+app.commandLine.appendSwitch('disable-gpu'); app.commandLine.appendSwitch('disable-dev-shm-usage');
+app.disableHardwareAcceleration();
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  const win = new BrowserWindow({ width: 1280, height: 950, show: false, webPreferences: { offscreen: true, contextIsolation: false } });
+  await win.loadFile(path.join(__dirname, '../src/planner/planner.html'));
+  const js = (c) => win.webContents.executeJavaScript(c);
+  await wait(1500);
+  const rect = async (id) => js(`(function(){const r=document.getElementById('${id}').getBoundingClientRect();return {l:Math.round(r.left),r:Math.round(r.right),t:Math.round(r.top),b:Math.round(r.bottom),w:Math.round(r.width)};})()`);
+  const info = async () => js(`(function(){const p=document.getElementById('aiPanel');const cs=getComputedStyle(p);const r=p.getBoundingClientRect();
+    return JSON.stringify({cls:p.className, tf:cs.transform, dir:cs.direction, left:Math.round(r.left), right:Math.round(r.right), vis:cs.visibility, open:window.__revalAI.state().open});})()`);
+  const clickAt = async (x, y) => {
+    win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+    await wait(400);
+  };
+  console.log('CLOSED  ', await info());
+  const fab = await rect('aiFab');
+  console.log('fab rect', JSON.stringify(fab));
+  await clickAt(Math.round(fab.l + fab.w / 2), Math.round(fab.t + (fab.b - fab.t) / 2));
+  console.log('OPEN    ', await info());
+  const btn = await rect('aiCloseBtn');
+  console.log('close rect', JSON.stringify(btn));
+  await clickAt(Math.round(btn.l + btn.w / 2), Math.round(btn.t + (btn.b - btn.t) / 2));
+  await wait(600);
+  console.log('AFTER X ', await info());
+  win.destroy(); app.quit();
+});

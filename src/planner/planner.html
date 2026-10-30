@@ -380,6 +380,21 @@
   .acard-m{font-size:11.5px; color:var(--muted); flex:1; min-width:140px}
   .acard-bar{width:140px; height:6px; border-radius:999px; background:#e8edf6; overflow:hidden}
   .acard-bar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#6366f1,#0ea5e9)}
+  /* ══════════ v2.8.2: ستون «فصل و عنوان» در ارزیابی فصل‌به‌فصل ══════════ */
+  .chap td.cname{padding-block:5px}
+  .cn-wrap{display:flex; align-items:center; gap:7px; min-width:0}
+  .cn-badge{
+    flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+    min-width:52px; padding:4px 8px; border-radius:8px; font-size:11px; font-weight:700;
+    background:#eef2ff; color:#4338ca; border:1px solid #e0e7ff; white-space:nowrap;
+  }
+  .cn-grade{
+    flex:0 0 auto; padding:3px 7px; border-radius:7px; font-size:10.5px;
+    background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; white-space:nowrap;
+  }
+  .cn-wrap input{flex:1 1 auto; min-width:0; font-size:12.5px}
+  .cn-wrap input::placeholder{color:#94a3b8; font-size:11.5px}
+
   .acard-b{padding:0 13px 12px; border-top:1px dashed var(--line2)}
   table.chap{width:100%; border-collapse:collapse; margin-top:8px}
   table.chap th{font-size:11px; color:var(--muted); text-align:right; font-weight:500; padding:6px; background:transparent; border-bottom:1px solid var(--line)}

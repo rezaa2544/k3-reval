@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.1-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.1/Reval-Setup-2.8.1.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.1-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.1)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.2-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.2/Reval-Setup-2.8.2.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.2-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.2)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,40 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.1.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.1/Reval-Setup-2.8.1.exe)
+### [💾 Reval-Setup-2.8.2.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.2/Reval-Setup-2.8.2.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۲**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.1/Reval-Setup-2.8.1.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.2/Reval-Setup-2.8.2.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `e115cc55aece6834f635abffd2d7f490fa7105ec86631585c84111cf5b9aaaf3` |
-| **حجم دقیق** | ۸۰٬۱۳۹٬۹۰۲ بایت |
+| **SHA-256** | `d307543a779bce09d540355cfea224aee91fedba7e36747f031d5bf686d9ea50` |
+| **حجم دقیق** | ۸۰٬۱۴۱٬۰۸۹ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.1.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.1.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.2.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.2.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## 🔤 رفع اشکال ۲.۸.۲ — «فصل ۱» + عنوان واقعی فصل
+
+| | |
+|---|---|
+| **شماره + عنوان** | در ارزیابی فصل‌به‌فصل هر سطر حالا نشان «فصل ۱» **و** عنوان واقعی کتاب را با هم نشان می‌دهد: «دهم · الگو و دنباله». |
+| **درس‌های عمومی** | نشان به‌جای «فصل» می‌گوید «درس N» (فارسی، عربی، دینی، زبان، سلامت، هویت). |
+| **ترمیم خودکار** | سطرهای قدیمی که بدون عنوان ذخیره شده بودند، هنگام باز شدن با عنوان رسمی کتاب پر می‌شوند. |
+| **قابل ویرایش** | عنوان هر فصل را می‌توانی دستی تغییر دهی. |
+| **آزمون** | `test/ui-chapter-names.js` — **۱۵ ✅** در Electron. |
+
+جزئیات: [یادداشت انتشار ۲.۸.۲](docs/release-notes-2.8.2.md)
 
 ---
 
