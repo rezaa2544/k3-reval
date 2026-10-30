@@ -381,7 +381,25 @@
   .acard-bar{width:140px; height:6px; border-radius:999px; background:#e8edf6; overflow:hidden}
   .acard-bar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#6366f1,#0ea5e9)}
   /* ══════════ v2.8.2: ستون «فصل و عنوان» در ارزیابی فصل‌به‌فصل ══════════ */
+  .legend-row{display:flex; flex-wrap:wrap; gap:12px; margin:0 0 8px; font-size:10.5px; color:#64748b}
+  .legend-row .lg{display:inline-flex; align-items:center; gap:5px}
+  .legend-row .dot-on{width:7px;height:7px;border-radius:50%;background:#6366f1;display:inline-block}
   .chap td.cname{padding-block:5px}
+  /* اهمیت و سهم هر فصل از کتاب (کنار عنوان) */
+  .chap td.cmeta{white-space:nowrap}
+  .mimp{display:flex; align-items:center; gap:5px; line-height:1.4}
+  .impdots{display:inline-flex; gap:2px; align-items:center; direction:ltr}
+  .impdots i{width:6px;height:6px;border-radius:50%;background:#eef2f6;border:1px solid #e2e8f0;display:inline-block}
+  .impdots i.on{background:#6366f1}
+  .mimp.imp5 .impdots i.on{background:#dc2626}
+  .mimp.imp4 .impdots i.on{background:#ea580c}
+  .mimp.imp3 .impdots i.on{background:#4f46e5}
+  .mimp.imp2 .impdots i.on{background:#0ea5e9}
+  .mimp.imp1 .impdots i.on{background:#94a3b8}
+  .mtag{font-size:10px; font-weight:700; color:#475569}
+  .mimp.imp5 .mtag{color:#b91c1c}
+  .mimp.imp4 .mtag{color:#c2410c}
+  .mshare{display:block; font-size:10px; color:#64748b; margin-top:1px; direction:rtl; white-space:nowrap}
   .cn-wrap{display:flex; align-items:center; gap:7px; min-width:0}
   .cn-badge{
     flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;

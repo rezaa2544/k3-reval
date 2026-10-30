@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.3-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.3/Reval-Setup-2.8.3.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.3-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.3)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.4-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.4/Reval-Setup-2.8.4.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.4-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.4)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,42 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.3.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.3/Reval-Setup-2.8.3.exe)
+### [💾 Reval-Setup-2.8.4.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.4/Reval-Setup-2.8.4.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۳**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۴**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.3/Reval-Setup-2.8.3.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.4/Reval-Setup-2.8.4.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `2a45cb644adeee441f3f58ec514f8f5ea1641c4e8b7286262a47d000c034baa1` |
-| **حجم دقیق** | ۸۰٬۱۴۳٬۶۳۲ بایت |
+| **SHA-256** | `e49a3fc5bf44f539e908c90a9f7caecde4dd7ab9889b8c38b1470efdcbfeb711` |
+| **حجم دقیق** | ۸۰٬۱۴۵٬۳۷۱ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.3.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.3.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.4.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.4.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ⭐ نسخهٔ ۲.۸.۴ — درجهٔ اهمیت فصل + درصدِ سهم از کتاب
+
+| | |
+|---|---|
+| **سه‌گانه در یک سطر** | شماره و عنوان فصل · **درجهٔ اهمیت ۱..۵** با برچسب (کم‌هزینه / متوسط / پرتکرار / بحرانی) · **درصدِ سهم از کل کتاب** |
+| **منبع واقعی** | اختصاصی‌ها: بودجه‌بندی رسمی کنکور ۱۴۰۲–۱۴۰۴ · عمومی‌ها: بارم رسمی امتحان نهایی — هیچ عدد ساختگی‌ای نیست |
+| **جزئیات در راهنما** | نگه‌داشتن نشانگر روی سلول: تعداد سؤال کنکور یا بارم نهایی، درصد سهم و منبع |
+| **گزارش** | ستون تازهٔ «سهم از برگه» در جدول بارم رسمی فصل‌به‌فصل |
+| **آزمون** | `test/ui-chapter-importance.js` — **۱۵ ✅** در Electron |
+
+![](docs/screens/ui-51-chapter-importance-share.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۴](docs/release-notes-2.8.4.md)
 
 ---
 

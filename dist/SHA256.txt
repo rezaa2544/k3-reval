@@ -1,2 +1,2 @@
-2a45cb644adeee441f3f58ec514f8f5ea1641c4e8b7286262a47d000c034baa1  Reval-Setup-2.8.3.exe
-12e8761b9f4520eeb76588fa84c34be6602d4fbe04b7d589b8ad3c2fde214260  reval-code-2.8.3.zip
+e49a3fc5bf44f539e908c90a9f7caecde4dd7ab9889b8c38b1470efdcbfeb711  Reval-Setup-2.8.4.exe
+7d5a0a0f9c0e7fb837cf1582c4d2cf0f04563f3e448a4e44095fad7b2d60ecbe  reval-code-2.8.4.zip

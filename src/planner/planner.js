@@ -2595,6 +2595,102 @@
     return core.concat(gen);
   }
 
+  /* ══════════ درجهٔ اهمیت و سهم هر فصل از کل کتاب ══════════
+     «فصل ۲» تازه شروعِ کار است؛ دانش‌آموز باید بداند این فصل چند درصد از
+     کتاب/سؤال‌ها را می‌گیرد و چقدر مهم است تا وقتش را درست بگذارد.
+     منبع: بودجه‌بندی کنکور (chapter-weights) برای درس‌های اختصاصی و
+     بارم رسمی نهایی برای درس‌های عمومی. */
+
+  /** شناسهٔ درس در جدول بارم نهایی (di3 ← dini3، sal3 ← salamat3 …) */
+  function finalsKeyOf(sub) {
+    const m = { di1: 'dini1', di2: 'dini2', di3: 'dini3', sal1: 'salamat1', sal2: 'salamat2', sal3: 'salamat3',
+      hovi1: 'hoviat1', hovi2: 'hoviat2', hovi3: 'hoviat3' };
+    return m[sub.id] || sub.id;
+  }
+
+  /** درجهٔ ۱..۵ از نسبت بارم فصل به بارم میانگین */
+  function impFromRel(rel) {
+    if (!Number.isFinite(rel)) return 3;
+    if (rel >= 1.35) return 5;
+    if (rel >= 1.1) return 4;
+    if (rel >= 0.85) return 3;
+    if (rel >= 0.6) return 2;
+    return 1;
+  }
+
+  const IMP_LABEL = { 5: 'بحرانی', 4: 'پرتکرار', 3: 'متوسط', 2: 'کم', 1: 'کم‌هزینه' };
+  const IMP_LABEL_FIN = { 5: 'پربارم', 4: 'پربارم', 3: 'متوسط', 2: 'کم‌بارم', 1: 'کم‌بارم' };
+
+  /**
+   * اطلاعات اهمیت یک فصل برای نمایش در ارزیابی:
+   * { imp 1..5, label, sharePct, q, baram, source, kind }
+   * اگر داده‌ای برای آن درس نباشد، null برمی‌گردد (سطر ساده می‌ماند).
+   */
+  function chapterImportanceFor(sub, idx) {
+    if (!sub || !sub.id || !cw) return null;
+    const no = idx + 1;
+    const count = (Array.isArray(sub.topicNames) && sub.topicNames.length) || clampNum(sub.chapters, 1, 120);
+
+    /* ۱) درس‌های اختصاصی: بودجه‌بندی رسمی کنکور */
+    if (!sub.general) {
+      const ci = cw.chapterInfo ? cw.chapterInfo(sub.id, no) : null;
+      if (ci) {
+        return {
+          kind: 'konkur', imp: clampNum(ci.imp, 1, 5), label: ci.tag || IMP_LABEL[clampNum(ci.imp, 1, 5)],
+          sharePct: ci.sharePct, q: ci.q, diff: ci.diff,
+          source: 'بودجه‌بندی کنکور (میانگین ۱۴۰۲–۱۴۰۴)',
+        };
+      }
+    }
+
+    /* ۲) درس‌های عمومی: بارم رسمی امتحان نهایی */
+    const key = finalsKeyOf(sub);
+    const fdata = cw.finals ? cw.finals(key, sub.grade) : null;
+    const fc = cw.finalsChapterInfo ? cw.finalsChapterInfo(key, no, sub.grade) : null;
+    if (fc && fdata) {
+      /* اگر جدول بارم با تعداد درس‌های کتاب نمی‌خواند و بارم هم یکنواخت نیست،
+         عددِ نادرست نشان نمی‌دهیم (مثلاً عربی با ۵ قلمرو و ۴ درس). */
+      if (!fdata.uniform && fdata.baram.length !== count) return null;
+      const total = fdata.total || 20;
+      const imp = impFromRel(fc.rel);
+      return {
+        kind: 'finals', imp, label: IMP_LABEL_FIN[imp],
+        sharePct: Math.round((fc.baram / total) * 1000) / 10,
+        baram: fc.baram, total, uniform: Boolean(fdata.uniform),
+        source: 'بارم رسمی امتحان نهایی' + (fdata.approx ? ' (تقریبی)' : ''),
+      };
+    }
+    return null;
+  }
+
+  /** نقطه‌های اهمیت: ●●●○○ */
+  function impDots(imp) {
+    const n = clampNum(imp, 1, 5);
+    let out = '';
+    for (let k = 1; k <= 5; k += 1) out += '<i class="' + (k <= n ? 'on' : '') + '"></i>';
+    return '<span class="impdots" dir="rtl">' + out + '</span>';
+  }
+
+  /** سلول «اهمیت / سهم از کتاب» در جدول ارزیابی */
+  function impCellHtml(sub, idx) {
+    const m = chapterImportanceFor(sub, idx);
+    if (!m) {
+      return '<td class="cmeta"><span class="muted" style="font-size:10.5px" title="برای این درس دادهٔ اهمیت ثبت نشده است">—</span></td>';
+    }
+    const tip = (sub.name || '') + ' · ' + ((sub.general ? 'درس ' : 'فصل ') + faNum(idx + 1)) + '\n' +
+      'درجهٔ اهمیت: ' + faNum(m.imp) + ' از ۵ (' + m.label + ')\n' +
+      'سهم از کل کتاب: ' + faNum(m.sharePct) + '٪' +
+      (m.kind === 'konkur' ? '\nتعداد سؤال کنکور: ≈' + faNum(Math.round(m.q)) : '\nبارم نهایی: ' + faNum(m.baram) + ' از ' + faNum(m.total)) +
+      '\nمنبع: ' + m.source;
+    const share = '<span class="mshare" title="' + esc(m.kind === 'konkur'
+      ? '≈' + faNum(Math.round(m.q)) + ' سؤال از این درس در کنکور'
+      : 'بارم نهایی: ' + faNum(m.baram) + ' از ' + faNum(m.total)) + '">' +
+      faNum(m.sharePct) + '٪ از کتاب</span>';
+    return '<td class="cmeta" title="' + esc(tip) + '" data-help="imp">' +
+      '<div class="mimp imp' + m.imp + '">' + impDots(m.imp) + '<span class="mtag">' + esc(m.label) + '</span></div>' +
+      share + '</td>';
+  }
+
   /** عنوان رسمی همان فصل (برای جای‌نگهدار و راهنما) */
   function officialTitle(sub, i) {
     const list = canonTopicNames(sub) || [];
@@ -2618,6 +2714,7 @@
         '<input data-cf="name" value="' + esc(nm) + '"' +
           ' placeholder="' + esc(official || num) + '" title="' + esc(num + (official ? ' — ' + official : '')) + '" />' +
       '</div></td>' +
+      impCellHtml(sub, i) +
       '<td style="text-align:center"><input type="checkbox" data-cf="read"' + (row.read ? ' checked' : '') + ' /></td>' +
       '<td><div class="mrow">' +
         '<input type="number" min="0" max="100" step="5" data-cf="mastery" value="' + (row.read ? row.mastery : 0) + '"' +
@@ -2674,6 +2771,10 @@
             '<button class="mini" data-toggle="' + esc(sub.id) + '">' + (open ? 'بستن' : 'باز کردن') + '</button>' +
           '</div>' +
           '<div class="acard-b"' + (open ? '' : ' hidden') + '>' +
+            '<div class="legend-row">' +
+              '<span class="lg"><i class="dot-on"></i> درجهٔ اهمیت فصل (۱ تا ۵، از بودجه‌بندی کنکور / بارم نهایی)</span>' +
+              '<span class="lg"><b>٪ از کتاب</b> سهم این فصل از کل سؤالات همان درس</span>' +
+            '</div>' +
             '<div class="row" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">' +
               '<button class="btn ghost small" data-fill="' + esc(sub.id) + '" data-val="85">همه را خوانده‌ام (۸۵٪)</button>' +
               '<button class="btn ghost small" data-fill="' + esc(sub.id) + '" data-val="60">همه را خوانده‌ام (۶۰٪)</button>' +
@@ -2681,7 +2782,8 @@
               '<button class="btn ghost small" data-add="' + esc(sub.id) + '">+ افزودن مبحث</button>' +
             '</div>' +
             '<table class="chap"><thead><tr><th>' + esc(sub.general ? 'درس و عنوان' : 'فصل و عنوان') +
-              '</th><th style="width:74px">خوانده‌ام</th><th style="width:270px">تسلط</th><th style="width:36px"></th></tr></thead><tbody>' +
+              '</th><th style="width:126px" title="درجهٔ اهمیت فصل (۱ تا ۵) و سهمش از کل کتاب">اهمیت / سهم</th>' +
+              '<th style="width:64px">خوانده‌ام</th><th style="width:250px">تسلط</th><th style="width:36px"></th></tr></thead><tbody>' +
               rows.map((row, i) => assessmentRowHtml(row, i, sub)).join('') +
             '</tbody></table>' +
           '</div>' +
@@ -3453,9 +3555,15 @@
           '<details style="margin-bottom:6px"><summary style="cursor:pointer;font-size:12px">' + esc(x.name) +
           ' <span class="muted" style="font-size:10.5px">· ' + (x.uniform ? 'بارم یکنواخت' : 'بارم نامتوازن') +
           (x.approx ? ' · تقریبی' : '') + '</span></summary>' +
-          '<table class="chap" style="margin-top:6px"><thead><tr><th>فصل / قلمرو</th><th>بارم</th><th>زمان چیده‌شده</th></tr></thead><tbody>' +
-          x.chapters.map((ch) => '<tr><td>' + esc(ch.name) + '</td><td>' + faNum(Math.round(ch.baram * 100) / 100) +
-            '</td><td>' + faNum(Math.round((ch.minutes || 0) / 60 * 10) / 10) + ' ساعت</td></tr>').join('') +
+          '<table class="chap" style="margin-top:6px"><thead><tr><th>فصل / قلمرو</th><th>بارم</th>' +
+          '<th title="سهم این فصل از نمرهٔ کل برگهٔ نهایی">سهم از برگه</th><th>زمان چیده‌شده</th></tr></thead><tbody>' +
+          x.chapters.map((ch) => {
+            const sum = x.chapters.reduce((a, b2) => a + (b2.baram || 0), 0) || 1;
+            const pct = Math.round(((ch.baram || 0) / sum) * 1000) / 10;
+            return '<tr><td>' + esc(ch.name) + '</td><td>' + faNum(Math.round(ch.baram * 100) / 100) +
+              '</td><td><b>' + faNum(pct) + '٪</b></td>' +
+              '<td>' + faNum(Math.round((ch.minutes || 0) / 60 * 10) / 10) + ' ساعت</td></tr>';
+          }).join('') +
           '</tbody></table>' +
           (x.source ? '<div class="muted" style="font-size:10px;margin-top:4px">منبع: ' + esc(x.source) + '</div>' : '') +
           '<div class="muted" style="font-size:10.5px;margin-top:4px">روش مطالعهٔ نهایی: ' +
