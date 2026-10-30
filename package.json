@@ -1,7 +1,7 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "2.8.12",
+  "version": "2.8.13",
   "description": "مشاور هوشمند روال — برنامه‌ریز کنکور و نهایی با دستیار هوش مصنوعی: چت باکس واقعی، تغییر برنامه با زبان فارسی، تایمر توقف/ادامه، آیتم اضطراری و آمادگی جدا برای کنکور و نهایی",
   "main": "src/bootstrap.js",
   "author": "Reval Desktop",
@@ -14,7 +14,7 @@
   },
   "scripts": {
     "start": "electron .",
-    "test": "node test/v28-ai-test.js && node test/sim-students.js && node test/capacity-test.js && node test/deadline-test.js && node test/deadline-general-test.js && node test/patch-test.js && node test/v24-test.js && node test/v25-test.js && node test/v26-test.js && node test/v27-test.js",
+    "test": "node test/v28-ai-test.js && node test/sim-students.js && node test/capacity-test.js && node test/deadline-test.js && node test/deadline-general-test.js && node test/patch-test.js && node test/v24-test.js && node test/v25-test.js && node test/v26-test.js && node test/v27-test.js && node test/variety-2813.js",
     "test:engine": "node test/sim-students.js",
     "test:ui": "electron test/ui-full-flow.js && electron test/ui-day-variety.js",
     "build:win": "electron-builder --win nsis --x64",

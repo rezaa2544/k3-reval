@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.12-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.12/Reval-Setup-2.8.12.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.12-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.12)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.13-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.13/Reval-Setup-2.8.13.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.13-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.13)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,22 +9,22 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.12.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.12/Reval-Setup-2.8.12.exe)
+### [💾 Reval-Setup-2.8.13.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.13/Reval-Setup-2.8.13.exe)
 
-**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۲**
+**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۳**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.12/Reval-Setup-2.8.12.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.13/Reval-Setup-2.8.13.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `9bb710e76ff6bf4127e2f273596f9017ba859ccc9824bd28a0f86959629b4849` |
-| **حجم دقیق** | ۸۰٬۱۵۹٬۳۴۲ بایت |
+| **SHA-256** | `2a555b7eb3ca4fb18117a39114fbb95f314249d4c8a8c066f206a4876849b572` |
+| **حجم دقیق** | ۸۰٬۱۶۴٬۰۳۴ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.12.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.12.zip` — ۵۷۳ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.13.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.13.zip` — ۵۷۳ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
@@ -32,7 +32,23 @@
 
 ---
 
-## ↕️ نسخهٔ ۲.۸.۱۲ — «اهمیت واقعی» از سؤال‌های واقعی کنکور (۱۳۹۸ تا ۱۴۰۵)
+## ↕️ نسخهٔ ۲.۸.۱۳ — پایانِ «کلِ روز برای یک کتاب»
+
+| | |
+|---|---|
+| **شکایت** | «بازم که کل روز رو برای یک کتاب برنامه ریزی کردی» |
+| **ریشه** | در روزِ کوتاه، «سهم تست» نصفِ روز را می‌گرفت، بلوکِ یادگیری همیشه ۴۵ دقیقه بود (پس فقط یکی جا می‌شد) و بلوکِ تمرین با گِردکردنِ رو به بالا از باقی‌مانده بزرگ‌تر می‌شد |
+| **حالا** | حداکثر **۲ جلسهٔ یادگیری از هر کتاب در روز** (قیدِ سخت) · هیچ کتابی **بیش از ۶۰٪** وقتِ درسیِ روز نیست · در روزِ کوتاه بودجهٔ یادگیری نصف می‌شود (۳۰+۳۰) · آزمون و تحلیلِ آزمون و مرورهای کوتاه هرگز قربانیِ شلوغی نمی‌شوند |
+| **تثبیت** | اگر روز چند بلوکِ یادگیری داشت و هیچ تست/مرور/بازیابی نداشت، ۱۵ دقیقهٔ آخرِ بلندترین بلوک «بازیابی از حافظه» می‌شود |
+| **شواهد** | Cepeda 2006 (توزیع) · Rohrer & Taylor 2007 و Kornell & Bjork 2008 (درهم‌کردن) · Roediger & Karpicke 2006 و Karpicke & Blunt 2011 (بازیابیِ فعال) · Dunlosky 2013 |
+| **نتیجه** | روزهای «یک کتاب بیش از ۶۰٪»: ۲ساعت **۳۹→۰** · ۳ساعت ۱۳→۸ · ۶ساعت ۸→۱ · ۸ساعت ۶→۲ · ۱۰ساعت ۱۱→۰ — و پوششِ فصل‌ها در روزِ ۲ ساعته از ۳۷٪ به **۴۷٪** بالا رفت، بدونِ کم‌شدنِ ساعتِ مطالعه |
+| **آزمون** | `variety-2813` **۱۸ ✅** (تازه) · `simulation-year` **۹۲ ✅** · `sim-students` **۱۵۴ ✅** · `ui-full-flow` ۵۷ ✅ · `ui-day-variety` ۱۰ ✅ |
+
+جزئیات: [یادداشت انتشار ۲.۸.۱۳](docs/release-notes-2.8.13.md)
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۱۳ — «اهمیت واقعی» از سؤال‌های واقعی کنکور (۱۳۹۸ تا ۱۴۰۵)
 
 | | |
 |---|---|
@@ -47,7 +63,7 @@
 
 ![](docs/screens/ui-60-exam-evidence-importance.png)
 
-جزئیات: [یادداشت انتشار ۲.۸.۱۲](docs/release-notes-2.8.12.md) · [روشِ محاسبه](docs/methodology-exam-importance.md)
+جزئیات: [یادداشت انتشار ۲.۸.۱۳](docs/release-notes-2.8.12.md) · [روشِ محاسبه](docs/methodology-exam-importance.md)
 
 ---
 

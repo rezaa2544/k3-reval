@@ -862,10 +862,17 @@
       return out;
     };
 
-    let guard = 0;
-    while (pool.length && guard++ < 500) {
-      let best = null;
+    /* ── قاعدهٔ سختِ تنوع (۲.۸.۱۳) ────────────────────────────────────────
+       تا ۲.۸.۱۲ «سقفِ سهمِ روز» فقط یک جریمهٔ نرم بود؛ در روزهای کوتاه
+       (۲ تا ۳ ساعت) جریمه با امتیازِ یادگیری خنثی می‌شد و نتیجه می‌شد
+       «کلِ روز یک کتاب». حالا اگر درسِ دیگری واقعاً در صف باشد، سهمِ بیش از
+       ۵۰٪ و بلوکِ سومِ پشتِ‌سرهم برای همان درس **اصلاً انتخاب نمی‌شود**
+       (نه فقط جریمه). اگر هیچ جایگزینی نماند، قید شل می‌شود تا برنامه ناقص نماند. */
+    const MAX_DAY_SHARE = 0.5;
+    let plannedMin = 0;
 
+    const scanForBest = (strict) => {
+      let best = null;
       pool.forEach((task, ti) => {
         const atomic = task.kind === 'exam' || task.kind === 'mock';
         const minChunk = (DEFAULTS.MIN_CHUNK[task.kind] != null ? DEFAULTS.MIN_CHUNK[task.kind] : cfg.MIN_BLOCK);
@@ -908,6 +915,17 @@
           const VARIETY_KINDS = ['learn', 'reteach', 'boost', 'practice', 'review', 'warmup', 'cumreview', 'carry', 'carryreview'];
           if (VARIETY_KINDS.indexOf(task.kind) !== -1) {
             const others = pendingSubjects().filter((x) => x !== task.subjectId);
+            if (others.length && strict) {
+              /* آیا درسِ دیگری واقعاً کاری دارد که همین حالا جا می‌شود؟ */
+              const altReady = others.some((id) => pool.some((t) => t.subjectId === id
+                && t !== task && (t.minutesLeft || 0) >= minChunkOf(t.kind)));
+              if (altReady) {
+                /* بلوکِ پشتِ‌سرهمِ همان درس ممنوع */
+                if (trailingRun(last, task.subjectId) >= maxSame) return;
+                /* سقفِ سهمِ روز: بیش از نیمی از روز برای یک درس */
+                if (plannedMin > 0 && (usedBySubject[task.subjectId] + useLen) / (plannedMin + useLen) > MAX_DAY_SHARE) return;
+              }
+            }
             if (others.length) {
               /* یادگیریِ فصل جدید هرگز پشتِ «تست/مرورِ درس دیگر» قربانی نمی‌شود؛
                  جریمهٔ تنوع برای یادگیری ملایم‌تر است تا فقط ترتیب عوض شود. */
@@ -932,6 +950,13 @@
           if (!best || score > best.score) best = { score, task, ti, seg, si, useLen, start: from };
         });
       });
+      return best;
+    };
+
+    let guard = 0;
+    while (pool.length && guard++ < 500) {
+      /* اول با قیدِ سخت؛ اگر هیچ گزینه‌ای نماند، همان قید را شل می‌کنیم */
+      let best = scanForBest(true) || scanForBest(false);
 
       // اگر تنها گزینهٔ باقی‌مانده نقض interleaving است (مثلاً همهٔ تسک‌های مانده یک درس‌اند)،
       // برنامه را ناقص نمی‌گذاریم: آن را با پذیرش تکرار می‌چینیم.
@@ -983,6 +1008,7 @@
         examId: task.examId || null,
       });
 
+      plannedMin += useLen;
       usedBySubject[task.subjectId] = (usedBySubject[task.subjectId] || 0) + useLen;
       blocksBySubject[task.subjectId] = (blocksBySubject[task.subjectId] || 0) + 1;
       seg.cursor = start + useLen;
@@ -992,6 +1018,46 @@
     }
 
     blocks.sort((a, b) => a.start - b.start);
+
+    /* ── ۲.۸.۱۳: تثبیتِ همان‌روز در سطح بلوک ─────────────────────────────
+       اگر روز چند بلوکِ یادگیری دارد ولی هیچ مرور/تست/بازیابی‌ای ندارد (مثلاً
+       اوایل سال که هنوز فصلِ خوانده‌شده‌ای برای تست نیست، یا روزی که همهٔ
+       مرورها در چیدن جا نشدند)، ۱۵ دقیقهٔ آخرِ آخرین بلوکِ یادگیری به یک بلوکِ
+       «بازیابی از حافظه» تبدیل می‌شود: بخوان، بعد از خودت بپرس.
+       شواهد: Roediger & Karpicke (2006) و Karpicke & Blunt (2011) — بازیابیِ
+       فعال بیشتر از بازخوانی نگه‌داشت می‌سازد. این کار مرزِ بلوک‌ها را جابه‌جا
+       نمی‌کند (از انتهای همان بلوک کم می‌شود) پس تداخلِ زمانی ایجاد نمی‌کند. */
+    {
+      const CONSOL = ['warmup', 'review', 'practice', 'cumreview', 'carryreview', 'finalprep', 'deadlinecheck'];
+      const hasConsol = blocks.some((b) => CONSOL.indexOf(b.kind) !== -1);
+      const learnBlocks = blocks.filter((b) => b.kind === 'learn' || b.kind === 'reteach' || b.kind === 'boost');
+      if (!hasConsol && learnBlocks.length >= 2) {
+        /* بلندترین بلوکِ یادگیری؛ نه لزوماً آخرین (آخرین ممکن است ۳۰ دقیقه باشد
+           و با کسر ۱۵ دقیقه زیرِ حدِ بلوک برود). */
+        const last = learnBlocks.slice().sort((a, b) => b.minutes - a.minutes)[0];
+        const cut = 15;
+        const floorMin = DEFAULTS.MIN_CHUNK[last.kind] != null ? DEFAULTS.MIN_CHUNK[last.kind] : cfg.MIN_BLOCK;
+        if (last.minutes - cut >= floorMin) {
+          const retrieval = Object.assign({}, last, {
+            start: last.end - cut,
+            end: last.end,
+            minutes: cut,
+            kind: 'warmup',
+            /* خروجیِ روز نوع را از task می‌خواند؛ پس نسخهٔ کپی‌شدهٔ تسک هم باید
+               نوعِ «بازیابی» داشته باشد. */
+            task: Object.assign({}, last.task, { kind: 'warmup', sameDayRetrieval: true }),
+            sameDayRetrieval: true,
+            practiceCount: Math.max(3, Math.round(cut / 1.6)),
+          });
+          last.end -= cut;
+          last.minutes -= cut;
+          if (last.practiceCount) last.practiceCount = Math.max(3, Math.round(last.practiceCount * (last.minutes / (last.minutes + cut))));
+          blocks.push(retrieval);
+          blocks.sort((a, b) => a.start - b.start);
+        }
+      }
+    }
+
     /* تسک‌هایی که (کامل یا قسمتی) جا نشدند — برای برگرداندن نیاز به فصل */
     const unplacedTasks = pool.map((t) => {
       const done = sum(blocks.filter((b) => b.task === t).map((b) => b.minutes));
@@ -1861,6 +1927,12 @@
 
       /* ---- ۶) یادگیری جدید ---- */
       const subjectUsedToday = {};
+      /* ۲.۸.۱۳: شمارشِ «چند جلسهٔ یادگیری از هر کتاب امروز» — سقفِ سختِ
+         MAX_LEARN_SESSIONS_PER_SUBJECT که با capRelax شل نمی‌شود و در فراخوانی‌های
+         متعددِ addLearnChunks همان روز ریست نمی‌شود. شواهد: چهار جلسهٔ پشت‌سرهم
+         از یک کتاب = یادگیریِ فشرده (massed) که در Rohrer & Taylor (2007) و
+         Cepeda et al. (2006) بازدهٔ کمتری از تمرینِ توزیع‌شده دارد. */
+      const sessionsToday = {};
       /* فصل‌هایی که مهلتشان گذشته: به ابتدای صف برمی‌گردند (بازیابی مهلت) */
       if (dayIndex !== lastMissSweep) {
         lastMissSweep = dayIndex;
@@ -1895,11 +1967,30 @@
         }
       };
 
-      const addLearnChunks = (budget) => {
+      const addLearnChunks = (budget, opts) => {
+        /* ۲.۸.۱۳: سقفِ جلسهٔ هر کتاب در روز ۲ است؛ اما در «پر کردنِ ظرفیتِ باقی‌مانده»
+           اگر روز از قبل تنوعِ کافی دارد (۳ کتاب یا بیشتر در بلوک‌ها)، یک جلسهٔ سوم هم
+           مجاز است تا وقتِ اعلامیِ دانش‌آموز هدر نرود. */
+        const sessionCap = (opts && opts.relaxSessions)
+          ? DEFAULTS.MAX_LEARN_SESSIONS_PER_SUBJECT + 1
+          : DEFAULTS.MAX_LEARN_SESSIONS_PER_SUBJECT;
         /* ۲.۸.۱۱: سقف درسِ واحد در روز از ۵۰٪ به ۳۵٪ آمد. یک درس نباید نیمی از روز را
            ببلعد؛ شواهد «تمرین درهم» (Rohrer 2007؛ Kornell & Bjork 2008) می‌گوید
            چرخش بین درس‌ها هم بازده یادگیری را بالا می‌برد و هم از یکنواختی می‌کاهد. */
         const perSubjectCap = Math.max(cfg.blockMinutes, Math.round(load.minutes * (daysLeft <= 7 ? 0.3 : 0.35)));
+        /* ۲.۸.۱۳: در روز کوتاه (کمتر از ~۱۰۰ دقیقهٔ بار) اگر بیش از یک درس مبحثِ
+           نخوانده دارد، بلوکِ یادگیری نصفِ ظرفیت می‌شود تا روز دو کتاب بگیرد؛
+           وگرنه یک بلوکِ ۴۵ دقیقه‌ای + یک مرورِ ۱۵ دقیقه‌ای، ۷۵٪ روز را یک‌کتابی می‌کرد. */
+        const learnableSubjects = Object.keys(learnBySubject)
+          .filter((id) => (learnBySubject[id] || []).some((t) => (!scope || scope.has(t.subjectId)) && t.needMinutes > 0));
+        /* اگر بودجهٔ یادگیریِ امروز به دو بلوکِ کاملِ درسِ‌متعارف نمی‌رسد، بلوک‌ها
+           نصف می‌شوند تا حداقل دو کتابِ متفاوت در روز دیده شود (تنوعِ بین‌کتابی). */
+        const splitShortDay = learnableSubjects.length > 1
+          && (tinyDay || (budget >= 2 * DEFAULTS.MIN_CHUNK.learn && budget < cfg.blockMinutes * 1.6));
+        /* در روزِ کوتاه، بلوکِ یادگیری «نصفِ بودجه» می‌شود تا دو درس جا شوند */
+        const learnBlock = splitShortDay
+          ? Math.max(DEFAULTS.MIN_CHUNK.learn, Math.min(cfg.blockMinutes, Math.floor(budget / 2)))
+          : cfg.blockMinutes;
         /* درس‌هایی که امروز «گرم‌کردن/مرور دیروز» گرفته‌اند — یادگیریِ تازه به درس دیگر برود */
         const warmupSubjects = new Set(tasks.filter((t) => t.kind === 'warmup' || t.kind === 'review').map((t) => t.subjectId));
         /* کف تعهد روزانهٔ هر درس بابت مهلت‌هایش */
@@ -1926,11 +2017,13 @@
           Object.keys(learnBySubject).forEach((id) => {
             const q = learnBySubject[id].filter((t) => !scope || scope.has(t.subjectId));
             if (!q.length) return;
-            const take = Math.min(cfg.blockMinutes, q[0].needMinutes);
+            const take = Math.min(learnBlock, q[0].needMinutes);
             /* درس دارای مهلت نزدیک: سقف روزانه‌اش بازتر است */
             const capBoost = 1 + 0.6 * Math.min(1, deadlinePressure(id, dayIndex, load.minutes))
               + (dueId === id ? 1.2 : 0);
             if ((subjectUsedToday[id] || 0) + take > perSubjectCap * capBoost * capRelax) return;
+            /* سقفِ سختِ تعداد جلسه از یک کتاب در یک روز (تنوعِ درون‌روزی) */
+            if ((sessionsToday[id] || 0) >= sessionCap) return;
             /* فشار مهلت: درسی که باید تا تاریخ مشخصی تمام شود، سهم بیشتری می‌گیرد */
             const pressure = deadlinePressure(id, dayIndex, load.minutes);
             const target = Math.max(1, (stats[id] ? stats[id].share : 0) * learnNeedTotal * (1 + 1.8 * pressure));
@@ -1952,8 +2045,10 @@
               if (id === chosenId || warmupSubjects.has(id)) return;
               if (!learnBySubject[id].length) return;
               if (!scope || !learnBySubject[id].some((t) => scope.has(t.subjectId))) return;
-              const t2 = Math.min(cfg.blockMinutes, learnBySubject[id][0].needMinutes);
+              const t2 = Math.min(learnBlock, learnBySubject[id][0].needMinutes);
               if ((subjectUsedToday[id] || 0) + t2 > perSubjectCap * 1.6) return;
+              if ((sessionsToday[id] || 0) >= DEFAULTS.MAX_LEARN_SESSIONS_PER_SUBJECT && Object.keys(learnBySubject)
+                .some((oid) => oid !== id && (learnBySubject[oid] || []).length)) return;
               const p2 = deadlinePressure(id, dayIndex, load.minutes);
               const target2 = Math.max(1, (stats[id] ? stats[id].share : 0) * learnNeedTotal * (1 + 1.8 * p2));
               const d2 = -((learnSpent[id] || 0) / target2);
@@ -1966,8 +2061,19 @@
             if (capRelax < 2.6 && used < budget - minChunkOf('learn')) { capRelax *= 1.6; continue; }
             break;
           }
-          /* اگر درسی به کف تعهد مهلتش نرسیده، همین حالا نوبتش است */
-          if (dueId && learnBySubject[dueId] && learnBySubject[dueId].length) chosenId = dueId;
+          /* اگر درسی به کف تعهد مهلتش نرسیده، همین حالا نوبتش است — ولی سقفِ
+             سختِ تنوع (تعداد جلسه/دقیقهٔ همان کتاب در همین روز) با این استثنا
+             نقض نمی‌شود؛ وگرنه یک کتاب سه‌چهار جلسهٔ روز را می‌بلعد. */
+          if (dueId && learnBySubject[dueId] && learnBySubject[dueId].length) {
+            const qd = learnBySubject[dueId].filter((t) => !scope || scope.has(t.subjectId));
+            const takeDue = Math.min(learnBlock, qd.length ? qd[0].needMinutes : 0);
+            const capDue = perSubjectCap * (1 + 0.6 * Math.min(1, deadlinePressure(dueId, dayIndex, load.minutes)) + 1.2) * capRelax;
+            const otherReady = Object.keys(learnBySubject).some((oid) => oid !== dueId
+              && (learnBySubject[oid] || []).length
+              && (!scope || learnBySubject[oid].some((t) => scope.has(t.subjectId))));
+            const sessOk = (sessionsToday[dueId] || 0) < sessionCap;
+            if (sessOk && (subjectUsedToday[dueId] || 0) + takeDue <= capDue) chosenId = dueId;
+          }
           const topic = learnBySubject[chosenId][0];
 
           /* ── اندازهٔ جلسه: عدد صحیح، دست‌کم ۳۰ دقیقه ──
@@ -2017,7 +2123,7 @@
             topic.needMinutes = Math.max(minChunk, cfg.blockMinutes);
             remainingNeed = Math.round(topic.needMinutes);
           }
-          let chunk = Math.min(cfg.blockMinutes, remainingNeed, budgetLeft);
+          let chunk = Math.min(learnBlock, remainingNeed, budgetLeft);
           chunk = Math.round(chunk);
           if (chunk < minChunk) break;
           tasks.push({
@@ -2029,6 +2135,7 @@
           });
           used += chunk;
           subjectUsedToday[topic.subjectId] = (subjectUsedToday[topic.subjectId] || 0) + chunk;
+          sessionsToday[topic.subjectId] = (sessionsToday[topic.subjectId] || 0) + 1;
           learnSpent[topic.subjectId] = (learnSpent[topic.subjectId] || 0) + chunk;
           topic.needMinutes -= chunk;
           if (topic.needMinutes <= 0) {
@@ -2050,12 +2157,30 @@
          ولی هرگز بیشتر از ۴۰٪ روز (بقیه مال یادگیری است). */
       const targetTodayReserve = Math.round((cfg.testTarget.daily || 0) *
         clamp(load.minutes / 240, 0.4, 1.4) * 2.0);        // ~۲ دقیقه برای هر تست
-      const testReserve = (isFinalExam || !cfg.testTarget.daily) ? 0
+      /* ۲.۸.۱۳: در روزِ بسیار کوتاه (کمتر از ~۱۰۰ دقیقه) کنارگذاشتنِ ۳۰ دقیقه
+         «سهم تست» عملاً یعنی نصفِ روز؛ آن‌وقت فقط یک بلوکِ ۴۵ دقیقه‌ای جا می‌شود و
+         روز یک‌کتابی می‌شود. در این روزها تست داخلِ همان بلوک‌های یادگیری می‌آید
+         (تثبیت + تستِ همان فصل) و ظرفیت به دو درسِ متفاوت می‌رسد. */
+      /* ۲.۸.۱۳: در روزِ کوتاه (کمتر از ~۱۰۰ دقیقه) کنارگذاشتنِ ۳۰ دقیقه «سهم تست»
+         عملاً یعنی نصفِ روز؛ آن‌وقت فقط یک بلوکِ ۴۵ دقیقه‌ای جا می‌شود و روز
+         یک‌کتابی می‌ماند. در این روزها تست داخلِ همان بلوک‌های یادگیری می‌آید
+         (تثبیت + بازیابیِ همان فصل) و ظرفیت به دو درسِ متفاوت می‌رسد. */
+      /* آستانه بر اساس «چند بلوکِ واقعی در روز جا می‌شود»: دو بلوک یادگیری به‌علاوهٔ
+         یک بلوک تمرین/تست. کمتر از این، روز عملاً فقط یک کتاب می‌گیرد. */
+      const tinyDay = load.minutes < 105;
+      const testReserve = (isFinalExam || !cfg.testTarget.daily || tinyDay) ? 0
         : Math.round(Math.min(load.minutes * (inFinals ? 0.30 : finalPhase ? 0.32 : 0.40),
           Math.max(load.minutes * 0.18, targetTodayReserve)) *
           (backlogRatio > 0.7 ? 0.75 : 1));
       if (!isFinalExam && !noNewLearning) {
-        addLearnChunks(Math.max(45, load.minutes * learnBudgetRatio - testReserve));
+        /* بودجهٔ یادگیری هرگز از ظرفیتِ باقی‌ماندهٔ روز (پس از مرورها/کلاس‌ها) بیشتر
+           نمی‌شود؛ وگرنه بلوکی ساخته می‌شود که جا نمی‌گیرد و به «زمانِ جا‌نگرفته»
+           تبدیل می‌شود (سنجهٔ بسته‌بندی در شبیه‌سازی سال). */
+        const spareBeforeLearn = Math.max(0, load.minutes - sum(tasks.map((t) => t.minutesLeft || 0)));
+        const learnBudget = tinyDay
+          ? Math.min(load.minutes, Math.max(2 * DEFAULTS.MIN_CHUNK.learn, Math.round(load.minutes * learnBudgetRatio)))
+          : Math.max(45, load.minutes * learnBudgetRatio - testReserve);
+        addLearnChunks(Math.max(0, Math.min(learnBudget, spareBeforeLearn)));
       }
       /* «مرور ۲۴ساعته» فقط برای فصل‌هایی که واقعاً امروز خوانده می‌شوند ساخته می‌شود.
          این فهرست پایین‌تر — بعد از چیده‌شدنِ بلوک‌ها — از بلوک‌های واقعی پر می‌شود.
@@ -2135,10 +2260,32 @@
             }
           }
           const w = weakestOf(s.id);
-          const minutes = Math.min(cfg.blockMinutes, roundTo5(spare));
-          /* کارِ کوتاه‌تر از حداقلِ بلوکِ تمرین ساخته نمی‌شود؛ پیش‌تر ساخته می‌شد و
-             چون هرگز جا نمی‌گرفت تا آخر سال «زمانِ جا‌نشده» تولید می‌کرد. */
+          /* ۲.۸.۱۳: بلوکِ تمرین از «باقی‌ماندهٔ» روز بزرگ‌تر نمی‌شود؛ پیش‌تر roundTo5
+             رو به بالا گرد می‌کرد و ۴۰ دقیقهٔ باقی‌مانده به بلوکِ ۴۵ دقیقه‌ای تبدیل
+             می‌شد (روز از ظرفیتِ اعلامی می‌گذشت و بلوک‌های دیگر قربانی می‌شدند). */
+          const minutes = Math.min(cfg.blockMinutes, Math.floor(spare / 5) * 5);
           if (minutes < (DEFAULTS.MIN_CHUNK.practice || cfg.MIN_BLOCK)) break;
+
+          /* ── ۲.۸.۱۳: «تمامِ روز یک کتاب» ───────────────────────────────────
+             اگر تا اینجای روز همه‌چیز حولِ یک کتاب چرخیده، اولین بلوکِ تمرین به کتابِ
+             دیگری می‌رود تا روز دوکتابی شود. (پیش‌تر همین‌جا بلوک ساخته نمی‌شد و
+             ظرفیتِ باقی‌مانده رها می‌شد ⇒ ساعت‌های اعلامیِ دانش‌آموز هدر می‌رفت.)
+             شواهد: تداومِ طولانی با یک موضوع (massed) بازده را کم می‌کند و تنوعِ
+             موضوع توجه را بالا نگه می‌دارد (Cepeda 2006؛ Rohrer & Taylor 2007). */
+          if (practiceBlocksPlaced === 0 && (onlyOneSubjectSoFar || tinyDay)) {
+            /* کتابی که امروز کمترین زمان را گرفته، بهترین کاندیدای تنوع است */
+            const minsToday = {};
+            tasks.forEach((t) => { minsToday[t.subjectId] = (minsToday[t.subjectId] || 0) + (t.minutesLeft || 0); });
+            const candidates = ordered.filter((x) => poolOf(x.id).length);
+            if (candidates.length) {
+              candidates.sort((x, y) => (minsToday[x.id] || 0) - (minsToday[y.id] || 0));
+              s = candidates[0];
+            } else {
+              /* هیچ کتابِ دیگری فصلِ قابلِ‌تست ندارد: به‌جای بلوکِ تمرینِ همان کتاب
+                 (که روز را تک‌کتابی می‌کند) جا را به یادگیریِ کتابِ دیگر بسپار. */
+              break;
+            }
+          }
           tasks.push({
             kind: 'practice', subjectId: s.id, subjectName: s.name,
             topicLabel: w
@@ -2182,7 +2329,23 @@
             /* ترتیبِ قربانی: اول «تحلیل آزمون» و «جمع‌بندی» (قابل انتقال به روز بعد)،
                بعد تستِ روزانه، و در آخر مرورهای کوتاه و ارزشمند (۲۴ساعته/فاصله‌دار)
                که ستون فقراتِ حافظه‌اند. */
-            const rank = (t) => (t.kind === 'practice' ? 3 : (t.kind === 'warmup' || t.kind === 'review') ? 5 : t.kind === 'review' ? 4 : 2);
+            /* ۲.۸.۱۳: ترتیبِ قربانی بازنویسی شد. پیش از این «یادگیری» رتبهٔ ۲ داشت و
+               اولین چیزی بود که حذف می‌شد؛ نتیجه این بود که در روزِ کوتاه، بلوکِ درسِ
+               دوم قربانی می‌شد و روز تک‌کتابی می‌ماند. یافته‌های حافظه (Roediger &
+               Karpicke 2006؛ Cepeda 2006) می‌گویند خودِ یادگیری + بازیابی ارزشمندتر
+               از یک مرورِ کوتاهِ همان روز است، پس یادگیری آخرین قربانی است. */
+            /* ۲.۸.۱۳: ترتیبِ قربانی بازنویسی شد. پیش از این «یادگیری» رتبهٔ ۲ داشت و
+               اولین چیزی بود که حذف می‌شد؛ نتیجه این بود که در روزِ کوتاه، بلوکِ درسِ
+               دوم قربانی می‌شد و روز تک‌کتابی می‌ماند. پس یادگیری دیرتر قربانی می‌شود. */
+            /* اولویتِ حفظ: آزمون و مرورهای کوتاه و یادگیری تقریباً دست‌نخورده می‌مانند؛
+               ابتدا «تست درهم» و «تحلیل/جمع‌بندی» (که انتقال‌پذیرند) کم می‌شوند.
+               هیچ آزمونی زیرِ ۴۰ دقیقه کوچک نمی‌شود و هیچ بلوکِ یادگیری زیرِ ۳۰ دقیقه. */
+            const rank = (t) => (t.kind === 'exam' || t.kind === 'mock' || t.kind === 'analysis'
+              || t.sameDayRetrieval) ? 12
+              : (t.kind === 'reteach' || t.kind === 'boost' || t.kind === 'learn') ? 9
+                : (t.kind === 'warmup' || t.kind === 'review' || t.kind === 'cumreview' || t.kind === 'carryreview') ? 8
+                  : (t.kind === 'finalprep' || t.kind === 'classfix' || t.kind === 'carry' || t.kind === 'deadlinecheck') ? 7
+                    : t.kind === 'practice' ? 6 : 5;
             const ra = rank(a);
             const rb = rank(b);
             if (ra !== rb) return ra - rb;
@@ -2204,7 +2367,12 @@
       if (!isFinalExam && !noNewLearning && peekLearnNeed() > 0) {
         const usedSoFar = sum(tasks.map((t) => t.minutesLeft || 0));
         const rest = load.minutes - usedSoFar;
-        if (rest >= 25) addLearnChunks(rest);
+        /* ۲.۸.۱۳: از ۳۰ دقیقه (حداقلِ بلوکِ یادگیری) هم استفاده شود تا روزِ کوتاه
+           به‌جای «یک کتاب تا آخر» دو کتاب بگیرد. */
+        const distinctSoFar = new Set(tasks
+          .filter((t) => t.kind !== 'exam' && t.kind !== 'mock' && t.subjectId && !['EXAM', 'MOCK', 'ALL', 'CLASS'].includes(t.subjectId))
+          .map((t) => t.subjectId));
+        if (rest >= 30) addLearnChunks(rest, { relaxSessions: distinctSoFar.size >= 2 });
       }
 
       /* ---- ۸) رویدادهای ثابتِ آزمون را با زمان قطعی جدا کن ---- */
@@ -2916,7 +3084,7 @@
 
     return {
       meta: {
-        version: '2.8.12', createdAt: new Date().toISOString(),
+        version: '2.8.13', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
