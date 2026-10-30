@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.11-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.11/Reval-Setup-2.8.11.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.11-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.11)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.12-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.12/Reval-Setup-2.8.12.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.12-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.12)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,45 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.11.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.11/Reval-Setup-2.8.11.exe)
+### [💾 Reval-Setup-2.8.12.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.12/Reval-Setup-2.8.12.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۱**
+**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۲**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.11/Reval-Setup-2.8.11.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.12/Reval-Setup-2.8.12.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `bb7d244bfe35624cecc25f9cc25f9bb7a6a0ac4af306b495d0a7fd3602674c6c` |
-| **حجم دقیق** | ۸۰٬۱۵۱٬۹۵۱ بایت |
+| **SHA-256** | `9bb710e76ff6bf4127e2f273596f9017ba859ccc9824bd28a0f86959629b4849` |
+| **حجم دقیق** | ۸۰٬۱۵۹٬۳۴۲ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.11.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.11.zip` — ۵۶۱ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.12.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.12.zip` — ۵۷۳ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۱۲ — «اهمیت واقعی» از سؤال‌های واقعی کنکور (۱۳۹۸ تا ۱۴۰۵)
+
+| | |
+|---|---|
+| **درخواست** | «اهمیت واقعی باید از تحلیل سؤال‌های واقعی کنکور ۱۴۰۵ و سال‌های قبل بیاید، نه برآورد؛ پرتکرارها جلو بیفتند و ضریب کتاب هم رعایت شود» |
+| **داده** | ماتریس «فصل × آزمون»: زیست ۸ آزمون · فیزیک ۸ · زمین ۷ · ریاضی ۶ · شیمی ۳ (از ۵ منبع مستقل) — با ستون ۱۴۰۲ نوبت اول و دوم |
+| **فرمول** | سهم فصل در هر آزمون → میانگین با وزن ۱٫۱۴ به‌ازای هر سال → **اولویت = تعداد سؤال × ضریب درس** (زیست ۱۲، شیمی ۹، فیزیک ۷، ریاضی ۷، زمین ۱) |
+| **نتیجه** | فصل پرتکرارِ کتابِ ضریب‌بالا همیشه جلو می‌افتد: بهترین فصل زیست و شیمی اولویت ۱۰۰، نوسان و موج فیزیک ۷۳، مشتق ۵۷، و بهترین فصل زمین ۹ |
+| **زمان مطالعه** | بازتوزیع درونِ هر درس (میانگین ثابت می‌ماند) — فصل کم‌اهمیت وقتِ کمتر، ولی **هیچ فصلی حذف نمی‌شود**: کفِ ۹۰ دقیقه سرِ جایش |
+| **رابط کاربری** | chip «اولویت رشته ۰..۱۰۰» + tooltip سال‌به‌سال و منبع + برچسب «دادهٔ محدود» برای درسی که سری کوتاه دارد |
+| **صداقت** | هیچ منبع عمومی نگاشتِ سؤال‌به‌سؤالِ ۱۵ سال را منتشر نکرده؛ این تحلیلِ تجمیعیِ آزمون‌های واقعی است و همین در برنامه هم نوشته شده |
+| **آزمون** | `exam-frequency` **۴۲ ✅** (تازه) · `ui-exam-importance` **۱۵ ✅** (تازه) · `sim-students` **۱۵۴ ✅** · `ui-full-flow` ۵۷ ✅ |
+
+![](docs/screens/ui-60-exam-evidence-importance.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۱۲](docs/release-notes-2.8.12.md) · [روشِ محاسبه](docs/methodology-exam-importance.md)
 
 ---
 

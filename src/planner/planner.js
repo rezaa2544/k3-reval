@@ -3807,6 +3807,49 @@
     return parts.length ? parts.join(' · ') : 'مرور';
   }
 
+  /* ── سلولِ «اهمیت واقعی» (۲.۸.۱۲) ─────────────────────────────────────
+     عددها دیگر دستی نیستند: میانگینِ سؤالِ همان فصل در کنکورهای اخیر،
+     سهمش از درس، ضریبِ درس، و «اولویتِ» حاصل از ضربِ این دو.
+     tooltip همان سلول، ریزِ سال‌به‌سال و منبع را نشان می‌دهد. */
+  function importanceCell(c) {
+    if (!c.ciTag) return '<span class="muted" style="font-size:10.5px">—</span>';
+    const cls = c.ciTag === 'بحرانی' ? 'crit' : c.ciTag === 'پرتکرار' ? 'hot' : c.ciTag === 'متوسط' ? 'mid' : 'low';
+    const q = faNum(Math.round((c.ciQuestions || 0) * 10) / 10);
+    const share = faNum(Math.round((c.ciSharePct || 0) * 10) / 10);
+    const prio = c.ciPriority == null ? null : Math.round(c.ciPriority);
+    const coef = c.ciCoef == null ? null : c.ciCoef;
+    const cols = c.ciCols || [];
+    const detail = (function () {
+      if (!c.ciDataDriven) {
+        return 'دادهٔ فصل‌به‌فصلِ این درس برای این رشته در دسترس نیست؛ عدد نمایش‌داده‌شده برآورد است.';
+      }
+      const per = cols.map((col, i) => {
+        const v = (c.ciSeries || [])[i];
+        if (v == null) return null;
+        const extra = col.merged && col.merged.length ? ' (+' + col.merged.join('، ') + ' هم‌عدد)' : '';
+        return col.label + ': ' + faNum(Math.round(v * 10) / 10) + extra;
+      }).filter(Boolean).join(' · ');
+      const trend = c.ciTrend == null ? 0 : Math.round(c.ciTrend * 10) / 10;
+      const parts = [
+        'تعداد سؤال این فصل در هر آزمون — ' + per,
+        'میانگینِ وزنی (سال‌های جدیدتر وزن بیشتر): ' + q + ' سؤال از ' + faNum(c.ciQTotal || 0),
+        'سهم از سؤال‌های درس: ' + share + '٪',
+        trend ? 'روند نسبت به سال‌های دورتر: ' + (trend > 0 ? '+' : '') + faNum(trend) + ' سؤال' : null,
+        coef != null ? 'ضریب درس در کنکور: ' + faNum(coef) : null,
+        prio != null ? 'اولویت در کل رشته (سؤال × ضریب، ۰ تا ۱۰۰): ' + faNum(prio) : null,
+        c.ciCoarse ? 'توجه: برای این درس فقط ' + faNum(c.ciExams || 0) + ' آزمونِ مستقل منتشر شده؛ قطعیت کمتر از دروس دیگر است.' : null,
+        c.ciSources && c.ciSources.length ? 'منبع: ' + c.ciSources.join(' ، ') : null,
+      ].filter(Boolean);
+      return parts.join('\n');
+    })();
+    return '<span class="ci ci-' + cls + '" title="' + esc(detail) + '">' + esc(c.ciTag) + '</span>' +
+      (prio != null ? '<span class="ci-prio" title="' + esc(detail) + '">اولویت رشته ' + faNum(prio) + '</span>' : '') +
+      (c.ciCoarse ? '<span class="ci-soft" title="' + esc(detail) + '">دادهٔ محدود</span>' : '') +
+      '<div class="muted" style="font-size:10.5px">' + q + ' سؤال در هر آزمون · ' + share + '٪ درس' +
+      (coef != null ? ' · ضریب ' + faNum(coef) : '') +
+      (c.ciExams ? ' · ' + faNum(c.ciExams) + ' آزمون' : '') + '</div>';
+  }
+
   function renderChapterTable(plan) {
     const box = $('chapterTable');
     if (!box) return;
@@ -3839,12 +3882,7 @@
         '<td><b style="font-size:12px">' + esc(c.label) + '</b>' +
           '<div class="muted" style="font-size:10.5px">' + esc(c.subjectName) +
           (c.deadlineTitle ? ' · مهلت: ' + esc(c.deadlineTitle) : '') + '</div></td>' +
-        '<td>' + (c.ciTag
-          ? '<span class="ci ci-' + (c.ciTag === 'بحرانی' ? 'crit' : c.ciTag === 'پرتکرار' ? 'hot' : c.ciTag === 'متوسط' ? 'mid' : 'low') + '">' +
-            esc(c.ciTag) + '</span>' +
-            '<div class="muted" style="font-size:10.5px">' + faNum(Math.round((c.ciQuestions || 0) * 10) / 10) + ' سؤال · ' +
-            faNum(Math.round((c.ciSharePct || 0) * 10) / 10) + '٪ درس</div>'
-          : '<span class="muted" style="font-size:10.5px">—</span>') + '</td>' +
+        '<td>' + importanceCell(c) + '</td>' +
         '<td><span class="pill ' + (c.mode === 'solid' ? '' : c.mastery < 45 ? 'hot' : c.mastery < 75 ? 'warm' : '') + '">' +
           esc(c.status) + '</span></td>' +
         '<td>' + faNum(Math.round(c.mastery)) + '٪<div class="muted" style="font-size:10.5px">هدف ۷۵٪</div></td>' +

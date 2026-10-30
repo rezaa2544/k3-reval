@@ -24,9 +24,12 @@
  */
 
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.RevalChapterWeights = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./exam-frequency.js'));
+  } else {
+    root.RevalChapterWeights = factory(root.RevalExamFrequency);
+  }
+})(typeof self !== 'undefined' ? self : this, function (EF) {
   'use strict';
 
   /* ------------------------------------------------------------------ */
@@ -297,6 +300,80 @@
    * مجموع زمان لازمِ هر کتاب ثابت می‌ماند و فقط بین فصل‌ها بازتوزیع می‌شود
    * (فصل پرسؤال/سخت زمان بیشتری می‌گیرد، فصل کم‌هزینه کمتر — نه اینکه کل برنامه باد کند).
    */
+  /* ── ۲.۸.۱۲: اهمیت از دادهٔ چندسالهٔ کنکور ────────────────────────────
+     برای هر درسی که در exam-frequency دادهٔ سال‌به‌سال دارد، عددِ دستیِ «q»
+     و رتبهٔ دستیِ «imp» با مقادیر محاسبه‌شده جایگزین می‌شود:
+       q   ← میانگینِ وزن‌دارِ سؤال در سال‌های ثبت‌شده
+       imp ← رتبهٔ ۱..۵ بر پایهٔ اولویتِ همان فصل در همان درس
+       priority / priorityLocal / years / series / coef هم ذخیره می‌شوند.
+     بقیهٔ درس‌ها (انسانی، زبان، …) با اعداد قبلی و برچسب «تقریبی» کار می‌کنند. */
+  let ACTIVE_FIELD = 'tajrobi';
+  function setField(field) {
+    const f = String(field || 'tajrobi');
+    const next = FIELD_ALIAS[f] || f;
+    if (next === ACTIVE_FIELD) return;
+    ACTIVE_FIELD = next;
+    /* پاک‌کردن کش‌ها چون ضریب/نرمال‌سازی با رشته عوض می‌شود */
+    Object.keys(NORM_CACHE).forEach((k) => { delete NORM_CACHE[k]; });
+    applyExamData();
+  }
+  const FIELD_ALIAS = { experimental: 'tajrobi', math: 'riazi', humanities: 'ensani', english: 'zaban' };
+
+  /* نسخهٔ دست‌نخوردهٔ اعداد تا با عوض‌شدن رشته، داده‌های رشتهٔ قبلی باقی نماند */
+  const ORIGINAL = {};
+  Object.keys(KONKUR).forEach((sid) => {
+    ORIGINAL[sid] = KONKUR[sid].chapters.map((c) => ({ q: c.q, imp: c.imp }));
+  });
+
+  function applyExamData() {
+    if (!EF || typeof EF.chapters !== 'function') return;
+    Object.keys(KONKUR).forEach((sid) => {
+      const d = KONKUR[sid];
+      /* بازگردانی به عددِ دستی، بعد اعمالِ دادهٔ رشتهٔ فعال */
+      ORIGINAL[sid].forEach((o, i) => {
+        if (!d.chapters[i]) return;
+        d.chapters[i].q = o.q;
+        d.chapters[i].imp = o.imp;
+        d.chapters[i].priority = null;
+        d.chapters[i].priorityLocal = null;
+        d.chapters[i].series = null;
+        d.chapters[i].years = null;
+        d.chapters[i].trend = null;
+      });
+      d.coef = null; d.coefVerified = false; d.dataDriven = false;
+      d.years = null; d.cols = null; d.dataNote = ''; d.dataSources = null;
+      d.coarse = false; d.exams = null; d.fromYear = null; d.toYear = null;
+      d.qTotal = null;
+      const res = EF.chapters(sid, ACTIVE_FIELD);
+      if (!res || !res.items || res.items.length !== d.chapters.length) return;
+      d.chapters.forEach((row, i) => {
+        const it = res.items[i];
+        if (!it) return;
+        row.q = it.qAvg;                 // میانگین وزنی
+        row.qPlain = it.qPlain;
+        row.imp = it.imp;                // رتبهٔ اهمیت محاسبه‌شده
+        row.priority = it.priority;      // ۰..۱۰۰ در کل رشته (با ضریب)
+        row.priorityLocal = it.priorityLocal;
+        row.series = it.series;
+        row.years = it.years;
+        row.trend = it.trend;
+      });
+      d.coef = res.coef;
+      d.coefVerified = res.coefVerified;
+      d.years = res.years;
+      d.cols = res.data.cols;                 // برچسبِ هر آزمون + منبعش
+      d.dataNote = res.data.note;
+      d.dataSources = res.data.sources;
+      d.dataDriven = true;
+      d.qTotal = res.data.qTotal;
+      d.coarse = Boolean(res.data.coarse);
+      d.exams = res.data.exams;
+      d.fromYear = res.data.from;
+      d.toYear = res.data.to;
+    });
+  }
+  applyExamData();
+
   const NORM_CACHE = {};
   function norms(subjectId) {
     const key = String(subjectId || '');
@@ -344,7 +421,12 @@
     /* سهم این فصل از کل درس (برای نمایش «چند درصد سؤال‌ها») */
     const share = row.q / (qs.reduce((a, b) => a + b, 0) || 1);
     /* ضریب اولویت: پرسؤال‌ترین + مهم‌ترین فصل‌ها جلو می‌افتند */
-    const mult = clamp(0.70 + 0.50 * qRel + 0.30 * (row.imp / 5) + 0.06 * (row.combo / 5), 0.6, 1.9);
+    /* ضریب اولویت: اگر دادهٔ چندساله هست، «اولویتِ وزنی با ضریب درس» مبناست
+       (فصلِ پرتکرارِ ضریب‌بالا جلو می‌افتد)؛ وگرنه فرمول قبلی. */
+    const prio = row.priority == null ? null : row.priority / 100;
+    const mult = prio == null
+      ? clamp(0.70 + 0.50 * qRel + 0.30 * (row.imp / 5) + 0.06 * (row.combo / 5), 0.6, 1.9)
+      : clamp(0.62 + 0.70 * prio + 0.24 * (row.imp / 5) + 0.06 * (row.combo / 5), 0.55, 1.65);
     /* ضریب زمان (میانگین‌یک внутри درس): فصل سخت‌تر و پرسؤال‌تر زمان بیشتری
        برای یادگیری/تثبیت/مرور/تست می‌گیرد و فصل کم‌هزینه کمتر. */
     const needMult = nm.need[i];
@@ -353,6 +435,24 @@
     return {
       subjectId, chapter: i + 1,
       q: row.q, imp: row.imp, diff: row.diff, combo: row.combo,
+      priority: row.priority == null ? null : row.priority,
+      priorityLocal: row.priorityLocal == null ? null : row.priorityLocal,
+      series: row.series || null,
+      years: row.years || d.years || null,
+      coef: d.coef == null ? null : d.coef,
+      coefVerified: Boolean(d.coefVerified),
+      dataDriven: Boolean(d.dataDriven),
+      dataNote: d.dataNote || '',
+      dataSources: d.dataSources || null,
+      dataCols: d.cols || null,
+      coarse: Boolean(d.coarse),
+      exams: d.exams || null,
+      yearFrom: d.fromYear == null ? null : d.fromYear,
+      yearTo: d.toYear == null ? null : d.toYear,
+      qTotal: d.qTotal || d.questions || null,
+      qAvg: row.q,
+      qSeries: row.series ? row.series.slice() : null,
+      trend: row.trend == null ? null : row.trend,
       share, sharePct: Math.round(share * 1000) / 10,
       qRel, relToMean: r1(row.q / (meanQ || 1)),
       mult: r1(mult * 100) / 100, needMult: r1(needMult * 100) / 100, testMult: r1(testMult * 100) / 100,
@@ -440,6 +540,7 @@
     konkur, finals, chapterInfo, finalsChapterInfo,
     konkurFactors, konkurMethod, finalsMethod, tagOf,
     konkurTable, finalsTable,
+    setField, getField: () => ACTIVE_FIELD, EXAM: EF || null,
     FA,
   };
 });

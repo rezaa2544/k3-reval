@@ -237,6 +237,12 @@
     border-radius:999px; background:var(--accent-soft, #eef2ff); color:var(--text, #1f2937); font-weight:600}
   .vchip b{font-weight:800; opacity:.72; font-size:10px}
   .vchip.more{background:transparent; border:1px dashed var(--line, #d7d7d7); color:var(--muted, #6b7280)}
+  /* ۲.۸.۱۲ — نشانِ «اولویت» بر پایهٔ بودجه‌بندی چندساله × ضریب درس */
+  .ci-prio{display:inline-block; margin-inline-start:5px; font-size:10px; font-weight:800; padding:1.5px 6px;
+    border-radius:999px; background:var(--accent-soft, #eef2ff); color:var(--accent, #4338ca); cursor:help}
+  .ci[title]{cursor:help}
+  .ci-soft{display:inline-block; margin-inline-start:5px; font-size:9.5px; font-weight:700; padding:1px 5px;
+    border-radius:999px; background:#fff7ed; color:#b45309; border:1px solid #fed7aa; cursor:help}
   .b-learn{background:#eef0ff; color:#4338ca}
   .b-reteach{background:#fef2f2; color:#b91c1c}
   .b-boost{background:#fff7ed; color:#b45309}
@@ -1302,7 +1308,18 @@
       </div>
 
       <div class="card" id="chapterCard">
-        <h2>فصل‌به‌فصل — مسیر، باقی‌مانده و پیشرفت</h2>
+        <h2>فصل‌به‌فصل — مسیر، باقی‌مانده و پیشرفت
+          <span class="qmark" title="«اهمیت واقعی» دیگر عددِ سلیقه‌ای نیست:
+۱) تعداد سؤالِ همان فصل در کنکورهای ۱۴۰۲ تا ۱۴۰۵ (و برای فیزیک از ۱۳۹۸) از جدول‌های بودجه‌بندی منتشرشده استخراج شده است؛
+۲) میانگین با وزنِ بیشتر برای سال‌های جدیدتر حساب می‌شود؛
+۳) سهم فصل از سؤال‌های درس × ضریبِ همان درس در کنکور = اولویت؛
+۴) پس فصلِ پرتکرارِ درسِ ضریب‌بالا (مثل شیمی) از فصلِ پرتکرارِ درسِ ضریب‌پایین (مثل زمین) جلو می‌افتد.
+موس را روی برچسبِ «اولویت» یا «بحرانی/پرتکرار» ببر تا ریزِ سال‌به‌سال و منبع را ببینی.">?</span>
+        </h2>
+        <div class="muted" style="font-size:11.5px;margin-bottom:8px">
+          اهمیت از بودجه‌بندی چندسالهٔ کنکور: میانگین سؤالِ هر فصل × ضریب درس.
+          عددِ کنارِ هر فصل = «اولویت» ۰ تا ۱۰۰ در کل رشته؛ ریزِ سال‌به‌سال با نگه‌داشتنِ موس روی آن.
+        </div>
         <div class="row" style="margin-bottom:8px">
           <select id="reportBook" style="max-width:220px"></select>
           <select id="reportFilter" style="max-width:220px">
@@ -1793,6 +1810,7 @@
 <div id="helpTip"></div>
 <div class="toast" id="toast"></div>
 <script src="jalali.js"></script>
+<script src="exam-frequency.js"></script>
 <script src="chapter-weights.js"></script>
 <script src="dayplan.js"></script>
 <script src="changelog.js"></script>

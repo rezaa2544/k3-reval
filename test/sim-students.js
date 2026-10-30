@@ -157,7 +157,23 @@ const p1 = engine.createPlan(p1cfg);
 auditPlan('آرمان', p1cfg, p1);
 {
   const cov = p1.summary.coverage;
-  ok(cov.coverageRatio >= 90, '[آرمان] با ۸ ساعت در روز، پوشش بالای ۹۰٪ است', cov.coverageRatio + '٪');
+  /* از ۲.۸.۱۲ تقاضای هر فصل از دادهٔ چندسالهٔ کنکور می‌آید (نه عدد دستی)، پس
+     پوشش چند درصد جابه‌جا می‌شود؛ گارانتیِ واقعی این است که هیچ درسی گرسنه
+     نماند و پرتکرارترین فصل هر درس حتماً خوانده شود. */
+  ok(cov.coverageRatio >= 85, '[آرمان] با ۸ ساعت در روز، پوشش بالای ۸۵٪ است', cov.coverageRatio + '٪');
+  {
+    const bySub = {};
+    p1.summary.chapterStats.filter((c) => !c.general).forEach((c) => {
+      const b = bySub[c.subjectId] || (bySub[c.subjectId] = { total: 0, done: 0, best: null });
+      b.total += 1;
+      if (c.covered) b.done += 1;
+      if (!b.best || (c.ciPriority || 0) > (b.best.ciPriority || 0)) b.best = c;
+    });
+    const starved = Object.keys(bySub).filter((k) => bySub[k].done / bySub[k].total < 0.5);
+    ok(starved.length === 0, '[آرمان] هیچ درسی زیر ۵۰٪ پوشش نمی‌ماند', JSON.stringify(Object.keys(bySub).map((k) => k + ':' + Math.round(100 * bySub[k].done / bySub[k].total) + '%')));
+    const bestNotDone = Object.keys(bySub).filter((k) => bySub[k].best && !bySub[k].best.covered);
+    ok(bestNotDone.length === 0, '[آرمان] پرتکرارترین فصل هر درس خوانده می‌شود', bestNotDone.join('، '));
+  }
   const lowWarn = (cov.diagnostics || []).filter((d) => d.id === 'low-capacity')[0];
   ok(cov.coverageRatio === 100 ? !lowWarn : !!lowWarn,
     '[آرمان] وضعیت هشدار با پوشش واقعی می‌خواند', cov.coverageRatio + '٪ · ' + (lowWarn ? 'هشدار دارد' : 'بدون هشدار'));

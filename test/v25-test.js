@@ -54,12 +54,21 @@ const baseCfg = (extra) => Object.assign({
   ok(maxR / minR >= 1.8, 'فصل پرسؤال/سخت ≥۱٫۸ برابر فصل کم‌هزینه زمان می‌گیرد (' +
     Math.round(minR * 100) / 100 + ' … ' + Math.round(maxR * 100) / 100 + ')');
 
-  /* فصل‌های پرتکرار واقعی برچسب درست دارند */
-  eq(CW.chapterInfo('bio', 17).tag, 'بحرانی', 'فصل ۱۷ زیست (مولکول‌های اطلاعاتی) «بحرانی» است');
-  ok(CW.chapterInfo('bio', 1).needMult < CW.chapterInfo('bio', 18).needMult,
-    'فصل ۱ زیست (کم‌سؤال) کمتر از فصل ۱۸ (جریان اطلاعات) زمان می‌گیرد');
-  ok(CW.chapterInfo('chem', 6).q >= 5, 'فصل ۶ شیمی (پوشاک) پرسؤال‌ترین فصل شیمی است (' + CW.chapterInfo('chem', 6).q + ' سؤال)');
-  ok(CW.chapterInfo('phys', 10).q === 4, 'فصل ۱۰ فیزیک (نوسان و موج) ۴ سؤال دارد');
+  /* از ۲.۸.۱۲ برچسب‌ها از دادهٔ چندساله می‌آیند، نه عدد دستی */
+  const bioPrio = CW.konkur('bio').chapters.map((_, i) => CW.chapterInfo('bio', i + 1));
+  const bioTop = bioPrio.slice().sort((a, b) => b.priority - a.priority)[0];
+  ok(bioTop.priority >= 5, 'زیست پرتکرارترین فصل اولویت بالا دارد (' + bioTop.chapter + ' → ' + bioTop.priority + ')');
+  eq(CW.chapterInfo('bio', 1).priority, 0, 'فصل ۱ زیست (دنیای زنده) در هیچ آزمونی سؤال مستقل نداشته');
+  ok(CW.chapterInfo('bio', 1).needMult < CW.chapterInfo('bio', bioTop.chapter).needMult,
+    'فصل کم‌سؤال زمان کمتری از پرتکرارترین فصل می‌گیرد');
+  ok(CW.chapterInfo('chem', 6).q >= 3.5 && CW.chapterInfo('chem', 6).priority >= 70,
+    'فصل ۶ شیمی (پوشاک) از دادهٔ چندساله پرتکرار است (' + CW.chapterInfo('chem', 6).q + ' سؤال · اولویت ' + CW.chapterInfo('chem', 6).priority + ')');
+  ok(Math.abs(CW.chapterInfo('phys', 10).q - 4) < 0.6, 'فصل ۱۰ فیزیک (نوسان و موج) حدود ۴ سؤال از ۳۰ دارد (' + CW.chapterInfo('phys', 10).q + ')');
+  ok(CW.chapterInfo('geo', 1).priority > CW.chapterInfo('geo', 7).priority,
+    'زمین: فصل ۱ (آفرینش کیهان) از فصل ۷ (زمین‌شناسی ایران) مهم‌تر است');
+  ok(CW.chapterInfo('chem', 6).priority > CW.chapterInfo('geo', 1).priority,
+    'ضریب درس رعایت می‌شود: فصل پرسؤال شیمی از بهترین فصل زمین مهم‌تر است');
+  ok(CW.chapterInfo('bio', 4).exams >= 6, 'اهمیت زیست روی دست‌کم ۶ آزمون واقعی بنا شده (' + CW.chapterInfo('bio', 4).exams + ' آزمون)');
 
   /* بارم نهایی واقعی */
   const chemFin = CW.finals('chem3-12');

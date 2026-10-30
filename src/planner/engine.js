@@ -541,7 +541,9 @@
           const rawNeed = base * s.difficulty * ciM;
           need = rawNeed >= floorMin
             ? rawNeed
-            : Math.round(floorMin * clamp(0.8 + 0.4 * Math.min(1.5, ciM) / 1.2, 0.8, 1.25));
+            /* کفِ مطلق ۹۰ دقیقه: حتی فصلِ کم‌اهمیت هم دو جلسهٔ کامل می‌گیرد؛
+               بالای کف، ضریب اهمیت می‌تواند تا ۱٫۲۵ برابر بیشتر بدهد. */
+            : Math.max(floorMin, Math.round(floorMin * clamp(0.9 + 0.4 * Math.min(1.5, ciM) / 1.2, 0.9, 1.25)));
         } else if (mastery < DEFAULTS.RETEACH_BELOW) {
           mode = 'reteach';
           need = (20 + base * s.difficulty * DEFAULTS.RETEACH_FACTOR * ((DEFAULTS.BOOST_BELOW - mastery) / DEFAULTS.BOOST_BELOW)) * ciM;
@@ -581,6 +583,21 @@
           ciImportance: ci.info ? ci.info.imp : null,
           ciDifficulty: ci.info ? ci.info.diff : null,
           ciSource: ci.info ? ci.info.source : null,
+          /* ۲.۸.۱۲: اولویتِ محاسبه‌شده از بودجه‌بندی چندساله × ضریب درس */
+          ciPriority: ci.info ? ci.info.priority : null,
+          ciPriorityLocal: ci.info ? ci.info.priorityLocal : null,
+          ciCoef: ci.info ? ci.info.coef : null,
+          ciYears: ci.info ? ci.info.years : null,
+          ciSeries: ci.info ? ci.info.series : null,
+          ciTrend: ci.info ? ci.info.trend : null,
+          ciDataDriven: ci.info ? Boolean(ci.info.dataDriven) : false,
+          ciQTotal: ci.info ? ci.info.qTotal : null,
+          ciSources: ci.info ? ci.info.dataSources : null,
+          ciCols: ci.info ? ci.info.dataCols : null,
+          ciExams: ci.info ? ci.info.exams : null,
+          ciCoarse: ci.info ? Boolean(ci.info.coarse) : false,
+          ciFrom: ci.info ? ci.info.yearFrom : null,
+          ciTo: ci.info ? ci.info.yearTo : null,
           testsDone: 0,
           learnedOn: null,
           doneDate: null,
@@ -1244,6 +1261,9 @@
 
   function buildPlan(rawConfig) {
     const cfg = normalizeConfig(rawConfig);
+    /* ۲.۸.۱۲: اهمیتِ فصل‌ها با ضریبِ همان رشته محاسبه می‌شود
+       (زیستِ تجربی ≠ زیست در رشتهٔ دیگر) */
+    try { CW.setField(cfg.student && cfg.student.field); } catch (e) { /* بی‌صدا */ }
     const topics = buildTopics(cfg);
     const stats = scoreSubjects(cfg);
     const totalDays = dayDiff(cfg._start, cfg._exam);
@@ -2462,6 +2482,20 @@
         ciImportance: t.ciImportance == null ? null : t.ciImportance,
         ciDifficulty: t.ciDifficulty == null ? null : t.ciDifficulty,
         ciMult: t.ciMult || 1, ciSource: t.ciSource || null,
+        ciPriority: t.ciPriority == null ? null : t.ciPriority,
+        ciPriorityLocal: t.ciPriorityLocal == null ? null : t.ciPriorityLocal,
+        ciCoef: t.ciCoef == null ? null : t.ciCoef,
+        ciYears: t.ciYears || null,
+        ciSeries: t.ciSeries || null,
+        ciTrend: t.ciTrend == null ? null : t.ciTrend,
+        ciDataDriven: Boolean(t.ciDataDriven),
+        ciQTotal: t.ciQTotal == null ? null : t.ciQTotal,
+        ciSources: t.ciSources || null,
+        ciCols: t.ciCols || null,
+        ciExams: t.ciExams == null ? null : t.ciExams,
+        ciCoarse: Boolean(t.ciCoarse),
+        ciFrom: t.ciFrom == null ? null : t.ciFrom,
+        ciTo: t.ciTo == null ? null : t.ciTo,
       };
     });
     const coveredCount = chapterStats.filter((c) => c.covered).length;
@@ -2882,7 +2916,7 @@
 
     return {
       meta: {
-        version: '2.8.11', createdAt: new Date().toISOString(),
+        version: '2.8.12', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
