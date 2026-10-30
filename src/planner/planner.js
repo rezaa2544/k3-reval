@@ -546,6 +546,46 @@
     return list.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === selected ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
   }
 
+  /** درس‌های عمومیِ فعال (همان‌هایی که در «دروس عمومی» تیک دارند) */
+  function activeGeneralSubjects() {
+    return (state.general || []).filter((x) => x.include !== false);
+  }
+
+  /** نام هر درس/کتاب از هر دو فهرست — برای مهلت‌های ذخیره‌شدهٔ قدیمی */
+  function bookNameOf(id) {
+    const pools = [
+      state.coreSubjects || [],
+      state.general || [],
+      (state.config && state.config.subjects) || [],
+      presets.subjectsFor($('field').value || 'tajrobi'),
+      presets.generalFor(state.gradeSel || ['دوازدهم']),
+    ];
+    for (let i = 0; i < pools.length; i += 1) {
+      const hit = (pools[i] || []).filter((x) => x && x.id === id)[0];
+      if (hit && hit.name) return hit.name;
+    }
+    return id;
+  }
+
+  /**
+   * فهرست «کتاب» در مهلت‌های کلی — هم اختصاصی، هم عمومی.
+   * پیش از این فقط دروس اختصاصی می‌آمد و کتاب‌های عمومی (فارسی، دینی، عربی،
+   * زبان، سلامت، هویت) اصلاً در فهرست نبودند؛ در حالی که سوابق تحصیلی از همین‌هاست.
+   */
+  function bookSubjectOptions(selected) {
+    const core = (state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi'));
+    const gen = activeGeneralSubjects();
+    const opt = (x) => '<option value="' + esc(x.id) + '"' + (x.id === selected ? ' selected' : '') + '>' + esc(x.name) + '</option>';
+    const known = core.some((x) => x.id === selected) || gen.some((x) => x.id === selected);
+    const stray = (selected && !known)
+      ? '<option value="' + esc(selected) + '" selected>' + esc(bookNameOf(selected)) + '</option>'
+      : '';
+    if (!gen.length) return stray + core.map(opt).join('');
+    return stray +
+      '<optgroup label="اختصاصی">' + core.map(opt).join('') + '</optgroup>' +
+      '<optgroup label="عمومی">' + gen.map(opt).join('') + '</optgroup>';
+  }
+
   function renderBookDeadlineRows(rows) {
     const box = $('bookDeadlineRows');
     if (!box) return;
@@ -554,7 +594,7 @@
       const div = document.createElement('div');
       div.className = 'dyn-row dlbook';
       div.innerHTML =
-        '<div><label>کتاب</label><select data-bd="subjectId">' + coreSubjectOptions(r.subjectId) + '</select></div>' +
+        '<div><label>کتاب (اختصاصی و عمومی)</label><select data-bd="subjectId" title="همهٔ کتاب‌ها: اختصاصی و عمومی">' + bookSubjectOptions(r.subjectId) + '</select></div>' +
         '<div><label>تا تاریخ (شمسی)</label><input data-bd="date" data-jdate data-iso="' + esc(r.date || '') + '" /></div>' +
         '<div><label>هدف</label><select data-bd="goal">' +
           '<option value="read"' + (r.goal !== 'solid' ? ' selected' : '') + '>خوانده + تثبیت شود</option>' +
@@ -593,8 +633,9 @@
   });
 
   $('suggestBookDeadlines').addEventListener('click', () => {
+    const coreForSuggest = state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi');
     state.deadlineBooks = presets.suggestedBookDeadlines
-      ? presets.suggestedBookDeadlines(state.coreSubjects && state.coreSubjects.length ? state.coreSubjects : presets.subjectsFor($('field').value || 'tajrobi'))
+      ? presets.suggestedBookDeadlines(coreForSuggest.concat(activeGeneralSubjects()))
       : [];
     renderBookDeadlineRows(state.deadlineBooks);
     toast('مهلت پیشنهادی ساخته شد — هر تاریخ را می‌توانی عوض کنی.');
@@ -1472,6 +1513,8 @@
       },
       /* v2.8.6: خواندن درس‌های تیک‌خوردهٔ ردیف آزمون (برای تست) */
       readExamsDemo: () => JSON.stringify((readExams() || []).map((e) => (e.subjectIds || []).join(',')).filter(Boolean).join('|').split(',')),
+      /* v2.8.6: خواندن مهلت‌های کتابی (برای تست) */
+      readBookDeadlinesDemo: () => JSON.stringify(readBookDeadlines()),
       /* v2.8.3: شبیه‌سازی دادهٔ قدیمی — درس‌ها بدون topicNames و بدون سطر ارزیابی.
          برای تست اینکه عنوان‌های کتاب از منبع رسمی پر می‌شوند. */
       oldDataDemo: () => {
@@ -3051,7 +3094,15 @@
   function renderGeneral(list) {
     const rows = (list && list.length ? list : generalFromGrades())
       .map((s) => Object.assign({}, s, { include: s.include !== false }));
+    const genSig = JSON.stringify(rows.map((x) => x.id + ':' + (x.include !== false)));
+    const generalChanged = genSig !== state._genSig;
+    state._genSig = genSig;
     state.general = rows;
+    /* ۲.۸.۶: فهرست «کتاب» در مهلت‌های کلی هم‌زمان با دروس عمومی به‌روز شود */
+    if (generalChanged) {
+      const dlBox = $('bookDeadlineRows');
+      if (dlBox && (state.deadlineBooks || []).length) renderBookDeadlineRows(state.deadlineBooks);
+    }
     const table = $('general');
     if (!table) return;
     table.innerHTML = '' +

@@ -1,7 +1,7 @@
 {
   "name": "reval-desktop",
   "productName": "Reval",
-  "version": "2.8.6",
+  "version": "2.8.7",
   "description": "مشاور هوشمند روال — برنامه‌ریز کنکور و نهایی با دستیار هوش مصنوعی: چت باکس واقعی، تغییر برنامه با زبان فارسی، تایمر توقف/ادامه، آیتم اضطراری و آمادگی جدا برای کنکور و نهایی",
   "main": "src/bootstrap.js",
   "author": "Reval Desktop",

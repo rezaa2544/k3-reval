@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.6-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.6/Reval-Setup-2.8.6.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.6-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.6)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.7-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.7/Reval-Setup-2.8.7.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.7-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.7)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,43 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.6.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.6/Reval-Setup-2.8.6.exe)
+### [💾 Reval-Setup-2.8.7.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.7/Reval-Setup-2.8.7.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۶**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۷**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.6/Reval-Setup-2.8.6.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.7/Reval-Setup-2.8.7.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `9c5926b5b2e4e11167edcd105ff5ae0c96c3de07264de7a3f40dd779a220d862` |
-| **حجم دقیق** | ۸۰٬۱۴۶٬۴۸۶ بایت |
+| **SHA-256** | `9863c6ba0a8e7bd54d2ef3345dfdde5f340be2e7e4f4feff2953214ba0bcbdb3` |
+| **حجم دقیق** | ۸۰٬۱۴۷٬۳۸۷ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.6.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.6.zip` — ۵۵۴ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.7.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.7.zip` — ۵۵۵ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۷ — کتاب‌های عمومی در «مهلت‌های کلی کتاب»
+
+| | |
+|---|---|
+| **فهرست کامل** | فیلد «کتاب» در مهلت‌های کلی حالا **هر دو گروه** را دارد: اختصاصی و عمومی (فارسی، دینی، عربی، زبان، سلامت، هویت) — با سرتیترِ جدا |
+| **چرا مهم است** | ۶۰٪ نمرهٔ ۱۴۰۶ از سوابق تحصیلی و کتاب‌های عمومی است؛ قبلاً نمی‌شد برایشان مهلت گذاشت |
+| **پیشنهاد هوشمند** | برای عمومی‌ها پایان اردیبهشت (زمان امتحان نهایی)، برای اختصاصی‌ها پایان اسفند |
+| **هم‌زمان با قدم ۴** | تیک/برداشتن هر درس عمومی، فهرست همین بخش را فوراً به‌روز می‌کند |
+| **موتور** | مهلت کتاب عمومی واقعاً چیده می‌شود: همهٔ درس‌ها پیش از مهلت، مرور بعد از آن |
+| **آزمون** | `ui-book-deadline-general` **۸ ✅** (Electron) + `deadline-general-test` **۱۷ ✅** (Node) |
+
+![](docs/screens/ui-54-book-deadline-general.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۷](docs/release-notes-2.8.7.md)
 
 ---
 
