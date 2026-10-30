@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.0-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.0/Reval-Setup-2.8.0.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.0-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.0)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.1-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.1/Reval-Setup-2.8.1.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.1-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.1)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,40 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.0.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.0/Reval-Setup-2.8.0.exe)
+### [💾 Reval-Setup-2.8.1.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.1/Reval-Setup-2.8.1.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۰**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.0/Reval-Setup-2.8.0.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.1/Reval-Setup-2.8.1.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `b972515f74353d0e3239591d3348dbd7167baf997cd316b9777f0caecab25131` |
-| **حجم دقیق** | ۸۰٬۱۳۹٬۱۵۵ بایت |
+| **SHA-256** | `e115cc55aece6834f635abffd2d7f490fa7105ec86631585c84111cf5b9aaaf3` |
+| **حجم دقیق** | ۸۰٬۱۳۹٬۹۰۲ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.0.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.0.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.1.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.1.zip` — ۵۴۳ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## 🩹 رفع اشکال ۲.۸.۱ — پنجرهٔ گفت‌وگو حالا کامل بسته می‌شود
+
+| | |
+|---|---|
+| **چهار راه بستن** | دکمهٔ ✕ بالای پنجره · کلید Esc · کلیک بیرون · دکمهٔ شناور پایین صفحه — هر چهار راه آزمایش‌شده با کلیک واقعی. |
+| **ریشهٔ اشکال** | قاعدهٔ سراسری `main, aside{direction:ltr}` جهتِ چیدمانِ پنل را عوض می‌کرد؛ در نتیجه پنلِ «بسته» به‌جای بیرون رفتن از لبه، ۱۰۴٪ به وسط صفحه هُل داده می‌شد و همان کادرِ ظاهراً بسته، هم دیده می‌شد و هم جلوی کلیک‌ها را می‌گرفت. |
+| **رفع** | چیدمان فیزیکی (`left:0` + `translateX(-104%)`) و `visibility:hidden` در حالت بسته + `direction:rtl` روی خودِ پنل. |
+| **دکمهٔ شناور دوحالته** | وقتی چت باز است، خودِ دکمهٔ پایین صفحه به **«بستن ✕»** تبدیل می‌شود. |
+| **آزمون** | `test/ui-ai-close.js` — **۱۶ ✅** با شبیه‌سازی کلیک و کلید واقعی در Electron. |
+
+جزئیات: [یادداشت انتشار ۲.۸.۱](docs/release-notes-2.8.1.md)
 
 ---
 

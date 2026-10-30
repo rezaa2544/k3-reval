@@ -1419,7 +1419,7 @@
 
   /* ══════════ v2.8: دستیار هوش مصنوعی (گفت‌وگو) ══════════ */
   #aiFab{
-    position:fixed; inset-inline-start:20px; bottom:20px; z-index:8600;
+    position:fixed; inset-inline-start:20px; bottom:20px; z-index:8850;
     display:flex; align-items:center; gap:9px; padding:11px 16px 11px 14px;
     border:none; border-radius:999px; cursor:pointer; color:#fff; font:inherit; font-size:13px; font-weight:700;
     background:linear-gradient(135deg,#6366f1,#8b5cf6 55%,#a855f7);
@@ -1427,17 +1427,30 @@
     transition:transform .16s ease, box-shadow .16s ease;
   }
   #aiFab:hover{transform:translateY(-2px); box-shadow:0 16px 36px rgba(99,102,241,.46)}
+  /* وقتی پنل باز است، خودِ دکمهٔ شناور «بستن» می‌شود */
+  #aiFab .ic-close, #aiFab .lbl-close{display:none}
+  #aiFab.open{background:linear-gradient(135deg,#475569,#334155); box-shadow:0 12px 28px rgba(15,23,42,.3)}
+  #aiFab.open .ic-open, #aiFab.open .lbl-open{display:none}
+  #aiFab.open .ic-close{display:block}
+  #aiFab.open .lbl-close{display:inline}
   #aiFab .dot-ai{width:7px;height:7px;border-radius:50%;background:#a7f3d0;box-shadow:0 0 0 3px rgba(167,243,208,.28)}
   #aiFab.live .dot-ai{animation:aiPulse 1.6s infinite}
   @keyframes aiPulse{0%,100%{opacity:1}50%{opacity:.35}}
 
   #aiPanel{
-    position:fixed; inset-block:0; inset-inline-start:0; width:min(410px,100vw); z-index:8800;
-    background:#fff; border-inline-end:1px solid var(--line); box-shadow:18px 0 50px rgba(15,23,42,.16);
-    display:flex; flex-direction:column; transform:translateX(-104%); transition:transform .22s ease;
+    /* ⚠ جهت و لبه‌ها عمداً فیزیکی نوشته شده‌اند (left/transform منفی):
+       پنل یک <aside> است و قاعدهٔ `main, aside{ direction:ltr }` جهتِ آن را
+       عوض می‌کرد؛ در نتیجه inset-inline-start به «چپ» می‌افتاد ولی قاعدهٔ
+       قبلیِ [dir=rtl] پنلِ «بسته» را به راست (وسط صفحه) هُل می‌داد و پنل
+       هرگز کنار نمی‌رفت. حالا باز و بسته‌شدن به جهتِ سند وابسته نیست. */
+    position:fixed; top:0; bottom:0; left:0; width:min(410px,100vw); z-index:8800;
+    direction:rtl;
+    background:#fff; border-right:1px solid var(--line); box-shadow:18px 0 50px rgba(15,23,42,.16);
+    display:flex; flex-direction:column;
+    transform:translateX(-104%); visibility:hidden;
+    transition:transform .22s ease, visibility 0s linear .22s;
   }
-  [dir="rtl"] #aiPanel{transform:translateX(104%)}
-  #aiPanel.open{transform:translateX(0)}
+  #aiPanel.open{transform:translateX(0); visibility:visible; transition:transform .22s ease}
   .ai-head{
     display:flex; align-items:center; gap:10px; padding:13px 15px; border-bottom:1px solid var(--line);
     background:linear-gradient(180deg,#f8f7ff,#fff);
@@ -1508,7 +1521,7 @@
   .ai-send:disabled{opacity:.45;cursor:default}
   .ai-note{font-size:10px; color:var(--faint); margin-top:7px; display:flex; align-items:center; gap:6px}
   .ai-note a{color:#4f46e5; cursor:pointer; text-decoration:none; font-weight:600}
-  #aiBackdrop{position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:8700;display:none}
+  #aiBackdrop{position:fixed;inset:0;background:rgba(15,23,42,.18);z-index:8700;display:none}
   #aiBackdrop.show{display:block}
 
   @media (max-width:760px){
@@ -1582,8 +1595,10 @@
 
 <!-- ══════════ v2.8: دستیار هوش مصنوعی ══════════ -->
 <button id="aiFab" title="گفت‌وگو با مشاور هوشمند (Ctrl+I)">
-  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 16.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>
-  <span>مشاور هوشمند</span>
+  <svg class="ic-open" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 16.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>
+  <svg class="ic-close" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  <span class="lbl-open">مشاور هوشمند</span>
+  <span class="lbl-close">بستن</span>
   <span class="dot-ai"></span>
 </button>
 <div id="aiBackdrop"></div>

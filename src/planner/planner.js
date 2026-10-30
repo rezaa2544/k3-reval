@@ -4590,9 +4590,18 @@
     const back = $('aiBackdrop');
     if (!panel) return;
     ai.open = open !== false;
+    /* کلاس open روی خودِ پنل تنظیم می‌شود؛ وقتی برداشته شود پنل به‌طور کامل
+       از صفحه بیرون می‌رود و (به‌خاطر visibility) دیگر جلوی کلیک‌ها را نمی‌گیرد. */
     panel.classList.toggle('open', ai.open);
     panel.setAttribute('aria-hidden', ai.open ? 'false' : 'true');
     if (back) back.classList.toggle('show', ai.open);
+    /* دکمهٔ شناور هم وضعیت را نشان می‌دهد: «مشاور هوشمند» ↔ «بستن» */
+    const fab = $('aiFab');
+    if (fab) {
+      fab.classList.toggle('open', ai.open);
+      fab.setAttribute('aria-expanded', ai.open ? 'true' : 'false');
+      fab.setAttribute('title', ai.open ? 'بستن گفت‌وگو (Esc)' : 'گفت‌وگو با مشاور هوشمند (Ctrl+I)');
+    }
     if (ai.open) {
       if (!ai.history.length) {
         const op = AIBrain && AIBrain.opening ? AIBrain.opening(aiCtx) : { text: 'سلام! در خدمتم.', chips: [] };
@@ -4894,6 +4903,7 @@
   /* بستن منوها با Esc یا کلیک بیرون */
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Escape') return;
+    if (ai.open) { aiOpenPanel(false); const i = $('aiInput'); if (i) i.blur(); return; }
     if ($('clModal') && $('clModal').classList.contains('show')) { if ($('clOk')) $('clOk').click(); return; }
     if ($('emModal') && $('emModal').classList.contains('show')) { closeEmergencyModal(); return; }
     if ($('modal') && $('modal').classList.contains('show')) closeModal(false);

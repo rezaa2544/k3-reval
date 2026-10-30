@@ -144,9 +144,9 @@ const byKind = (k) => blocks.filter((b) => b.kind === k);
   ok(CL.CHANGELOG.length >= 4, 'تاریخچهٔ تغییرات برای چند نسخه وجود دارد');
   eq(CL.latest().version, pkg.version, 'جدیدترین نسخه در تاریخچه با بسته یکی است');
   ok(CL.latest().items.length >= 5, 'تغییرات نسخهٔ جدید فهرست شده‌اند');
-  eq(CL.since('2.6.0').map((e) => e.version).join(','), '2.8.0,2.7.0', 'پس از به‌روزرسانی از ۲.۶، تغییرات ۲.۷ و ۲.۸ هم نشان داده می‌شوند');
-  eq(CL.since('2.5.0').map((e) => e.version).join(','), '2.8.0,2.7.0,2.6.0', 'اگر چند نسخه رد شود، همه نشان داده می‌شوند');
-  eq(CL.since('2.8.0').length, 0, 'اگر نسخه دیده شده باشد، پنجره باز نمی‌شود');
+  eq(CL.since('2.6.0').map((e) => e.version).join(','), CL.CHANGELOG.filter((e) => CL.compare(e.version, '2.6.0') > 0).map((e) => e.version).join(','), 'پس از به‌روزرسانی از ۲.۶، همهٔ نسخه‌های پس از آن نشان داده می‌شوند');
+  eq(CL.since('2.5.0').map((e) => e.version).join(','), CL.CHANGELOG.filter((e) => CL.compare(e.version, '2.5.0') > 0).map((e) => e.version).join(','), 'اگر چند نسخه رد شود، همه نشان داده می‌شوند');
+  eq(CL.since(pkg.version).length, 0, 'اگر نسخه دیده شده باشد، پنجره باز نمی‌شود');
   ok(CL.compare('2.7.0', '2.6.9') > 0, 'مقایسهٔ نسخه‌ها عددی است، نه رشته‌ای');
   ok(CL.compare('v2.7.0', '2.7.0') === 0, 'پیشوند v بی‌اثر است');
   ok(CL.CHANGELOG.every((e) => e.kind && e.date && e.title && Array.isArray(e.items) && e.items.length),
