@@ -1481,21 +1481,24 @@
 
   /* ══════════ v2.8: دستیار هوش مصنوعی (گفت‌وگو) ══════════ */
   #aiFab{
-    position:fixed; inset-inline-start:20px; bottom:20px; z-index:8850;
-    display:flex; align-items:center; gap:9px; padding:11px 16px 11px 14px;
-    border:none; border-radius:999px; cursor:pointer; color:#fff; font:inherit; font-size:13px; font-weight:700;
+    /* ۲.۸.۸: گوشهٔ چپ-پایین (فیزیکی، نه inset-inline) — همان سمتی که پنل از آن باز می‌شود */
+    position:fixed; left:16px; bottom:16px; z-index:8850;
+    display:flex; align-items:center; gap:6px; padding:7px 11px 7px 9px;
+    border:none; border-radius:999px; cursor:pointer; color:#fff; font:inherit;
+    font-size:11.5px; font-weight:700; line-height:1;
     background:linear-gradient(135deg,#6366f1,#8b5cf6 55%,#a855f7);
-    box-shadow:0 12px 30px rgba(99,102,241,.38), 0 2px 6px rgba(15,23,42,.16);
+    box-shadow:0 8px 20px rgba(99,102,241,.34), 0 1px 4px rgba(15,23,42,.14);
     transition:transform .16s ease, box-shadow .16s ease;
   }
-  #aiFab:hover{transform:translateY(-2px); box-shadow:0 16px 36px rgba(99,102,241,.46)}
+  #aiFab svg{width:13px; height:13px}
+  #aiFab:hover{transform:translateY(-2px); box-shadow:0 12px 26px rgba(99,102,241,.42)}
   /* وقتی پنل باز است، خودِ دکمهٔ شناور «بستن» می‌شود */
   #aiFab .ic-close, #aiFab .lbl-close{display:none}
   #aiFab.open{background:linear-gradient(135deg,#475569,#334155); box-shadow:0 12px 28px rgba(15,23,42,.3)}
   #aiFab.open .ic-open, #aiFab.open .lbl-open{display:none}
   #aiFab.open .ic-close{display:block}
   #aiFab.open .lbl-close{display:inline}
-  #aiFab .dot-ai{width:7px;height:7px;border-radius:50%;background:#a7f3d0;box-shadow:0 0 0 3px rgba(167,243,208,.28)}
+  #aiFab .dot-ai{width:6px;height:6px;border-radius:50%;background:#a7f3d0;box-shadow:0 0 0 2px rgba(167,243,208,.26)}
   #aiFab.live .dot-ai{animation:aiPulse 1.6s infinite}
   @keyframes aiPulse{0%,100%{opacity:1}50%{opacity:.35}}
 
@@ -1588,7 +1591,7 @@
 
   @media (max-width:760px){
     #aiPanel{width:100vw}
-    #aiFab{inset-inline-start:14px; bottom:14px; padding:10px 14px; font-size:12px}
+    #aiFab{left:12px; bottom:12px; padding:6px 10px 6px 8px; font-size:11px}
   }
 
   /* ══════════ v2.7: پنجرهٔ «چه چیزی عوض شد» پس از به‌روزرسانی ══════════ */

@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.7-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.7/Reval-Setup-2.8.7.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.7-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.7)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.8-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.8/Reval-Setup-2.8.8.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.8-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.8)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,42 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.7.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.7/Reval-Setup-2.8.7.exe)
+### [💾 Reval-Setup-2.8.8.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.8/Reval-Setup-2.8.8.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۷**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۸**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.7/Reval-Setup-2.8.7.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.8/Reval-Setup-2.8.8.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `9863c6ba0a8e7bd54d2ef3345dfdde5f340be2e7e4f4feff2953214ba0bcbdb3` |
-| **حجم دقیق** | ۸۰٬۱۴۷٬۳۸۷ بایت |
+| **SHA-256** | `9ea682ad2cb05b06f5c2fa39a6c42607d7effe364c37a47bab9aaa5741fe3210` |
+| **حجم دقیق** | ۸۰٬۱۴۷٬۶۴۱ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.7.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.7.zip` — ۵۵۵ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.8.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.8.zip` — ۵۵۵ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۸ — نشانگر «مشاور هوشمند» در گوشهٔ چپ و موچک‌تر
+
+| | |
+|---|---|
+| **جای تازه** | گوشهٔ **چپ-پایین** — همان سمتی که پنل گفت‌وگو از آن باز می‌شود (قبلاً راست بود) |
+| **موچک‌تر** | ارتفاع ~۴۰ → **~۲۷px** · عرض ~۱۵۰ → **~۱۰۰px** · فونت ۱۳ → **۱۱٫۵** · آیکن ۱۷ → **۱۳** |
+| **سایه** | ملایم‌تر، تا روی کارت‌ها سنگینی نکند |
+| **بدون تغییر** | تبدیل شدن به «بستن» وقتی پنل باز است · میان‌بر Ctrl+I |
+| **آزمون** | `test/ui-ai-fab-left.js` — **۱۱ ✅** در Electron |
+
+![](docs/screens/ui-55-ai-fab-left.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۸](docs/release-notes-2.8.8.md)
 
 ---
 

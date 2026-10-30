@@ -2718,7 +2718,7 @@
 
     return {
       meta: {
-        version: '2.8.7', createdAt: new Date().toISOString(),
+        version: '2.8.8', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
