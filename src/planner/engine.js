@@ -1628,7 +1628,10 @@
       /* ---- ۴) آزمون‌های دوره‌ای (هر روز هفته، هر N هفته، چند آزمون در یک روز) ---- */
       const hasManualExamToday = busy.some((b) => b.type === 'exam');
       const weekNo = Math.floor(dayIndex / 7);
-      const todaysMocks = (!isFinalExam && dayIndex > 5 && daysLeft > 3 && !hasManualExamToday)
+      /* ۲.۸.۹: روز استراحت هفتگی حق آزمون‌چیدن هم ندارد — قبلاً ۳۰ دقیقه آزمون + گرم‌کردن
+         روی همان روز می‌نشست و «روز استراحت» را نقض می‌کرد. */
+      const isRestToday = cfg.restDay !== 7 && wd === cfg.restDay;
+      const todaysMocks = (!isFinalExam && dayIndex > 5 && daysLeft > 3 && !hasManualExamToday && !isRestToday)
         ? cfg.weeklyMocks.filter((m) => m.day === wd && (weekNo % m.everyNWeeks) === 0)
         : [];
       const isMockDay = todaysMocks.length > 0;
@@ -2226,13 +2229,25 @@
     }
 
     const finalDay = days[days.length - 1];
+    /* ۲.۸.۹: این مرور نباید ساعت ثابت ۰۷:۳۰ داشته باشد — کسی که ۰۸:۳۰ بیدار می‌شود
+       یا روزش را ۱۰:۰۰ شروع می‌کند، بلوکِ داخل خواب نمی‌گیرد. از پنجرهٔ واقعیِ همان روز. */
+    let finalReview = null;
     if (finalDay && finalDay.blocks.length === 0) {
+      const fwd = persianWeekday(toDate(finalDay.date));
+      const wakeMin = minutesSinceMidnight(cfg.wakeTime || (cfg.sleep && cfg.sleep.wake) || '07:00');
+      const startMin = Math.max(wakeMin, minutesSinceMidnight((cfg.startTimes || {})[WEEKDAY_KEY[fwd]] || '07:30'));
+      const bedGuard = Math.min(1440, sleepMinutes(cfg) - (cfg.SLEEP_GUARD_MIN || DEFAULTS.SLEEP_GUARD_MIN));
+      if (bedGuard - startMin >= 20) {
+        finalReview = { start: fmtHM(startMin), end: fmtHM(startMin + 30) };
+      }
+    }
+    if (finalDay && finalReview) {
       const t = {
         kind: 'review', subjectId: 'ALL', subjectName: 'مرور نهایی', topicLabel: 'خلاصه‌ها و دفتر اشتباهات',
         practiceCount: null,
       };
       finalDay.blocks = [{
-        start: '07:30', end: '08:00', minutes: 30, kind: 'review', kindLabel: 'مرور نهایی',
+        start: finalReview.start, end: finalReview.end, minutes: 30, kind: 'review', kindLabel: 'مرور نهایی',
         subjectId: 'ALL', subjectName: 'مرور نهایی', topic: 'فقط خلاصه‌ها و دفتر اشتباهات',
         content: contentFor(t, { practiceCount: null }), technique: techniqueFor('review'), retrievalTail: 0,
         ifThen: '', why: whyFor('review'),
@@ -2718,7 +2733,7 @@
 
     return {
       meta: {
-        version: '2.8.8', createdAt: new Date().toISOString(),
+        version: '2.8.9', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,

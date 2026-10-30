@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.8-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.8/Reval-Setup-2.8.8.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.8-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.8)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.9-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.9/Reval-Setup-2.8.9.exe)
+[![Release](https://img.shields.io/badge/Release-v2.8.9-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.9)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,43 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.8.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.8/Reval-Setup-2.8.8.exe)
+### [💾 Reval-Setup-2.8.9.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.9/Reval-Setup-2.8.9.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۸**
+**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۹**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.8/Reval-Setup-2.8.8.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.9/Reval-Setup-2.8.9.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `9ea682ad2cb05b06f5c2fa39a6c42607d7effe364c37a47bab9aaa5741fe3210` |
-| **حجم دقیق** | ۸۰٬۱۴۷٬۶۴۱ بایت |
+| **SHA-256** | `c6aa4aa01676186cedb0c1856bf6e42c71ce63898121a0dbdf7125bfba12e882` |
+| **حجم دقیق** | ۸۰٬۱۴۸٬۲۱۳ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.8.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.8.zip` — ۵۵۵ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.8.9.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.9.zip` — ۵۵۶ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۸.۹ — بازرسی کامل: ۷ دانش‌آموز شبیه‌سازی‌شده، ۳ ایراد رفع‌شده
+
+| | |
+|---|---|
+| **شبیه‌سازی** | ۷ پرسونا (تجربی پرکار، ریاضی شب‌زی، انسانی ۱۰ ساعته، ۲ ساعتی، حالت خودکار، ۴۵ روز تا کنکور، همه‌مسلط) — **۱۴۰ ✅** |
+| **رابط کاربری** | ۳ دانش‌آموز × هر ۶ قدم با کلیک واقعی + خانه + برنامه + گزارش + علم + ماندگاری — **۵۷ ✅** |
+| **ایراد ۱** | «مرور نهایی» روز کنکور ساعت ثابت ۰۷:۳۰ داشت و برای شب‌زی داخل خواب می‌افتاد → حالا از پنجرهٔ واقعی روز |
+| **ایراد ۲** | آزمون دوره‌ای روی روز استراحت چیده می‌شد → حالا روز استراحت فقط استراحت است |
+| **ایراد ۳** | متن راهنما «روز بعد تحلیل خطا» می‌گفت، موتور همان روز می‌گذاشت → متن اصلاح شد |
+| **گزارش** | [`docs/audit-2.8.9.md`](docs/audit-2.8.9.md) |
+
+![](docs/screens/ui-56-full-arman.png)
+
+جزئیات: [یادداشت انتشار ۲.۸.۹](docs/release-notes-2.8.9.md)
 
 ---
 

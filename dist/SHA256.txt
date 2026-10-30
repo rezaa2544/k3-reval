@@ -1,3 +1,3 @@
-9ea682ad2cb05b06f5c2fa39a6c42607d7effe364c37a47bab9aaa5741fe3210  Reval-Setup-2.8.8.exe
-e99381bc76409f9676c026a8bf3d5ad269f61e07f6687f2772c80f6e1fd45e39  Reval-Setup-2.8.8.exe.blockmap
-c56e28645b85e2e4e67c0e91df0df064704363d06f78196eddf6431eafcef0b8  reval-code-2.8.8.zip
+c6aa4aa01676186cedb0c1856bf6e42c71ce63898121a0dbdf7125bfba12e882  Reval-Setup-2.8.9.exe
+e4c935bb9236dc31fe114b6e8f442d6ee664005fbe2eaf1e5a5debf0ca62e5ca  Reval-Setup-2.8.9.exe.blockmap
+127d0b22282bc0b7fa770add83e83a00426b8363baa8be2dc9ad4f7377ad48d2  reval-code-2.8.9.zip
