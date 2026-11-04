@@ -6,6 +6,7 @@
   const presets = window.RevalPresets;
   const dayplan = window.RevalDayPlan || null;      // تایمر/توقف/ادامه + شروع روز
   const cw = window.RevalChapterWeights || null;    // اهمیت واقعی فصل‌ها
+  const AD = window.RevalAdaptive || null;          // هستهٔ هوشِ خودتطبیق (۲.۱۰.۰)
   const J = window.RevalJalali;   // تقویم شمسی
   const api = window.revalPlanner || null;
 
@@ -60,6 +61,7 @@
     routines: null,          // v2.5: روال‌های ثابت روز
     routinePinned: false,
     wakeTime: '07:00',
+    calibration: null,        // ۲.۱۰.۰: حافظهٔ تجربهٔ هستهٔ هوش (adaptive.js)
   };
   const sessions = () => (state.sessions = state.sessions || {});
   const nowMs = () => Date.now();
@@ -1479,6 +1481,11 @@
   try {
     window.__revalTest = {
       sessions: () => state.sessions,
+      /* ۲.۱۰.۰: قلابِ تست برای هستهٔ خودتطبیق */
+      calibration: () => state.calibration,
+      observeBlock: observeBlock,
+      adaptiveCfg: adaptiveCfg,
+      renderAdaptiveCard: renderAdaptiveCard,
       plan: () => state.plan,
       awaiting: awaitingSessions,
       tick: tickTimers,
@@ -1652,6 +1659,201 @@
     return -1;
   }
 
+  /* ══════════ v2.10: هستهٔ هوشِ خودتطبیق ══════════
+     حافظهٔ تجربه (state.calibration) در همین دستگاه می‌ماند، به موتور می‌رود
+     (cfg.adaptive) و از دلِ زمانِ واقعیِ بلوک‌ها یاد می‌گیرد. */
+
+  function calib() {
+    if (!AD) return null;
+    if (!state.calibration) state.calibration = AD.defaultState();
+    return state.calibration;
+  }
+
+  function adaptiveCfg() {
+    if (!AD) return null;
+    try { return AD.engineConfig(calib()); } catch (e) { return null; }
+  }
+
+  /** ثبتِ یک بلوکِ انجام‌شده: زمانِ واقعی در برابرِ زمانِ برنامه */
+  function observeBlock(block, actual) {
+    if (!AD || !block) return null;
+    const a = Math.round(Number(actual) || 0);
+    if (a < 5) return null;                       // زمانِ واقعیِ نامعتبر
+    let res;
+    try {
+      res = AD.observe(calib(), {
+        subjectId: block.subjectId,
+        topicId: block.topic,
+        chapter: block.chapter,
+        planned: block.minutes,
+        actual: a,
+        done: true,
+        kind: block.kind,
+        date: todayIso(),
+      });
+    } catch (e) { return null; }
+    state.calibration = res.state;
+    try { persist(); } catch (e) { /* بی‌صدا */ }
+    renderAdaptiveCard();
+    if (res.ask) {
+      toast('اختلافِ زمان ثبت شد — در «هستهٔ هوشِ خودتطبیق» بگو چرا.');
+    } else if (res.learned) {
+      const p = Math.round((AD.paceFor(state.calibration, block.subjectId) - 1) * 100);
+      if (Math.abs(p) >= 3) toast('یاد گرفتم: ' + (block.subjectName || '') + ' ' + (p > 0 ? '+' : '') + faNum(p) + '٪ تنظیم شد.');
+    }
+    return res;
+  }
+
+  const REASON_FA = {
+    hard: 'سخت‌تر از برآورد بود',
+    slow: 'خودم کند پیش رفتم',
+    attention: 'حواسم پرت شد',
+    estimate: 'برنامه زمانِ زیادی داده بود',
+    interrupt: 'وسطِ کار قطع شدم',
+    shallow: 'سریع رد شدم، کامل نخواندم',
+  };
+
+  function renderAdaptiveCard() {
+    const card = $('adaptiveCard');
+    if (!card || !AD) return;
+    const c = calib();
+    const sum = AD.summary(c);
+    card.style.display = 'block';
+    if ($('adaptiveLevel')) {
+      $('adaptiveLevel').textContent = 'سطح ' + faNum(sum.level) + ' · ' + sum.levelName;
+    }
+    if ($('adaptiveLead')) {
+      $('adaptiveLead').innerHTML = esc(sum.line) +
+        ' · بارِ روزانه <b>' + faNum(Math.round(sum.loadFactor * 100)) + '٪</b> ساعتِ اعلامی' +
+        (sum.sessionAdd ? ' · جلسه‌ها ' + faNum(sum.sessionAdd) + ' دقیقه بلندتر' : '') +
+        '<br><span style="font-size:12.5px">هسته از زمانِ واقعیِ بلوک‌ها یاد می‌گیرد؛ اگر کاری بیشتر یا کمتر طول بکشد، می‌پرسد چرا و برنامهٔ همان درس را تنظیم می‌کند.</span>';
+    }
+    if ($('adaptiveAskBtn')) {
+      $('adaptiveAskBtn').textContent = 'پرسش‌های باز (' + faNum(sum.openQuestions) + ')';
+      $('adaptiveAskBtn').disabled = sum.openQuestions === 0;
+    }
+    const pace = $('adaptivePace');
+    if (pace) {
+      const rows = AD.subjectRows(c);
+      pace.innerHTML = rows.length ? rows.slice(0, 6).map((r) => (
+        '<div class="card" style="padding:10px 12px">' +
+          '<div><b>' + esc(subjectName(r.sid)) + '</b> <span class="tag">' + faNum(r.n) + ' نمونه</span></div>' +
+          '<div style="font-size:12.5px;margin-top:4px">زمانِ واقعی/برنامه: <b>' + faNum(r.avgRatio) + '×</b>' +
+          (Math.abs(r.difficulty - 1) > 0.02 ? ' · سختی: <b>' + faNum(r.difficulty) + '×</b>' : '') + '</div>' +
+        '</div>'
+      )).join('') : '<div class="empty" style="grid-column:1/-1">هنوز بلوکی با زمانِ واقعی تمام نشده — جزئیاتِ هر درس همین‌جا می‌آید.</div>';
+    }
+    const box = $('adaptiveQuestions');
+    if (box) {
+      const qs = AD.openQuestions(c);
+      box.innerHTML = qs.map((q) => (
+        '<div class="card" style="padding:12px;margin-bottom:10px;border-color:#f0c987">' +
+          '<div style="margin-bottom:6px"><b>' + esc(subjectName(q.sid)) + '</b>' +
+            (q.topic ? ' · ' + esc(q.topic) : '') +
+            ' <span class="chip">برنامه ' + faNum(q.planned) + ' دقیقه · واقعی ' + faNum(q.actual) + ' دقیقه</span></div>' +
+          '<div style="font-size:13px;margin-bottom:8px">' +
+            (q.direction === 'long' ? 'این بلوک بیشتر از برآورد طول کشید — دلیلش چه بود؟' : 'این بلوک کمتر از برآورد طول کشید — چه شد؟') +
+          '</div>' +
+          '<div class="row" style="gap:6px;flex-wrap:wrap">' +
+            Object.keys(REASON_FA).map((k) => '<button class="btn" type="button" data-ask="' + q.id + '" data-reason="' + k + '">' + REASON_FA[k] + '</button>').join('') +
+          '</div>' +
+        '</div>'
+      )).join('');
+      box.querySelectorAll('[data-ask]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const res = AD.answerQuestion(calib(), btn.dataset.ask, btn.dataset.reason);
+          state.calibration = res.state;
+          toast(res.ok ? res.message : res.message);
+          try { persist(); } catch (e) { /* بی‌صدا */ }
+          renderAdaptiveCard();
+          if (res.ok) rebuildWith(null, 'برنامه با تجربهٔ تازه بازچیده شد.');
+        });
+      });
+    }
+  }
+
+  function subjectName(sid) {
+    const list = (state.plan && state.plan.meta && state.plan.meta.subjects) || [];
+    const f = list.filter((x) => x.id === sid)[0];
+    if (f) return f.name;
+    try {
+      const all = presets.subjectsFor((state.config && state.config.student && state.config.student.field) || 'tajrobi')
+        .concat(presets.generalFor('دوازدهم'));
+      const g = all.filter((x) => x.id === sid)[0];
+      if (g) return g.name;
+    } catch (e) { /* بی‌صدا */ }
+    return sid;
+  }
+
+  /* آزمونِ سطح: ۶ پرسش با گزینه — نتیجه سطحِ فشار را تعیین می‌کند */
+  function renderLevelQuiz() {
+    const box = $('adaptiveQuestions');
+    if (!box || !AD) return;
+    const qs = AD.quizQuestions();
+    box.innerHTML = '<div class="card" style="padding:12px">' +
+      '<div style="font-size:13px;margin-bottom:8px">به ۶ پرسش کوتاه جواب بده تا سطحِ فشار از همان اول درست باشد. (اگر جواب ندهی، هسته خودش از دادهٔ واقعی سطح را پیدا می‌کند.)</div>' +
+      qs.map((q, i) => (
+        '<div style="margin-bottom:10px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">' + faNum(i + 1) + ') ' + esc(q.text) + '</div>' +
+          '<div class="row" style="gap:6px;flex-wrap:wrap">' +
+            q.options.map((o) => '<button class="btn" type="button" data-q="' + q.id + '" data-o="' + o.id + '">' + esc(o.label) + '</button>').join('') +
+          '</div></div>'
+      )).join('') +
+      '<div class="row" style="gap:8px"><button class="btn primary" type="button" id="adaptiveQuizGo">ثبتِ سطح</button>' +
+      '<button class="btn" type="button" id="adaptiveQuizCancel">بی‌خیال</button></div></div>';
+    const answers = {};
+    box.querySelectorAll('[data-q]').forEach((b) => {
+      b.addEventListener('click', () => {
+        answers[b.dataset.q] = b.dataset.o;
+        box.querySelectorAll('[data-q="' + b.dataset.q + '"]').forEach((x) => x.classList.remove('primary'));
+        b.classList.add('primary');
+      });
+    });
+    if ($('adaptiveQuizCancel')) $('adaptiveQuizCancel').addEventListener('click', () => renderAdaptiveCard());
+    if ($('adaptiveQuizGo')) $('adaptiveQuizGo').addEventListener('click', () => {
+      const res = AD.applyQuiz(calib(), answers);
+      state.calibration = res.state;
+      try { persist(); } catch (e) { /* بی‌صدا */ }
+      renderAdaptiveCard();
+      if (res.answered) {
+        toast('سطح ' + faNum(res.level) + ' ثبت شد — فشار از همین سطح شروع می‌شود و یک پله بالاتر می‌رود.');
+        rebuildWith(null, 'برنامه با سطحِ تازه بازچیده شد.');
+      } else {
+        toast('حداقل به یک پرسش جواب بده.');
+      }
+    });
+  }
+
+  /* گزارشِ تجربه: فایلِ markdown برای ارسال به مخزن */
+  function downloadExperienceReport() {
+    if (!AD) return;
+    const c = calib();
+    let md = '';
+    try {
+      md = AD.experienceReport(c, {
+        appVersion: state.appVersion || '2.10.0',
+        grade: (state.config && state.config.student && state.config.student.grade) || (($('grade') || {}).value) || '',
+        field: (state.config && state.config.student && state.config.student.field) || (($('field') || {}).value) || '',
+        hours: (state.config && state.config.dailyCapHours) || '',
+      });
+    } catch (e) { toast('ساختِ گزارش ممکن نشد.'); return; }
+    const name = 'reval-experience-' + (todayIso ? todayIso() : 'report') + '.md';
+    try {
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1200);
+    } catch (e) { /* بی‌صدا */ }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(md);
+      }
+    } catch (e) { /* بی‌صدا */ }
+    toast('گزارش تجربه ساخته شد («' + name + '») و در کلیپ‌بورد هم کپی شد — در مخزن به‌عنوان گزارش بگذار.');
+  }
+
   function renderDayStartUI() {
     const card = $('homeDayCard');
     if (!card) return;
@@ -1693,6 +1895,7 @@
       dayStarts: Object.assign({}, state.dayStarts || {}),
       emergency: (state.emergency || []).slice(),
       dayOverrides: (state.dayOverrides || []).slice(),
+      adaptive: adaptiveCfg(),
       routinePinned: state.routinePinned === true,
       routines: (state.routines || cfg.routines || []).slice(),
       wakeTime: state.wakeTime || cfg.wakeTime,
@@ -2012,6 +2215,7 @@
   }
 
   function renderHome() {
+    try { renderAdaptiveCard(); } catch (e) { /* بی‌صدا */ }
     const st = stepStatus();
     const avail = readAvailabilityTotal();
     const ch = readChaptersRead();
@@ -3539,6 +3743,7 @@
     btn.innerHTML = '<span class="spinner"></span> در حال ساخت…';
     try {
       const cfg = collectConfig();
+      cfg.adaptive = adaptiveCfg();
       const plan = engine.createPlan(cfg);
       try {
         window.__revalDebug = {
@@ -4106,6 +4311,17 @@
     $('dayView').querySelectorAll('[data-done]').forEach((chk) => {
       chk.addEventListener('change', () => {
         state.done[chk.dataset.done] = chk.checked;
+        /* ۲.۱۰.۰: بلوکی که «انجام شد»، با زمانِ واقعی‌اش به هستهٔ هوش داده می‌شود */
+        if (chk.checked) {
+          try {
+            const f = findBlock(state.plan, chk.dataset.done);
+            if (f && f.block) {
+              const cur = sessionOf(f.day, f.idx, f.block);
+              const actual = (dayplan && cur) ? dayplan.elapsedMinutes(cur, nowMs()) : 0;
+              observeBlock(f.block, actual || cur && cur.plannedMinutes);
+            }
+          } catch (e) { /* بی‌صدا */ }
+        }
         persist();
       });
     });
@@ -4173,6 +4389,7 @@
     // ارزیابی فصل‌ها هم با درصد آزمون به‌روز شود تا برنامهٔ جبران دقیق بماند
     syncScoresToChapters();
     cfg.subjects = cfg.subjects.map(withChapters);
+    cfg.adaptive = adaptiveCfg();
     try {
       state.plan = engine.createPlan(cfg);
       state.config = cfg;
@@ -4234,6 +4451,7 @@
     const cfg = JSON.parse(JSON.stringify(state.config || collectConfig()));
     cfg.startDate = iso(new Date());                 // از امروز به بعد بازچینش
     cfg.carryOver = carry;
+    cfg.adaptive = adaptiveCfg();
     try {
       state.plan = engine.createPlan(cfg);
       state.config = cfg;
@@ -4380,6 +4598,7 @@
         routinePinned: state.routinePinned,
         wakeTime: state.wakeTime,
         /* v2.7: آخرین نسخه‌ای که کاربر تغییراتش را دیده است */
+        calibration: state.calibration || null,
         seenVersion: state.seenVersion || null,
         appVersion: state.appVersion || null,
       });
@@ -4404,6 +4623,9 @@
             if ($('routinePinned')) $('routinePinned').checked = data.routinePinned;
           }
           if (data.wakeTime) state.wakeTime = data.wakeTime;
+          if (data.calibration && AD) {
+            try { state.calibration = AD.normalize(data.calibration); } catch (e) { state.calibration = null; }
+          }
           if (data.seenVersion) state.seenVersion = data.seenVersion;
           if (data.appVersion) state.appVersion = data.appVersion;
           if (data.plan) {
@@ -5788,6 +6010,11 @@
   });
 
   try { wireSubjectChecks(); } catch (e) { /* بی‌صدا */ }
+
+  /* ── دکمه‌های هستهٔ هوشِ خودتطبیق (۲.۱۰.۰) ── */
+  if ($('adaptiveQuizBtn')) $('adaptiveQuizBtn').addEventListener('click', () => { try { renderLevelQuiz(); } catch (e) { /* بی‌صدا */ } });
+  if ($('adaptiveAskBtn')) $('adaptiveAskBtn').addEventListener('click', () => { try { renderAdaptiveCard(); const el = $('adaptiveQuestions'); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { /* بی‌صدا */ } });
+  if ($('adaptiveReportBtn')) $('adaptiveReportBtn').addEventListener('click', () => { try { downloadExperienceReport(); } catch (e) { /* بی‌صدا */ } });
 
   restore().then(() => {
     try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }

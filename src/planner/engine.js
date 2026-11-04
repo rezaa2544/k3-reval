@@ -16,10 +16,10 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./jalali.js'), require('./chapter-weights.js'),
-      require('./learning-model.js'), require('./chapter-size.js'));
+      require('./learning-model.js'), require('./chapter-size.js'), require('./adaptive.js'));
   } else root.RevalPlanner = factory(root.RevalJalali, root.RevalChapterWeights,
-    root.RevalLearningModel, root.RevalChapterSize);
-})(typeof self !== 'undefined' ? self : this, function (J, CW0, LM0, SZ0) {
+    root.RevalLearningModel, root.RevalChapterSize, root.RevalAdaptive);
+})(typeof self !== 'undefined' ? self : this, function (J, CW0, LM0, SZ0, AD0) {
   'use strict';
 
   /* ---------------- اهمیت واقعی فصل‌به‌فصل (کنکور) و بارم (نهایی) ----------------
@@ -40,6 +40,7 @@
   /* ---------------- مدلِ یادگیریِ محتوامحور (۲.۹.۰) ---------------- */
   const M = LM0 || null;      // learning-model.js  (فرمول‌های گزارش پژوهشی)
   const SZ = SZ0 || null;     // chapter-size.js   (حجمِ صفحه/مفهوم/تمرین هر فصل)
+  const AD = AD0 || null;     // adaptive.js       (هستهٔ هوشِ خودتطبیق — ۲.۱۰.۰)
 
   /* نمایش تاریخ: همیشه شمسی؛ اگر ماژول تقویم نبود، همان ISO */
   const jDate = (iso) => (J && J.fmt ? J.fmt(iso) : iso);
@@ -588,6 +589,11 @@
             ciImportance: ci.info ? ci.info.imp : null,
             horizonDays,
           });
+          /* ۲.۱۰.۰ — ضریبِ سرعت/سختیِ مشاهده‌شدهٔ همین درس:
+             اگر دانش‌آموز در ریاضی همیشه ۲۰٪ بیشتر از برآورد وقت می‌گذارد،
+             بودجهٔ فازها و مرورهای همان درس ۲۰٪ بالا می‌رود — نه کلِ برنامه. */
+          const pace = cfg.adaptive && cfg.adaptive.pace ? cfg.adaptive.pace[s.id] : null;
+          if (pace && Math.abs(pace - 1) >= 0.02) plan = scaleChapterPlan(plan, pace);
           mode = plan.mode;
           need = plan.learn + plan.consolidate;
         } else {
@@ -690,6 +696,22 @@
       }
     });
     return topics;
+  }
+
+  /** مقیاس‌کردنِ بودجهٔ فازهای یک فصل با ضریبِ یادگیری‌شده (۲.۱۰.۰) */
+  function scaleChapterPlan(plan, k) {
+    if (!plan || !(k > 0) || Math.abs(k - 1) < 0.02) return plan;
+    const rm = (v) => Math.max(1, Math.round(Number(v || 0) * k));
+    const out = Object.assign({}, plan);
+    out.learn = rm(plan.learn);
+    out.consolidate = rm(plan.consolidate);
+    out.practice = rm(plan.practice);
+    out.assess = rm(plan.assess);
+    out.reviews = (plan.reviews || []).map((r) => Object.assign({}, r, { minutes: Math.max(6, Math.round((r.minutes || 0) * k)) }));
+    out.total = out.learn + out.consolidate + out.practice + out.assess +
+      out.reviews.reduce((a, r) => a + r.minutes, 0);
+    out.scaledBy = Math.round(k * 100) / 100;
+    return out;
   }
 
   /** اولویت فصل برای صف یادگیری/جبران: ضریب × شکاف تسلط (فصل ضعیفِ پرضریب اول) */
@@ -863,6 +885,10 @@
     const deload = isDeload ? cfg.DELOAD_RATIO : 1;
 
     let factor = ramp * deload;
+    /* ۲.۱۰.۰ — سطحِ فشار: سطح ۳ = خنثی؛ سطحِ بالاتر ساعتِ اعلامی را کامل‌تر
+       استفاده می‌کند و سطحِ پایین‌تر محافظه‌کارتر می‌شود. هرگز از ساعتِ
+       اعلامیِ کاربر بیشتر نمی‌شود (سقف همان capHours است). */
+    if (cfg.adaptive && cfg.adaptive.active) factor *= clamp(cfg.adaptive.loadFactor / 0.93, 0.8, 1.1);
     if (preExam.level === 1) factor *= cfg.PRE_EXAM_CAP;
     if (preExam.level === 2) factor *= cfg.EVE_CAP;
 
@@ -1429,8 +1455,29 @@
     return out;
   }
 
+  /* ---------------- پارامترهای هستهٔ خودتطبیق (۲.۱۰.۰) ----------------
+     اگر اپ هیچ تجربه‌ای نداشته باشد، این شیء «خنثی» است (ضریب ۱) و رفتارِ
+     برنامه دقیقاً همان ۲.۹.۰ می‌ماند. هرچه نمونهٔ واقعی بیشتر شود، ضریبِ
+     سرعت/سختیِ هر درس و ضریبِ ساعتِ روز از دلِ داده می‌آید. */
+  function normalizeAdaptive(a) {
+    const out = { level: 3, loadFactor: 0.93, sessionAdd: 0, pace: {}, samples: 0, active: false };
+    if (!a || typeof a !== 'object') return out;
+    const lf = Number(a.loadFactor);
+    out.level = clamp(Math.round(Number(a.level) || 3), 0, 6);
+    out.loadFactor = Number.isFinite(lf) ? clamp(lf, 0.7, 1) : 0.93;
+    out.sessionAdd = clamp(Math.round(Number(a.sessionAdd) || 0), -10, 12);
+    out.samples = Math.max(0, Math.round(Number(a.samples) || 0));
+    Object.keys(a.pace || {}).forEach((k) => {
+      const v = Number(a.pace[k]);
+      if (Number.isFinite(v) && v > 0) out.pace[k] = clamp(v, 0.6, 1.9);
+    });
+    out.active = out.samples > 0 || Object.keys(out.pace).length > 0 || out.level !== 3;
+    return out;
+  }
+
   function buildPlan(rawConfig) {
     const cfg = normalizeConfig(rawConfig);
+    cfg.adaptive = normalizeAdaptive(cfg.adaptive);
     /* ۲.۸.۱۲: اهمیتِ فصل‌ها با ضریبِ همان رشته محاسبه می‌شود
        (زیستِ تجربی ≠ زیست در رشتهٔ دیگر) */
     try { CW.setField(cfg.student && cfg.student.field); } catch (e) { /* بی‌صدا */ }
@@ -2170,12 +2217,16 @@
         /* ۲.۹.۰: وقتی بودجهٔ روز به دو جلسهٔ کاملِ ۳۵ دقیقه‌ای نمی‌رسد، روز را
            نصف نمی‌کنیم (که نیمهٔ دومش سوخته و نیمهٔ اول هم کم‌عمق می‌شد)؛
            یک جلسهٔ کاملِ درست می‌سازیم تا فصل واقعاً جلو برود. */
-        const learnBlock = splitShortDay
+        /* ۲.۱۰.۰ — فشارِ «یک پله بالاتر»: اگر سطحِ دانش‌آموز بالا رفته باشد،
+           همان بلوکِ یادگیری چند دقیقه بلندتر می‌شود (بدونِ گذشتن از سقفِ ۶۰). */
+        const stretch = cfg.adaptive && cfg.adaptive.active ? cfg.adaptive.sessionAdd : 0;
+        const learnBlock0 = splitShortDay
           ? (budget < 2 * DEFAULTS.MIN_CHUNK.learn
             ? Math.min(50, Math.max(DEFAULTS.MIN_CHUNK.learn, budget))
             : Math.max(DEFAULTS.MIN_CHUNK.learn, Math.min(cfg.blockMinutes, Math.floor(budget / 2))))
           : cfg.blockMinutes;
         /* درس‌هایی که امروز «گرم‌کردن/مرور دیروز» گرفته‌اند — یادگیریِ تازه به درس دیگر برود */
+        const learnBlock = clamp(learnBlock0 + stretch, 25, 60);
         const warmupSubjects = new Set(tasks.filter((t) => t.kind === 'warmup' || t.kind === 'review').map((t) => t.subjectId));
         /* کف تعهد روزانهٔ هر درس بابت مهلت‌هایش */
         const reserve = deadlineReserve(dayIndex);
@@ -2239,7 +2290,10 @@
               const d2 = -((learnSpent[id] || 0) / target2);
               if (d2 > altDeficit) { altDeficit = d2; alt = id; }
             });
-            if (alt && deadlinePressure(chosenId, dayIndex, load.minutes) < 0.5) chosenId = alt;
+            /* ۲.۱۰.۰: اگر روز هنوز هیچ بلوکِ یادگیری ندارد و تنها موضوعِ گرم‌کردن
+               همین درس است، درسِ دیگری انتخاب می‌شود؛ وگرنه کلِ روز (مرور + گرم‌کردن
+               + یادگیری) یک‌کتابی می‌شد — همان چیزی که کاربر بارها گفت نباید باشد. */
+            if (alt && (deadlinePressure(chosenId, dayIndex, load.minutes) < 0.5 || blkCount() === 0)) chosenId = alt;
           }
           /* ۲.۸.۱۴: فصلی که کاربر خودش امروز خواسته، اول از همه */
           if (pinnedSpec && !pinnedServed && learnBySubject[pinnedSpec.subjectId]
@@ -2541,6 +2595,16 @@
           const studySubjectsSoFar = {};
           tasks.forEach((t) => { if (t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost' || t.kind === 'practice') studySubjectsSoFar[t.subjectId] = 1; });
           const onlyOneSubjectSoFar = Object.keys(studySubjectsSoFar).length <= 1 && studySubjectsSoFar[s.id];
+          /* ۲.۹.۰: اگر همین حالا بیش از نیمی از روز به یک کتاب رسیده، بلوکِ تستِ
+             بعدی از کتابِ دیگری می‌آید (اگر کتابِ دومی سبدِ تست داشته باشد).
+             این همان قیدِ ۶۰٪ است، ولی پیش از آنکه نقض شود. */
+          const dayMinutesNow = sum(tasks.map((t) => t.minutesLeft || 0));
+          const shareOf = (id) => tasks.filter((t) => t.subjectId === id)
+            .reduce((a, t) => a + (t.minutesLeft || 0), 0) / Math.max(1, dayMinutesNow + 40);
+          if (shareOf(s.id) > 0.5 && !shortDay) {
+            const alt2 = ordered.filter((x) => x.id !== s.id && poolOf(x.id).length && shareOf(x.id) < 0.45);
+            if (alt2.length) s = alt2[(dayIndex + practiceBlocksPlaced) % alt2.length];
+          }
           if ((practiceBlocksPlaced > 0 && testMinutesSoFar(s.id) > 0) || (shortDay && onlyOneSubjectSoFar)) {
             const freeAlt = ordered.filter((x) => testMinutesSoFar(x.id) === 0 && poolOf(x.id).length);
             if (freeAlt.length) {
@@ -2729,8 +2793,11 @@
           }
           free = freeNow();
           const asMin = Math.min(25, Math.max(12, Math.round((tp.assessLeft || 0) * 0.5)));
+          /* ۲.۹.۰: سنجشِ فصل «ایستگاهِ تسلط» است — یک روز پس از تثبیت انجام
+             می‌شود (نه اینکه منتظرِ تمام‌شدنِ کلِ سبد تمرین بماند؛ آن‌وقت هیچ‌وقت
+             نمی‌رسید). خروجیِ همین سنجش است که باند تسلط را تعیین می‌کند. */
           if (!tp.assessedOn && (tp.assessLeft || 0) >= 12 && free >= asMin + 10
-            && ((tp.practiceLeft || 0) < (tp.practiceMinutes || 0) * 0.5)) {
+            && (tp.consolidatedOn || (tp.practiceLeft || 0) <= 0)) {
             tasks.push({
               kind: 'assess', subjectId: tp.subjectId, subjectName: tp.subjectName,
               topicLabel: tp.label + ' — سنجشِ کوتاهِ فصل',
@@ -2750,22 +2817,31 @@
          نگهدارنده از فصل‌های خوانده‌شده (ضعیف‌ترین اول) پر می‌شود. این همان کاری
          است که آمادگی را تا روز آزمون نگه می‌دارد (اثر آزمون + تمرینِ بازیابی). */
       (function fillSpareWithMaintenance() {
-        if (isFinalExam || noNewLearning || tightPlan) return;
+        /* ۲.۹.۰: این پرکردن دقیقاً وقتی لازم است که درسِ نخوانده‌ای نمانده
+           (noNewLearning) — قبلاً همان‌جا زودتر برمی‌گشت و ساعتِ اعلامیِ
+           دانش‌آموز خالی می‌ماند. */
+
+        if (isFinalExam || tightPlan) return;
         let free = load.minutes - sum(tasks.map((t) => t.minutesLeft || 0));
         let guardF = 0;
         const minsOf = (sid) => tasks.filter((x) => x.subjectId === sid)
           .reduce((a, x) => a + (x.minutesLeft || 0), 0);
-        while (free >= 45 && guardF++ < 3) {
-          /* اول از درسی که امروز اصلاً بلوک نگرفته (تنوعِ بین‌کتابی)، بعد ضعیف‌ترین */
+        const usedTopics = new Set(tasks.filter((x) => x.topic).map((x) => x.subjectId + '#' + x.topic.label));
+        while (free >= 40 && guardF++ < 4) {
+          /* اول از درسی که امروز اصلاً بلوک نگرفته (تنوعِ بین‌کتابی)، بعد ضعیف‌ترین.
+             یک فصل در روز دو بار تکرار نمی‌شود و سهمِ هر درس از ۴۰٪ روز نمی‌گذرد. */
           const pool = topics
             .filter((t) => (t.needMinutes || 0) === 0 && t.mastery < 95)
+            .filter((t) => !usedTopics.has(t.subjectId + '#' + t.label))
             .sort((a, b) => a.mastery - b.mastery);
           if (!pool.length) break;
           const untouched = pool.filter((t) => minsOf(t.subjectId) === 0);
-          const pickT = (untouched.length ? untouched : pool).find((t) => minsOf(t.subjectId) < load.minutes * 0.4) || null;
+          const capShare = (untouched.length ? 0.4 : 0.3);
+          const pickT = (untouched.length ? untouched : pool).find((t) => minsOf(t.subjectId) < load.minutes * capShare) || null;
           if (!pickT) break;
+          usedTopics.add(pickT.subjectId + '#' + pickT.label);
           const mins = Math.min(60, Math.floor(free / 5) * 5);
-          if (mins < 45) break;
+          if (mins < 40) break;
           tasks.push({
             kind: 'practice', subjectId: pickT.subjectId, subjectName: pickT.subjectName,
             topicLabel: pickT.label + ' — تمرینِ نگهدارنده', topic: pickT,
@@ -3650,7 +3726,7 @@
 
     return {
       meta: {
-        version: '2.9.0', createdAt: new Date().toISOString(),
+        version: '2.10.0', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
@@ -3662,6 +3738,18 @@
       summary: {
         timeMode: cfg.timeMode,
         autoInfo: cfg._autoInfo || null,
+        adaptive: {
+          active: Boolean(cfg.adaptive && cfg.adaptive.active),
+          level: cfg.adaptive ? cfg.adaptive.level : 3,
+          loadFactor: cfg.adaptive ? cfg.adaptive.loadFactor : 0.93,
+          sessionAdd: cfg.adaptive && cfg.adaptive.active ? cfg.adaptive.sessionAdd : 0,
+          samples: cfg.adaptive ? cfg.adaptive.samples : 0,
+          pace: cfg.adaptive ? Object.assign({}, cfg.adaptive.pace) : {},
+          line: cfg.adaptive && cfg.adaptive.active
+            ? 'هستهٔ خودتطبیق فعال است: ' + cfg.adaptive.samples + ' نمونهٔ واقعی · سطح ' + cfg.adaptive.level +
+              (Object.keys(cfg.adaptive.pace).length ? ' · تعدیلِ زمان: ' + Object.keys(cfg.adaptive.pace).map((k) => k + ' ×' + cfg.adaptive.pace[k]).join(' · ') : '')
+            : 'هستهٔ خودتطبیق در حالتِ خنثی (بدونِ نمونهٔ واقعی)',
+        },
         totalMinutes: totalStudy,
         totalHours: Math.round((totalStudy / 60) * 10) / 10,
         avgHoursPerDay: Math.round((totalStudy / 60 / Math.max(1, days.length)) * 10) / 10,

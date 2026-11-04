@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.9.0-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.9.0/Reval-Setup-2.9.0.exe)
-[![Release](https://img.shields.io/badge/Release-v2.9.0-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.9.0)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.0-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.0/Reval-Setup-2.10.0.exe)
+[![Release](https://img.shields.io/badge/Release-v2.10.0-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.0)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,44 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.9.0.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.9.0/Reval-Setup-2.9.0.exe)
+### [💾 Reval-Setup-2.10.0.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.0/Reval-Setup-2.10.0.exe)
 
-**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۹.۰**
+**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۰**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.9.0/Reval-Setup-2.9.0.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.0/Reval-Setup-2.10.0.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `30917bb9cc1feb2d13ccd3ce407720aa55923ff5b050355154f8b39a6d3a8340` |
-| **حجم دقیق** | ۸۰٬۱۹۴٬۴۶۷ بایت |
+| **SHA-256** | `9b8ea6e70b8826318afa8a59b9f148b45c3fb2a71deded2c08ed3ae6e6a67b81` |
+| **حجم دقیق** | ۸۰٬۲۰۴٬۹۵۷ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.9.0.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.9.0.zip` — ۶۲۷ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.10.0.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.0.zip` — ۶۴۲ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۱۰.۰ — «هستهٔ هوشِ خودتطبیق»: برنامه از زمانِ واقعیِ خودت یاد می‌گیرد
+
+| | |
+|---|---|
+| **درخواست** | «هستهٔ هوش باید با شرایط خودتطبیق باشد و با مرورِ زمان بسته به عملکرد و بازخورد، هوشِ خودش را بالا ببرد و تجربه کسب کند… اگر فصلی ۲ ساعت برآورد شد ولی ۳ ساعت طول کشید، آخرش بپرس چرا… سطحِ استعداد را بشناسد و همیشه یک پله بالاتر فشار بدهد… تجربه‌ها را به‌صورت گزارش به مخزن بدهد» |
+| **حافظهٔ تجربه** | هر بلوکِ «انجام‌شده» با زمانِ واقعی‌اش ثبت می‌شود؛ نسبتِ «واقعی ÷ برنامه» ضریبِ سرعتِ **همان درس** را می‌سازد (میانگینِ متحرک، ۰٫۶–۱٫۸) و در بودجهٔ فازهای همان درس ضرب می‌شود |
+| **پرسشِ «چرا؟»** | اختلافِ ≥۳۵٪ بیشتر یا ≥۴۰٪ کمتر ⇒ برنامه می‌پرسد: سخت‌تر بود؟ خودم کند بودم؟ حواسم پرت شد؟ برآورد زیاد بود؟ قطع شدم؟ سطحی رد کردم؟ — هر پاسخ یک اثرِ مشخص و محدود دارد؛ «قطع شدم» نمونه را از آمار حذف می‌کند |
+| **شناختِ سطح** | آزمونِ ۶ پرسشی ⇒ سطحِ ۰..۶ (یا کشفِ خودکار از داده)؛ سطح، سقفِ فشارِ روز (۷۸٪→۱۰۰٪ ساعتِ اعلامی) و طولِ جلسه (۳۵→۴۵ دقیقه) را تعیین می‌کند — هرگز بیشتر از ساعتِ خودت |
+| **فشارِ یک پله بالاتر** | ۶ نمونهٔ آخر: سرِ وقت و کامل ⇒ **یک پله بالا** · کند یا ناتمام ⇒ **یک پله پایین** · سطحِ دستیِ خودت دست‌نخورده |
+| **گزارشِ تجربه** | یک دکمه: فایلِ markdown + کپی در کلیپ‌بورد — جدولِ واقعی/برنامه به‌ازای هر درس، سهمِ دلیل‌ها، تاریخِ سطح‌ها، **پیشنهادِ تغییرِ پارامتر** و بلوکِ JSON برای آپدیتِ بعدی |
+| **موتور** | سنجشِ فصل واقعاً چیده می‌شود (۰ → ۲۱ ساعت در سالِ ۸ ساعته) · ظرفیتِ خالی با «تمرینِ نگهدارنده» پر می‌شود (۴٫۶ → ۵٫۳ ساعت در روزِ ۸ ساعته) · روزهای کاملاً تک‌کتابی ۴۰ → ۶ |
+| **حریمِ خصوصی** | همه‌چیز آفلاین روی همین دستگاه؛ هیچ داده‌ای ارسال نمی‌شود و گزارشِ تجربه هم فقط با کلیکِ خودت ساخته می‌شود |
+| **آزمون** | `adaptive-2100` **۹۱ ✅** (تازه) · `ui-adaptive` **۲۲ ✅** (تازه) · `npm test` ۱۵ سوئیت · `test:ui` ۵ سوئیت — همه سبز |
+
+جزئیات: [یادداشت انتشار ۲.۱۰.۰](docs/release-notes-2.10.0.md)
 
 ---
 
@@ -810,14 +828,15 @@ npm run dist:win            # نصب‌کننده + وصلهٔ کد → release/
 ### تست‌های خودکار
 
 ```bash
-npm test                          # ۱۴ سوئیت موتور (۱۴۰۰+ بررسی) — بدون نیاز به نمایشگر
+npm test                          # ۱۵ سوئیت موتور (۱۵۰۰+ بررسی) — بدون نیاز به نمایشگر
 npm run test:engine               # فقط موتور: شبیه‌سازیِ سال + مدلِ محتوامحورِ ۲.۹.۰
-npm run test:ui                   # ۴ سوئیتِ رابط در Electron (نیاز به xvfb-run روی لینوکس)
+npm run test:ui                   # ۵ سوئیتِ رابط در Electron (نیاز به xvfb-run روی لینوکس)
 
 xvfb-run -a npx electron test/ui-full-flow.js    --no-sandbox   # ۵۷ بررسی: ۳ دانش‌آموز، همهٔ صفحه‌ها
 xvfb-run -a npx electron test/ui-day-variety.js  --no-sandbox   # ۱۱ بررسی: تنوعِ روز
 xvfb-run -a npx electron test/ui-ai-actions.js   --no-sandbox   # ۱۵ بررسی: تغییرِ دستیِ روز
 xvfb-run -a npx electron test/ui-ai-coverage.js  --no-sandbox   # ۵۳ بررسی: ۲۷ ابزارِ دستیار در خودِ برنامه
+xvfb-run -a npx electron test/ui-adaptive.js     --no-sandbox   # ۲۲ بررسی: هستهٔ خودتطبیق در خودِ برنامه
 ```
 
 > ساخت نسخه‌ی ویندوزی از روی لینوکس به `wine` + `wine32` نیاز دارد
