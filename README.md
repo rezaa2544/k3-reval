@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.8.15-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.15/Reval-Setup-2.8.15.exe)
-[![Release](https://img.shields.io/badge/Release-v2.8.15-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.8.15)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.9.0-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.9.0/Reval-Setup-2.9.0.exe)
+[![Release](https://img.shields.io/badge/Release-v2.9.0-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.9.0)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,46 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.8.15.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.8.15/Reval-Setup-2.8.15.exe)
+### [💾 Reval-Setup-2.9.0.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.9.0/Reval-Setup-2.9.0.exe)
 
-**۷۶٫۴ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۸.۱۵**
+**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۹.۰**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.8.15/Reval-Setup-2.8.15.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.9.0/Reval-Setup-2.9.0.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `e8a0e1f1d0608ff5ead79b2d50ff9dd71e0c68e411ecc55fc4d28f362e0b70fd` |
-| **حجم دقیق** | ۸۰٬۱۷۸٬۲۹۰ بایت |
+| **SHA-256** | `30917bb9cc1feb2d13ccd3ce407720aa55923ff5b050355154f8b39a6d3a8340` |
+| **حجم دقیق** | ۸۰٬۱۹۴٬۴۶۷ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.8.15.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.8.15.zip` — ۵۹۶ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.9.0.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.9.0.zip` — ۶۲۷ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۹.۰ — «موتورِ هوشِ فوق‌العاده»: زمانِ هر فصل از دلِ محتوا
+
+| | |
+|---|---|
+| **شکایت** | «برنامه‌ریزی درست نیست و با واقعیت همخوانی نداره — یک فصلِ کاملِ ریاضی فقط ۳۰ دقیقه در یک جلسه» |
+| **ریشه** | زمانِ هر فصل با یک ضریبِ سرانگشتی (پایه × سختی × اهمیت) ساخته می‌شد، نه از محتوا. سختی و اهمیت هم در یک عدد ضرب می‌شدند، پس هیچ‌کدام قابلِ دفاع نبود. سه فازِ مطالعه هم بودجهٔ جدا نداشتند و بلوکِ تمرین با باقی‌ماندهٔ روز هر اندازه می‌شد |
+| **حالا** | **مدلِ محتوا**: تعداد صفحه · تعداد مفهوم · تعداد تمرینِ هر فصل → دقیقهٔ استانداردِ هر فاز (یادگیری · تثبیت · تمرین · سنجش · مرور) |
+| **سه سنجهٔ جدا** | سختیِ درس (۰..۱۰۰) · سختیِ فصل (۰..۱۰۰) · اهمیتِ فصل (۰..۱۰۰ از سؤال‌های واقعی کنکور) — سه ستونِ مستقل، هیچ‌کدام در دیگری ضرب نمی‌شود |
+| **بودجهٔ فازی** | هر فصل یک جدولِ بودجه دارد: `یادگیری ۱۹۴ · تثبیت ۷۰ · تمرین ۳۴۹ · سنجش ۴۵ · مرور ۱۵۸` (مشتق) — و همان عددها در برنامه خرج می‌شوند |
+| **کفِ جلسه** | هیچ جلسهٔ یادگیری زیر **۳۵ دقیقه** نیست، هیچ بلوکِ تمرین زیر **۴۰ دقیقه**، هیچ سنجشی زیر **۱۲ دقیقه**؛ جلسات ریاضیِ ≤۳۰ دقیقه از **۴۸٪ به ۰٪** رسید |
+| **نردبانِ مرور** | فاصلهٔ مرورها از سهمِ افقِ زمانی ساخته می‌شود (۲۰–۴۰٪ افق برای آزمونِ ۷ روزه، ۵–۱۰٪ برای ۳۵۰ روز) — نه اعدادِ ثابتِ ۱/۳/۷/۱۴ |
+| **درهم‌کردن** | هر بلوکِ تمرین سهمِ روشنی از فصل‌های قبلی دارد («درهم: ۴۰٪ فصل‌های قبل»): ریاضی ۴۰٪ · فیزیک ۳۵٪ · شیمی ۲۵٪ · زیست ۱۰٪ |
+| **واقع‌گرایی** | سقفِ روز ۱۰٫۵ ساعت است و برنامه هرگز خودش از آن رد نمی‌شود؛ در هر سناریو (۲/۴/۶/۸/۱۰ ساعت) هیچ فصلِ ریاضی زیر ۴۰ دقیقه نمی‌ماند |
+| **اعتبارسنجی** | مثالِ کاملِ «مشتق» عددبه‌عدد از محتوا بازسازی شد و با گزارشِ پژوهشی خواند: ۱۴ جلسه، ۸۶۲ دقیقهٔ کارِ خالص، ۱۵۸ دقیقه مرور |
+| **آزمون** | `v290-engine` **۵۲ ✅** (تازه: مدلِ محتوا، مثالِ کامل، کفِ جلسه، نردبانِ مرور، باندِ تسلط، ۲/۴/۶/۸ ساعت، بودجهٔ فاز، تکرارپذیری، سناریوی شکایت) · `npm test` ۱۴ سوئیت همه سبز · `test:ui` ۴ سوئیت Electron همه سبز |
+
+جزئیات: [یادداشت انتشار ۲.۹.۰](docs/release-notes-2.9.0.md) · [گزارشِ پژوهشیِ موتور](docs/research-report-fa-2.9.0.md) · [نقشهٔ پژوهش](docs/research-planning-engine-2.9.0.md)
 
 ---
 
@@ -784,17 +804,20 @@ k3-reval/
 npm install                 # نصب وابستگی‌ها (Electron 31 + electron-builder 24)
 
 npm start                   # اجرای برنامه در حالت توسعه
-npm run dist:win            # ساخت نصب‌کننده‌ی ویندوز → release/Reval-Setup-<version>.exe
+npm run dist:win            # نصب‌کننده + وصلهٔ کد → release/ و dist/
 ```
 
 ### تست‌های خودکار
 
 ```bash
-npm test                                                        # تست موتور برنامه‌ریز (۹ سنجهٔ منطقی/کارایی)
-xvfb-run -a npx electron test/inject-test.js   --no-sandbox      # ورود خودکار: پر شدن و ارسال فرم
-xvfb-run -a npx electron test/no-creds-test.js --no-sandbox      # حالت بدون حساب + حذف #login
-xvfb-run -a npx electron test/ui-test.js       --no-sandbox      # تست رابط مشاور هوشمند (ساخت برنامه)
-xvfb-run -a npx electron test/toolbar-test.js  --no-sandbox      # تست دکمهٔ شناور + ورود خودکار روی صفحهٔ نمونه
+npm test                          # ۱۴ سوئیت موتور (۱۴۰۰+ بررسی) — بدون نیاز به نمایشگر
+npm run test:engine               # فقط موتور: شبیه‌سازیِ سال + مدلِ محتوامحورِ ۲.۹.۰
+npm run test:ui                   # ۴ سوئیتِ رابط در Electron (نیاز به xvfb-run روی لینوکس)
+
+xvfb-run -a npx electron test/ui-full-flow.js    --no-sandbox   # ۵۷ بررسی: ۳ دانش‌آموز، همهٔ صفحه‌ها
+xvfb-run -a npx electron test/ui-day-variety.js  --no-sandbox   # ۱۱ بررسی: تنوعِ روز
+xvfb-run -a npx electron test/ui-ai-actions.js   --no-sandbox   # ۱۵ بررسی: تغییرِ دستیِ روز
+xvfb-run -a npx electron test/ui-ai-coverage.js  --no-sandbox   # ۵۳ بررسی: ۲۷ ابزارِ دستیار در خودِ برنامه
 ```
 
 > ساخت نسخه‌ی ویندوزی از روی لینوکس به `wine` + `wine32` نیاز دارد

@@ -13,6 +13,7 @@
   const WEEKDAY_KEY = engine.WEEKDAY_KEY;
   const KIND_CLASS = {
     learn: 'b-learn', review: 'b-review', practice: 'b-practice',
+    consolidate: 'b-boost', assess: 'b-practice',
     mock: 'b-mock', analysis: 'b-analysis', warmup: 'b-warmup',
     reteach: 'b-reteach', boost: 'b-boost', cumreview: 'b-cum', classfix: 'b-classfix',
     finalprep: 'b-final', deadlinecheck: 'b-deadline', carry: 'b-carry', carryreview: 'b-carry',
@@ -215,6 +216,14 @@
       out.push('مرور روی: ' + (m ? chapTitle : String(block.topic || 'مبحث دیروز').replace(/\s*—\s*تست هدفمند\s*$/, '')));
       out.push('بازیابی از حافظه: مفاهیم اصلی را بدون نگاه به کتاب بنویس، بعد با کتاب چک کن.');
       out.push('هر چیزی که یادت نیامد را علامت بزن تا در مرور بعدی اول همان را ببینی.');
+    } else if (kind === 'consolidate') {
+      out.push('مبحث: ' + (m ? chapTitle : (block.topic || '')));
+      out.push('هدف: بدون کتاب، ساختارِ فصل را از حافظه بسازی — نقشهٔ مفهومی، تعریف‌ها، فرمول‌ها.');
+      out.push('هر جا لنگ زدی، همان‌جا نقطهٔ ضعف واقعی است؛ علامت بزن.');
+    } else if (kind === 'assess') {
+      out.push('مبحث: ' + (m ? chapTitle : (block.topic || '')));
+      out.push('هدف: ' + faNum(Number(block.practiceCount) || 12) + ' سؤال در زمان استاندارد، بدون کتاب.');
+      out.push('درصد را ثبت کن: بالای ۸۰٪ عبور، ۶۵–۸۰٪ یک دور تمرین هدفمند، زیر ۶۵٪ بازآموزی.');
     } else if (kind === 'practice' || kind === 'boost') {
       out.push('مبحث: ' + (m ? chapTitle : (block.topic || '')));
       out.push('هدف: ' + (tests ? faNum(tests) + ' تست هدفمند' : 'تست هدفمند') + ' از همین مبحث، با زمان‌سنج.');
@@ -3855,6 +3864,30 @@
       (c.ciExams ? ' · ' + faNum(c.ciExams) + ' آزمون' : '') + '</div>';
   }
 
+  /* ── سلولِ «بودجهٔ فازها» (۲.۹.۰) ─────────────────────────────────────
+     هر فصل چهار سبدِ جدا دارد: یادگیری (مفهوم + نمونهٔ حل‌شده)، تثبیت،
+     تمرین/تست و سنجش؛ به‌علاوهٔ مرورهای فاصله‌دار. عددها از حجمِ واقعیِ
+     فصل (صفحه، مفهومِ نو، تمرین) درمی‌آیند، نه از یک ضربِ دلبخواه. */
+  function phaseCell(c) {
+    const p = c.phaseBudget;
+    if (!p) return '<span class="muted" style="font-size:10.5px">—</span>';
+    const totalH = faNum(Math.round((p.total || 0) / 6) / 10);
+    const seg = (n, cls) => (n > 0
+      ? '<span style="display:inline-block;height:6px;border-radius:3px;background:' + cls
+        + ';width:' + Math.max(4, Math.round((n / Math.max(1, p.total)) * 100)) + '%"></span>' : '');
+    const tip = 'یادگیری ' + faNum(p.learn) + ' دقیقه\nتثبیت ' + faNum(p.consolidate)
+      + ' دقیقه\nتمرین/تست ' + faNum(p.practice) + ' دقیقه\nسنجش ' + faNum(p.assess)
+      + ' دقیقه\nمرورِ فاصله‌دار ' + faNum(p.review) + ' دقیقه'
+      + (c.sessionCount ? '\n' + faNum(c.sessionCount) + ' جلسه' : '')
+      + (c.size ? '\nحجم: ' + faNum(c.size.pages) + ' صفحه · ' + faNum(c.size.concepts)
+        + ' مفهومِ نو · ' + faNum(c.size.exercises) + ' تمرین' : '');
+    return '<span title="' + esc(tip) + '" style="display:block;direction:ltr">'
+      + seg(p.learn, '#3b82f6') + seg(p.consolidate, '#8b5cf6') + seg(p.practice, '#f59e0b')
+      + seg(p.assess, '#ef4444') + seg(p.review, '#10b981') + '</span>'
+      + '<div class="muted" style="font-size:10.5px">' + totalH + ' ساعت'
+      + (c.sessionCount ? ' · ' + faNum(c.sessionCount) + ' جلسه' : '') + '</div>';
+  }
+
   function renderChapterTable(plan) {
     const box = $('chapterTable');
     if (!box) return;
@@ -3882,6 +3915,7 @@
     if (!list.length) { box.innerHTML = '<div class="muted" style="font-size:12px">موردی با این فیلتر نیست.</div>'; return; }
     box.innerHTML =
       '<table class="chap"><thead><tr><th>فصل</th><th>اهمیت واقعی</th><th>وضعیت</th><th>تسلط</th><th>تست</th>' +
+      '<th title="یادگیری (آبی) · تثبیت (بنفش) · تمرین/تست (نارنجی) · سنجش (قرمز) · مرور (سبز)">بودجهٔ فصل</th>' +
       '<th style="width:110px">پیشرفت</th><th>چه چیزی مانده</th></tr></thead><tbody>' +
       list.map((c) => '<tr' + (c.mode === 'solid' ? ' style="opacity:.75"' : '') + '>' +
         '<td><b style="font-size:12px">' + esc(c.label) + '</b>' +
@@ -3890,8 +3924,9 @@
         '<td>' + importanceCell(c) + '</td>' +
         '<td><span class="pill ' + (c.mode === 'solid' ? '' : c.mastery < 45 ? 'hot' : c.mastery < 75 ? 'warm' : '') + '">' +
           esc(c.status) + '</span></td>' +
-        '<td>' + faNum(Math.round(c.mastery)) + '٪<div class="muted" style="font-size:10.5px">هدف ۷۵٪</div></td>' +
+        '<td>' + faNum(Math.round(c.mastery)) + '٪<div class="muted" style="font-size:10.5px">هدف ۸۰٪</div></td>' +
         '<td><span dir="rtl">' + faNum(c.testsDone) + ' از ' + faNum(c.testsNeed) + '</span></td>' +
+        '<td>' + phaseCell(c) + '</td>' +
         '<td>' + progressBar(c.progress) + '</td>' +
         '<td style="font-size:11.5px">' + esc(remainingText(c)) + '</td>' +
       '</tr>').join('') + '</tbody></table>';

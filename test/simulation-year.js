@@ -13,10 +13,13 @@ const engine = require('../src/planner/engine.js');
 const presets = require('../src/planner/presets.js');
 
 const VERBOSE = process.argv.includes('--verbose');
+/* ۲.۹.۰: حدِ معنادارِ جلسه — یادگیریِ نو ۳۵، تمرین ۴۰، تثبیت ۲۰، سنجش ۱۲،
+   مرور ۱۰، تستِ کوتاه ۲۰ (واحدِ سنجشِ کوتاه)، بازیابیِ پایانی ۱۰. */
 const MIN_CHUNK = {
-  learn: 30, reteach: 30, practice: 30, boost: 30, review: 15, warmup: 10,
+  learn: 35, reteach: 35, practice: 20, boost: 35, review: 10, warmup: 10,
   cumreview: 30, carryreview: 15, carry: 20, finalprep: 25, deadlinecheck: 20,
   classfix: 20, analysis: 25, mock: 40, exam: 30, emergency: 20,
+  consolidate: 20, assess: 12,
 };
 
 let pass = 0; let fail = 0;

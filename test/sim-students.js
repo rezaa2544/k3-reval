@@ -157,6 +157,19 @@ const p1 = engine.createPlan(p1cfg);
 auditPlan('آرمان', p1cfg, p1);
 {
   const cov = p1.summary.coverage;
+  if (process.env.PRINT) {
+    const needH = (cov.needMinutes || 0) / 60;
+    let learnMin = 0; let pracMin = 0;
+    p1.days.forEach((d) => d.blocks.forEach((b) => {
+      const m = (Number(b.end.slice(0, 2)) * 60 + Number(b.end.slice(3))) - (Number(b.start.slice(0, 2)) * 60 + Number(b.start.slice(3)));
+      if (['learn', 'reteach', 'boost'].indexOf(b.kind) !== -1) learnMin += m;
+      if (['practice', 'assess', 'consolidate'].indexOf(b.kind) !== -1) pracMin += m;
+    }));
+    const per = p1.days.map((d) => d.blocks.reduce((a, b) => a + ((Number(b.end.slice(0, 2)) * 60 + Number(b.end.slice(3))) - (Number(b.start.slice(0, 2)) * 60 + Number(b.start.slice(3)))), 0));
+    const nz = per.filter((x) => x > 0);
+    console.log('[PRINT] days', per.length, 'avg/day', Math.round(nz.reduce((a, b) => a + b, 0) / nz.length), 'empty', per.filter((x) => x === 0).length, 'sample', per.slice(10, 20).join(','));
+    console.log('[PRINT] needH', Math.round(needH), '| learnH', Math.round(learnMin / 60), '| practiceH', Math.round(pracMin / 60), '| ratio', cov.coverageRatio);
+  }
   /* از ۲.۸.۱۲ تقاضای هر فصل از دادهٔ چندسالهٔ کنکور می‌آید (نه عدد دستی)، پس
      پوشش چند درصد جابه‌جا می‌شود؛ گارانتیِ واقعی این است که هیچ درسی گرسنه
      نماند و پرتکرارترین فصل هر درس حتماً خوانده شود. */
@@ -455,8 +468,12 @@ console.log('\n▌ تنوع روزانه: هیچ روزی تک‌کتابی نی
   let noConsolidation = 0;
   p1.days.forEach((d) => {
     const kinds = (d.blocks || []).map((b) => b.kind);
+    /* ۲.۹.۰: «تثبیت» و «سنجش» هم بازیابی‌اند؛ و بازیابیِ پایانیِ درونِ جلسه
+       (retrievalTail) هم تثبیت را تأمین می‌کند. */
+    const tail = (d.blocks || []).some((b) => (b.retrievalTail || 0) >= 5);
     if (kinds.indexOf('learn') !== -1 && kinds.indexOf('practice') === -1
-      && kinds.indexOf('review') === -1 && kinds.indexOf('warmup') === -1) noConsolidation += 1;
+      && kinds.indexOf('review') === -1 && kinds.indexOf('warmup') === -1
+      && kinds.indexOf('consolidate') === -1 && kinds.indexOf('assess') === -1 && !tail) noConsolidation += 1;
   });
   ok(noConsolidation <= Math.round(p1.days.length * 0.02),
     '[آرمان] روزِ یادگیری بدون مرور/تست تقریباً وجود ندارد (تثبیت حفظ شده)', noConsolidation);
