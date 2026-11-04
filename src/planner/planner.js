@@ -1967,7 +1967,7 @@
     let md = '';
     try {
       md = AD.experienceReport(c, {
-        appVersion: state.appVersion || '2.10.3',
+        appVersion: state.appVersion || '2.10.4',
         grade: (state.config && state.config.student && state.config.student.grade) || (($('grade') || {}).value) || '',
         field: (state.config && state.config.student && state.config.student.field) || (($('field') || {}).value) || '',
         hours: (state.config && state.config.dailyCapHours) || '',

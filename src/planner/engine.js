@@ -880,6 +880,22 @@
   }
 
   /** بار روز: min(ساعت در دسترس کاربر، زمان آزاد واقعی) با تعدیل هفته/پیش‌آزمون */
+  /* ── ۲.۱۰.۴: ظرفیتِ خالصِ مطالعه در یک پنجرهٔ زمانی ────────────────────
+     پیش از این از نسبتِ پیوسته استفاده می‌شد: W × b / (b + k) که برای ۴۰۵
+     دقیقه پنجره با بلوکِ ۴۵ و استراحتِ ۱۰ عددِ ۳۳۱ می‌داد. آن عدد **غلط** بود،
+     چون بلوک‌ها کسری نیستند: با ۴۵ و ۱۰، هر بلوکِ کامل ۵۵ دقیقه از پنجره
+     می‌خورد و آخرین بلوک استراحتِ پایانی لازم ندارد:
+        n = ⌊(W + k) / (b + k)⌋   →   مطالعه = n × b
+     برای ۴۰۵: ⌊۴۱۵/۵۵⌋ = ۷ بلوک ⇒ ۳۱۵ دقیقه مطالعه (۶ استراحت = ۶۰ دقیقه،
+     ۳۰ دقیقه هم بی‌استفاده می‌ماند چون بلوکِ ۴۵ دقیقه‌ایِ بعدی جا نمی‌شود). */
+  function studyCapacity(winMinutes, blockMin, breakMin) {
+    const W = Math.max(0, Math.round(Number(winMinutes) || 0));
+    const b = Math.max(10, Math.round(Number(blockMin) || 45));
+    const k = Math.max(0, Math.round(Number(breakMin) == null || Number.isNaN(Number(breakMin)) ? 10 : breakMin));
+    const n = Math.floor((W + k) / (b + k));
+    return Math.max(0, n * b);
+  }
+
   function dayLoad(cfg, date, dayIndex, totalDays, freeMinutes, preExam, skipLight) {
     const wd = persianWeekday(date);
     const key = WEEKDAY_KEY[wd];
@@ -2753,12 +2769,11 @@
           ? clamp(Number(cfg.adaptive.loadFactor) || 0.93, 0.70, 1) : 1;
         /* «روزِ سبک» باید سبک بماند (۷۸٪ مثلِ قاعدهٔ LIGHT_RATIO در dayLoad) */
         const fullDay = Math.round(load.declared * (load.isLightDay ? 0.78 : 1) * lvlCap);
-        /* ظرفیتِ **واقعیِ مطالعه** در پنجرهٔ روز: بلوک‌ها استراحتِ بین‌شان را هم
-           می‌خواهند (۴۵ + ۱۰)، پس ۴۰۵ دقیقه پنجره ≈ ۳۳۱ دقیقه مطالعه است.
-           قبلاً سقفِ روز روی «پنجره» بسته می‌شد و ظرفیتِ واقعی هرگز پر نمی‌شد. */
+        /* ظرفیتِ **واقعیِ مطالعه** در پنجرهٔ روز (۲.۱۰.۴: گسسته و دقیق).
+           ۴۰۵ دقیقه پنجره با بلوکِ ۴۵ و استراحتِ ۱۰ ⇒ ۷ بلوک = ۳۱۵ دقیقه مطالعه. */
         const winFree = Math.round(freeMinutes || 0);
-        const usableFree = Math.floor(winFree * (cfg.blockMinutes || 45)
-          / ((cfg.blockMinutes || 45) + (cfg.breakMinutes != null ? cfg.breakMinutes : DEFAULTS.breakMinutes)));
+        const usableFree = studyCapacity(winFree, cfg.blockMinutes || 45,
+          cfg.breakMinutes != null ? cfg.breakMinutes : DEFAULTS.breakMinutes);
         const capFree = Math.min(fullDay, usableFree);
         /* فضای «استراحتِ بلند» (هر ۹۰ دقیقه تمرکز) باید در پنجره باز بماند؛
            وگرنه پرکردنِ کاملِ روز استراحت‌های محافظتی را از بین می‌برد. */
@@ -2769,7 +2784,7 @@
            برای روزهای بلند لازم است که پرکردنِ کامل می‌تواند آن را ببلعد. */
         /* رزرو فقط برای روزهای بلند (≥۵٫۵ ساعت) لازم است؛ در روزهای کوتاه
            استراحت به‌طور طبیعی جا می‌شود و کسرکردنش پوشش را بی‌دلیل کم می‌کند. */
-        const breakReserve = (capFree >= 330)
+        const breakReserve = (capFree >= 300)
           ? Math.max(0, Math.floor(capFree / 90)) * Math.max(0, brLong - brBase) : 0;
         const capFreeNet = Math.max(0, capFree - breakReserve);
         if (capFreeNet > load.minutes) load.minutes = capFreeNet;
@@ -3768,11 +3783,12 @@
           const declaredM = Math.round((Number(cfg.availability[WEEKDAY_KEY[wd]]) || 0) * 60);
           const winM = Math.round(freeMinutes || 0);
           /* ۲.۱۰.۳ — «ظرفیتِ واقعیِ مطالعه»: بلوک‌ها استراحتِ بین‌شان را هم می‌خواهند،
-             پس ۴۰۵ دقیقه پنجره ≈ ۳۳۱ دقیقه مطالعهٔ خالص است. سنجیدنِ پرشدگی با
+             پس ۴۰۵ دقیقه پنجره ⇒ ۷ بلوک = ۳۱۵ دقیقه مطالعهٔ خالص (۲.۱۰.۴: گسسته).
+             سنجیدنِ پرشدگی با
              پنجرهٔ خام، هر برنامهٔ درست‌وحسابی را «۶۷٪» نشان می‌داد. */
           const blk = cfg.blockMinutes || 45;
           const brk = cfg.breakMinutes != null ? cfg.breakMinutes : DEFAULTS.breakMinutes;
-          const usableM = Math.floor(winM * blk / (blk + brk));
+          const usableM = studyCapacity(winM, blk, brk);
           const capM = Math.min(declaredM, usableM);
           const usedM = dayMinutes;
           const freeM = Math.max(0, capM - usedM);
@@ -4398,7 +4414,7 @@
 
     return {
       meta: {
-        version: '2.10.3', createdAt: new Date().toISOString(),
+        version: '2.10.4', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,
@@ -4686,6 +4702,6 @@
     createPlan, updateMastery, applySubjectScore, todaySummary,
     toMarkdown, toCSV, toICS, toTaskList,
     DEFAULTS, WEEKDAY_FA, WEEKDAY_KEY, SUBJECT_TYPE_FA,
-    _internal: { normalizeConfig, dayDiff, persianWeekday, firstReviewGap, reviewInterval, addDays, isoDay, freeSegments, busyEventsFor },
+    _internal: { normalizeConfig, dayDiff, persianWeekday, firstReviewGap, reviewInterval, addDays, isoDay, freeSegments, busyEventsFor, studyCapacity },
   };
 });

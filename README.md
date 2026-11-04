@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.3-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.3/Reval-Setup-2.10.3.exe)
-[![Release](https://img.shields.io/badge/Release-v2.10.3-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.3)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.4-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.4/Reval-Setup-2.10.4.exe)
+[![Release](https://img.shields.io/badge/Release-v2.10.4-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.4)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,43 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.10.3.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.3/Reval-Setup-2.10.3.exe)
+### [💾 Reval-Setup-2.10.4.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.4/Reval-Setup-2.10.4.exe)
 
-**~۸۰ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۳**
+**~۸۰ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۴**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.3/Reval-Setup-2.10.3.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.4/Reval-Setup-2.10.4.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `583e9e3ec7563ed524d68f45093ddc769bf47aed4b519a4100d2a9a9d5b7544a` |
-| **حجم دقیق** | ۸۰٬۲۲۹٬۳۱۶ بایت (۷۶٫۵ مگابایت) |
+| **SHA-256** | `22762a40c43014826688b7bc5005855a887f8b7b9313e0209dd96522d1557356` |
+| **حجم دقیق** | ۸۰٬۲۳۰٬۰۸۴ بایت (۷۶٫۵ مگابایت) |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.10.3.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.3.zip` — فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.10.4.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.4.zip` — فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۱۰.۴ — اصلاحِ حسابِ ظرفیتِ مطالعه (۴۵ + ۱۰ = ۵۵)
+
+| | | |
+|---|---|---|
+| **گزارشِ شما** | «بلوکِ ۴۵ دقیقه‌ای با استراحتِ ۱۰ دقیقه‌ای… ۴۰۵ دقیقه پنجره ≈ ۳۳۱ دقیقه — اشتباه حساب کردی، ۴۵+۱۰ می‌شه ۵۵» |
+| **خطا** | ظرفیت را با نسبتِ پیوسته حساب می‌کردم (۴۰۵ × ۴۵ ÷ ۵۵ = ۳۳۱)، یعنی فرضِ **۷٫۳۶ بلوک**. بلوک کسری نیست |
+| **حسابِ درست** | ⌊(۴۰۵ + ۱۰) ÷ ۵۵⌋ = **۷ بلوک** ⇒ ۷ × ۴۵ = **۳۱۵ دقیقه** مطالعهٔ خالص (۶ استراحت = ۶۰ دقیقه، ۳۰ دقیقه بی‌استفاده) |
+| **جدولِ ظرفیت** | ۲۴۰⇒۱۸۰ · ۳۳۰⇒۲۷۰ · ۴۰۵⇒۳۱۵ · ۴۸۰⇒۳۶۰ · ۵۴۰⇒۴۵۰ · ۶۰۰⇒۴۹۵ |
+| **اثر** | یک تابعِ واحد (`studyCapacity`) هم سقفِ روز را می‌بندد و هم پرشدگی را می‌سنجد؛ جملهٔ روز هم درست شد: «۸ ساعت اعلامی ⇒ ۵ ساعت و ۱۵ دقیقه مطالعهٔ خالص» |
+| **پرشدگی** | ۴/۶/۸/۱۰ ساعت: **۸۱٪ / ۸۲٪ / ۸۶٪ / ۸۷٪** · پوشش ۹۵–۱۰۰٪ |
+| **تستِ نگهبان** | ۷ بررسیِ عددی در `calib-2103` (۴۰۵⇒۳۱۵ · ۲۴۰⇒۱۸۰ · ۵۴۰⇒۴۵۰ · صفر⇒صفر) — این اشتباه دیگر برنمی‌گردد |
+| **آزمون** | ۱۸ سوئیتِ موتور + ۷ سوئیتِ UI سبز · `calib-2103` **۶۲ ✅** · `ui-calib-2103` **۲۴ ✅** |
+
+جزئیات: [یادداشت انتشار ۲.۱۰.۴](docs/release-notes-2.10.4.md)
 
 ---
 
