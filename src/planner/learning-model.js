@@ -124,7 +124,9 @@
    */
   function chapterProfile(c) {
     const o = c || {};
-    const size = SZ.sizeOf(o.subjectId, o.chapter, { type: o.type, chapters: o.chapters });
+    const size = SZ.sizeOf(o.subjectId, o.chapterInGrade || o.chapter, {
+      type: o.type, chapters: o.chapters, grade: o.grade,
+    });
     const profile = size.profile;
     const ratio = ratios(profile);
     const mpp = P.minutesPerPage[profile] || P.minutesPerPage.concept;

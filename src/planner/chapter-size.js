@@ -99,9 +99,21 @@
     return 'concept';
   }
 
-  /** کدام کتاب و کدام فصلِ داخلِ آن؟ (فصل‌ها به ترتیبِ پایه شماره‌گذاری شده‌اند) */
-  function resolve(subjectId, chapter, totalChapters) {
+  /** کدام کتاب و کدام فصلِ داخلِ آن؟
+   *  ۲.۱۰.۲ — باگ: شمارهٔ فصل همیشه از کتابِ «دهم» شروع می‌شد، پس فصلِ ۱ دوازدهم
+   *  با حجمِ فصلِ ۱ دهم برآورد می‌شد (هر سه پایه یک عدد می‌دادند). حالا اگر پایه
+   *  مشخص باشد، همان کتاب انتخاب می‌شود. */
+  function resolve(subjectId, chapter, totalChapters, grade) {
     const books = BOOKS[subjectId] || [DEFAULT_BOOK];
+    if (grade) {
+      const g = String(grade).trim();
+      const hit = books.find((b) => String(b.grade).trim() === g);
+      if (hit && books.length > 1) {
+        const n = hit.shares ? hit.shares.length : Math.max(1, Number(totalChapters) || 1);
+        const idx = Math.min(n, Math.max(1, Number(chapter) || 1));
+        return { book: hit, localIndex: idx, localCount: n };
+      }
+    }
     let idx = Math.max(1, Number(chapter) || 1);
     let acc = 0;
     for (let i = 0; i < books.length; i += 1) {
@@ -120,7 +132,7 @@
   function sizeOf(subjectId, chapter, opts) {
     const o = opts || {};
     const prof = profileOf(subjectId, o.type);
-    const { book, localIndex, localCount } = resolve(subjectId, chapter, o.chapters);
+    const { book, localIndex, localCount } = resolve(subjectId, chapter, o.chapters, o.grade);
     const share = book.shares && book.shares.length
       ? book.shares[Math.min(book.shares.length - 1, Math.max(0, localIndex - 1))]
       : 1 / Math.max(1, localCount);

@@ -57,10 +57,10 @@
     NEXT_DAY_REVIEW_MIN: 15,
     MAX_CONSECUTIVE_SAME: 2,
     SLEEP_GUARD_MIN: 45,
-    BUFFER_RATIO: 0.08,   // ۲.۹.۰: از ۱۵٪ به ۸٪ — پوششِ واقعیِ ساعتِ اعلامی (روزِ خالی‌مانده = برنامهٔ غیرواقعی)
+    BUFFER_RATIO: 0.04,   // ۲.۱۰.۲: از ۱۵٪ به ۸٪ — پوششِ واقعیِ ساعتِ اعلامی (روزِ خالی‌مانده = برنامهٔ غیرواقعی)
     DELOAD_EVERY: 4,
     DELOAD_RATIO: 0.75,
-    RAMP_UP: { start: 0.75, step: 0.1 },
+    RAMP_UP: { start: 0.92, step: 0.04 },   // ۲.۱۰.۲: هفتهٔ اول نباید نیمه‌خالی باشد
     CLASS_FIX_MIN: 25,        // تثبیت کلاس
     CLASS_GAP_MIN: 10,        // فاصله لازم بعد از کلاس قبل از بلوک بعدی
     PRE_EXAM_DAYS: 3,         // از این تعداد روز مانده به آزمون: فقط مرور
@@ -583,6 +583,11 @@
             subjectId: s.id,
             chapter: i,
             chapters: s.chapters,
+            /* ۲.۱۰.۲: پایه و شمارهٔ فصلِ محلی — پیش از این همهٔ پایه‌ها با کتابِ دهم
+               برآورد می‌شدند (فصل ۱ دوازدهم = حجم فصل ۱ دهم). شمارهٔ فصلِ درس‌ها
+               تجمعی است (۱..۲۱) و پایه از پیشوندِ نامِ فصل خوانده می‌شود. */
+            grade: gradeOfTopic(s, i) || s.grade || cfg.student.grade,
+            chapterInGrade: localChapterOf(s, i),
             type: s.type,
             mastery: read ? mastery : 0,
             read: Boolean(read),
@@ -897,10 +902,15 @@
     const restWd = cfg.restDay !== 7 ? cfg.restDay : -1;
     const lightWd = restWd >= 0 ? (restWd + 6) % 7 : 5;   // روزِ پیش از استراحت
     const isLightDay = !skipLight && wd === lightWd;
+    /* ۲.۱۰.۲ — «روزِ سبک» نباید نیمه‌خالی به‌نظر برسد. در ۲.۱۰.۱ ضریبِ ۰٫۶۲ بود و
+       دانش‌آموزی که ۴ ساعت اعلام کرده بود، روزی ۹۶ دقیقه (۲ بلوک) می‌گرفت و
+       برنامه «غیرواقعی/کم» به‌نظر می‌رسید. سبک = ۷۸٪ روزِ معمول، و هرگز
+       کمتر از ۵۵٪ ساعتِ اعلامی و نه کمتر از دو بلوک. */
+    const LIGHT_RATIO = 0.78;
     /* موج: دو روزِ پرفشار، یک روزِ متوسط، یک روزِ سبک. سقفِ ۱٫۰۸ با حاشیهٔ ۸٪
        جبران می‌شود، پس هرگز از ساعتِ اعلامیِ خودِ دانش‌آموز نمی‌گذرد. */
     const WAVE = { 0: 1.06, 1: 1.08, 2: 1.04, 3: 1.02, 4: 1.06, 5: 1.0, 6: 1.03 };
-    factor *= (isLightDay ? 0.62 : (WAVE[wd] != null ? WAVE[wd] : 1.03));
+    factor *= (isLightDay ? LIGHT_RATIO : (WAVE[wd] != null ? Math.min(1.0, WAVE[wd]) : 1.0));
     /* ۲.۱۰.۰ — سطحِ فشار: سطح ۳ = خنثی؛ سطحِ بالاتر ساعتِ اعلامی را کامل‌تر
        استفاده می‌کند و سطحِ پایین‌تر محافظه‌کارتر می‌شود. هرگز از ساعتِ
        اعلامیِ کاربر بیشتر نمی‌شود (سقف همان capHours است). */
@@ -908,11 +918,18 @@
     if (preExam.level === 1) factor *= cfg.PRE_EXAM_CAP;
     if (preExam.level === 2) factor *= cfg.EVE_CAP;
 
-    let minutes = Math.min(capHours * 60 * factor, freeMinutes * factor);
+    const declared = Math.floor(capHours * 60);
+    let minutes = Math.min(declared, freeMinutes) * factor;
+    /* ذخیرهٔ حاشیه فقط برای گردکردنِ بلوک‌ها، نه ۱۵٪ ساعتِ دانش‌آموز */
     minutes = Math.max(0, Math.floor(minutes * (1 - (cfg.BUFFER_RATIO != null ? cfg.BUFFER_RATIO : DEFAULTS.BUFFER_RATIO))));
+    if (isLightDay) {
+      /* روزِ سبک: هرگز کمتر از ۵۵٪ ساعتِ اعلامی و هرگز کمتر از ۹۰ دقیقه (اگر روز ≥۳ ساعت است) */
+      const floorLight = Math.max(declared >= 180 ? 90 : 45, Math.round(declared * 0.55));
+      minutes = Math.max(minutes, Math.min(floorLight, declared, Math.floor(freeMinutes)));
+    }
     /* سقفِ سختِ ساعتِ اعلامی: هرگز بیشتر از آنچه دانش‌آموز گفته، نه یک دقیقه */
-    minutes = Math.min(minutes, Math.floor(capHours * 60));
-    return { minutes, isDeload, week, isLightDay };
+    minutes = Math.min(minutes, declared, Math.floor(freeMinutes));
+    return { minutes, isDeload, week, isLightDay, declared };
   }
 
   /* ------------------------------------------------------------------ */
@@ -928,6 +945,82 @@
     if (task.kind === 'classfix') return 1.9;
     if (task.kind === 'review') return 1.5;
     return 1;
+  }
+
+  /* ── ۲.۱۰.۲: پایه و شمارهٔ محلیِ فصل از نامِ فصل ─────────────────────────
+     درس‌ها فصل‌های سه پایه را پشتِ هم دارند و نام هر فصل با پایه شروع می‌شود
+     («دوازدهم · مشتق»). برای برآوردِ حجم باید همان کتابِ همان پایه باز شود. */
+  const GRADE_PREFIX = /^\s*(دهم|یازدهم|دوازدهم)\s*[·:\-–]/;
+
+  function gradeOfTopic(subject, chapterNo) {
+    const names = (subject && subject.topicNames) || [];
+    const nm = String(names[Number(chapterNo) - 1] || '');
+    const m = GRADE_PREFIX.exec(nm);
+    return m ? m[1] : null;
+  }
+
+  function localChapterOf(subject, chapterNo) {
+    const names = (subject && subject.topicNames) || [];
+    const idx = Number(chapterNo) - 1;
+    const g = gradeOfTopic(subject, chapterNo);
+    if (!g) return null;
+    let n = 0;
+    for (let k = 0; k <= idx; k += 1) {
+      const m = GRADE_PREFIX.exec(String(names[k] || ''));
+      if (m && m[1] === g) n += 1;
+    }
+    return n || null;
+  }
+
+  /* ── ۲.۱۰.۲: «این فصل چند جلسه است و من در کدام جلسه‌ام؟» ────────────────
+     شکایتِ درستِ کاربر: «یک فصلِ ریاضی را در ۵۰ دقیقه زدی؟» — عددِ ۵۰ دقیقه
+     بودجهٔ یک فصل نبود، سهمِ یک جلسه از فصل بود؛ ولی هیچ‌جا این را نمی‌گفت.
+     حالا هر بلوک می‌داند: فازِ خودش، شمارهٔ جلسه از چند جلسه، و بودجهٔ کلِ فصل
+     به تفکیکِ فاز (یادگیری/تثبیت/تمرین/سنجش) تا رابط کاربری آن را نشان دهد. */
+  const PHASE_OF_KIND = {
+    learn: 'learn', reteach: 'learn', finalprep: 'learn', carry: 'learn',
+    boost: 'practice', practice: 'practice', deadlinecheck: 'practice',
+    consolidate: 'consolidate', assess: 'assess', review: 'review', carryreview: 'review',
+  };
+
+  function chapterPart(task, minutes, cfg) {
+    const t = task && task.topic;
+    if (!t) return null;
+    const ph = PHASE_OF_KIND[task.kind];
+    if (!ph) return null;
+    const phaseMinutes = Math.round(
+      ph === 'learn' ? (t.learnMinutes || 0)
+        : ph === 'practice' ? (t.practiceMinutes || 0)
+          : ph === 'consolidate' ? (t.consolidateMinutes || 0)
+            : ph === 'assess' ? (t.assessMinutes || 0)
+              : (t.reviewMinutes || t.planTotal || 0),
+    );
+    /* «کلِ فصل» = یادگیری + تثبیت + تمرین + سنجش (نه فقط نیازِ یادگیری)؛
+       اگر مرور هم بود در فصل جدا نمایش داده می‌شود. */
+    const chapterMinutes = Math.round(Math.max(
+      (t.learnMinutes || 0) + (t.consolidateMinutes || 0) + (t.practiceMinutes || 0) + (t.assessMinutes || 0),
+      (t.plan && t.plan.total) || 0,
+      t.initialNeedMinutes || 0,
+      phaseMinutes || 0,
+    ));
+    if (!chapterMinutes) return null;
+    const unit = Math.max(20, Math.round(cfg.blockMinutes || 45));
+    const total = Math.max(1, Math.ceil((phaseMinutes || chapterMinutes) / unit));
+    const spent = (t.__partSpent && t.__partSpent[ph]) || 0;
+    const index = Math.min(total, Math.floor(spent / unit) + 1);
+    t.__partSpent = t.__partSpent || {};
+    t.__partSpent[ph] = spent + Math.max(0, Math.round(minutes || 0));
+    return {
+      phase: ph,
+      index,
+      total,
+      phaseMinutes: phaseMinutes || chapterMinutes,
+      chapterMinutes,
+      learnMinutes: Math.round(t.learnMinutes || 0),
+      consolidateMinutes: Math.round(t.consolidateMinutes || 0),
+      practiceMinutes: Math.round(t.practiceMinutes || 0),
+      assessMinutes: Math.round(t.assessMinutes || 0),
+    };
   }
 
   function peakScore(cfg, segment, windowStart, windowEnd) {
@@ -2605,7 +2698,10 @@
          یک بلوک تمرین/تست. کمتر از این، روز عملاً فقط یک کتاب می‌گیرد. */
       const tinyDay = load.minutes < 105;
       /* سقفِ تعدادِ کتابِ کارِ روز (dailyCapRule گزارش) — در بلوک‌های فازی هم اعمال می‌شود */
-      let capSubjectCount = 99;
+      /* ۲.۱۰.۲ — سقفِ تعدادِ درس از «بارِ همین روز» می‌آید، نه فقط از مسیرِ
+         انتخابِ درسِ نو. باگِ ۲.۱۰.۱: روزهایی که درسِ نو نداشتند (فقط تمرین و
+         مرور) سقف را ۹۹ می‌گرفتند و یک روزِ ۵ ساعته با ۵ کتاب پر می‌شد. */
+      let capSubjectCount = load.minutes <= 180 ? 2 : load.minutes <= 420 ? 3 : load.minutes <= 540 ? 4 : 5;
       /* ۲.۹.۰ — سیاستِ کمبودِ وقت (shortTimePolicy گزارش): وقتی هنوز فصلِ
          نخواندهٔ زیادی مانده، سهمِ تست از روز کوچک می‌شود (≤۲۵٪) تا پوششِ
          فصل‌ها قربانی نشود؛ فصل‌های کم‌اهمیت‌تر عمقِ کمتری می‌گیرند، ولی فصلِ
@@ -3258,12 +3354,18 @@
           /* کتابی که کمترین دقیقه را دارد، اول کنار گذاشته می‌شود */
           /* فصلی که کاربر خودش برای امروز خواسته (requested/pin) هرگز قربانی نمی‌شود */
           const pinnedId = pinnedSpec ? pinnedSpec.subjectId : null;
-          const victim = ids.filter((x) => x !== pinnedId).sort((x, y) => by[x] - by[y])[0];
-          if (!victim) return;
-          const cand = movable
-            .filter((t) => t.subjectId === victim && t.kind === 'practice'
-              && !t.essential && !t.requested && t.minutesLeft > 0)
-            .sort((x, y) => (x.priority || 0) - (y.priority || 0))[0];
+          const order = ids.filter((x) => x !== pinnedId).sort((x, y) => by[x] - by[y]);
+          const removable = ['practice', 'boost', 'consolidate', 'assess', 'learn', 'reteach'];
+          let cand = null;
+          for (let vi = 0; vi < order.length && !cand; vi += 1) {
+            const victim = order[vi];
+            const pool2 = movable.filter((t) => t.subjectId === victim
+              && removable.indexOf(t.kind) !== -1 && !t.essential && !t.requested && t.minutesLeft > 0);
+            /* اول کم‌اهمیت‌ترین تمرین، بعد تثبیت/سنجش — یادگیریِ کامل فقط آخرین راه است */
+            pool2.sort((x, y) => (removable.indexOf(x.kind) - removable.indexOf(y.kind))
+              || ((x.priority || 0) - (y.priority || 0)));
+            cand = pool2[0] || null;
+          }
           if (!cand) return;                       // بلوکِ قابلِ‌حذف نبود؛ دست نمی‌زنیم
           cand.minutesLeft = 0;
         }
@@ -3341,6 +3443,8 @@
           subjectId: b.subjectId, subjectName: b.subjectName, topic: b.topicLabel,
           topicId: (t.topic && (t.topic.chapterId || t.topic.id)) ? (t.topic.chapterId || t.topic.id) : (b.topicId || null),
           content: contentFor(t, b), technique: techniqueFor(t.kind), retrievalTail: tail,
+          /* ۲.۱۰.۲: «بخشِ ۳ از ۶» + بودجهٔ کلِ فصل (یادگیری/تثبیت/تمرین/سنجش) */
+          part: chapterPart(t, b.minutes, cfg),
           practiceCount: b.practiceCount || 0,
           ifThen: ifThenFor(t.kind, b.start, b.subjectName, b.topicLabel, b.practiceCount),
           why: whyFor(t.kind),
@@ -3407,6 +3511,11 @@
         isDeload: load.isDeload,
         studyMinutes: dayMinutes,
         plannedMinutes: dayMinutes,
+        /* ۲.۱۰.۲: ساعتِ اعلامیِ همان روز (سقفِ سخت) — برای نمایشِ «چقدر از تعهدم پر شد» */
+        capMinutes: Math.min(
+          Math.round((Number(cfg.availability[WEEKDAY_KEY[wd]]) || 0) * 60),
+          Math.round(freeMinutes || 0),
+        ),
         /* ۲.۸.۱۱: تنوعِ همان روز — چند درس و سهم هر کدام (برای نمایش و سنجش) */
         variety: (function () {
           const by = {};
@@ -3991,7 +4100,7 @@
 
     return {
       meta: {
-        version: '2.10.1', createdAt: new Date().toISOString(),
+        version: '2.10.2', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,

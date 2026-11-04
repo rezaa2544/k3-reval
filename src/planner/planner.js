@@ -424,6 +424,36 @@
    * نشان اهمیت فصل — بر پایهٔ «درصد از کل کتاب» و «رتبهٔ اهمیت در همان کتاب»،
    * نه یک عدد کلی: «۹٫۶٪ از کتاب زیست · رتبهٔ ۳ از ۲۴»
    */
+  /* ── ۲.۱۰.۲: «بخشِ ۳ از ۶» — یک فصل هرگز در یک جلسه تمام نمی‌شود ────────
+     شکایتِ کاربر: «یک فصلِ ریاضی را در ۵۰ دقیقه زدی؟». عددِ بلوک، سهمِ یک جلسه
+     از فصل است. حالا خودِ برنامه این را صریح می‌گوید: شمارهٔ جلسه، تعدادِ
+     جلساتِ همان فاز، و بودجهٔ کلِ فصل به تفکیکِ فاز. */
+  const PHASE_FA = { learn: 'یادگیری', practice: 'تمرین', consolidate: 'تثبیت', assess: 'سنجش', review: 'مرور' };
+
+  function hoursShort(minutes) {
+    const h = Math.round((Number(minutes) || 0) / 60 * 10) / 10;
+    return faNum(String(h).replace('.', '٫')) + ' ساعت';
+  }
+
+  function partBadge(block) {
+    const p = block && block.part;
+    if (!p || !p.total) return '';
+    const phase = PHASE_FA[p.phase] || 'کار';
+    const parts = [
+      'یادگیری ' + hoursShort(p.learnMinutes),
+      'تثبیت ' + hoursShort(p.consolidateMinutes),
+      'تمرین ' + hoursShort(p.practiceMinutes),
+      'سنجش ' + hoursShort(p.assessMinutes),
+    ].join(' · ');
+    const title = 'کلِ این فصل ≈ ' + hoursShort(p.chapterMinutes) + ' کار دارد: ' + parts +
+      '\nاین بلوک، جلسهٔ ' + faNum(p.index) + ' از ' + faNum(p.total) + ' جلسهٔ «' + phase + '» است — ' +
+      'نه کلِ فصل.' +
+      '\nیک فصلِ کامل در یک جلسهٔ ۴۵ دقیقه‌ای تمام نمی‌شود؛ برنامه آن را در چند جلسه و چند روز پخش می‌کند.';
+    return '<span class="imp imp-mid" title="' + esc(title) + '" data-help="part">' +
+      'بخش ' + faNum(p.index) + ' از ' + faNum(p.total) + ' · کلِ فصل ' + hoursShort(p.chapterMinutes) +
+      '</span>';
+  }
+
   function chapterBadge(block, opts) {
     const m = chapterMetaOf(block);
     const o = opts || {};
@@ -1487,6 +1517,9 @@
       adaptiveCfg: adaptiveCfg,
       renderAdaptiveCard: renderAdaptiveCard,
       plan: () => state.plan,
+      /* ۲.۱۰.۲: دسترسیِ تست به دستیار و زمینهٔ آن */
+      aiCtx: () => aiCtx,
+      aiRespond: (t) => (typeof AIBrain !== 'undefined' && AIBrain ? AIBrain.respond(t, aiCtx) : null),
       awaiting: awaitingSessions,
       tick: tickTimers,
       reconcile: reconcileSessions,
@@ -1835,7 +1868,7 @@
     let md = '';
     try {
       md = AD.experienceReport(c, {
-        appVersion: state.appVersion || '2.10.1',
+        appVersion: state.appVersion || '2.10.2',
         grade: (state.config && state.config.student && state.config.student.grade) || (($('grade') || {}).value) || '',
         field: (state.config && state.config.student && state.config.student.field) || (($('field') || {}).value) || '',
         hours: (state.config && state.config.dailyCapHours) || '',
@@ -2419,7 +2452,7 @@
           '<div><div class="t">' + esc(b.subjectName) +
             (b.kind === 'routine' ? '' : ' ' + chapterLine(b)) + '</div>' +
           '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:3px">' +
-            '<span class="tech">' + esc(faNum(b.kindLabel || '')) + '</span>' + chapterBadge(b) +
+            '<span class="tech">' + esc(faNum(b.kindLabel || '')) + '</span>' + partBadge(b) + chapterBadge(b) +
           '</div>' +
           timerHtml(d, b, bi) + '</div>' +
           (b.kind === 'routine' ? '' : goalsHtml(b)) + '</div>';
@@ -4292,7 +4325,7 @@
       return '<div class="' + blockStateClass(d, i) + '">' + doneTick(d, i) +
         '<div class="time">' + timeRange(b.start, b.end) + '<small>' + durationFa(b.minutes) + '</small></div>' +
         '<div><div class="t">' + esc(b.subjectName) + (b.kind === 'routine' ? '' : ' ' + chapterLine(b)) + '</div>' +
-        '<div class="row" style="gap:6px;flex-wrap:wrap;margin:2px 0 4px">' + chapterBadge(b) + '</div>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;margin:2px 0 4px">' + partBadge(b) + chapterBadge(b) + '</div>' +
         (b.kind === 'routine' ? '<div class="c">' + esc(b.content) + '</div>' : '') +
         (b.ifThen ? '<details><summary>جملهٔ اجرا (if-then)</summary>' + esc(b.ifThen) + '</details>' : '') +
         (b.why ? '<details><summary>چرا این کار؟</summary>' + esc(b.why) + '</details>' : '') +
@@ -5087,6 +5120,78 @@
       return {
         label: J.fmt(day.date), date: day.date, blocks, count: blocks.length,
         totalMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
+      };
+    },
+
+    /* ۲.۱۰.۲: بودجهٔ واقعیِ یک فصل برای پاسخِ «این فصل چند ساعت است؟» */
+    readChapterPlan(subjectId, chapter) {
+      const p = state.plan;
+      if (!p) return null;
+      const stats = (p.summary && p.summary.chapterStats) || [];
+      let st = null;
+      if (subjectId) {
+        st = stats.find((c) => c.subjectId === subjectId && (chapter == null || Number(c.chapter) === Number(chapter)));
+        if (!st && chapter == null) st = stats.filter((c) => c.subjectId === subjectId)[0] || null;
+      } else if (chapter != null) {
+        st = stats.find((c) => Number(c.chapter) === Number(chapter)) || null;
+      }
+      if (!st) {
+        const blk = (p.days || []).flatMap((d) => d.blocks || []).find((b) => b.part
+          && (!subjectId || b.subjectId === subjectId)
+          && (chapter == null || String(b.topicId || '').indexOf('c' + chapter) !== -1));
+        if (!blk) return null;
+        st = { subjectId: blk.subjectId, subjectName: blk.subjectName, chapter, label: blk.topic,
+          learnMinutes: blk.part.learnMinutes, consolidateMinutes: blk.part.consolidateMinutes,
+          practiceMinutes: blk.part.practiceMinutes, assessMinutes: blk.part.assessMinutes,
+          initialNeedMinutes: blk.part.chapterMinutes };
+      }
+      const pb = st.phaseBudget || {};
+      const learn = Math.round(st.learnMinutes || pb.learn || 0);
+      const cons = Math.round(st.consolidateMinutes || pb.consolidate || 0);
+      const prac = Math.round(st.practiceMinutes || pb.practice || 0);
+      const assess = Math.round(st.assessMinutes || pb.assess || 0);
+      const total = Math.round(pb.total || st.initialNeedMinutes || st.needMinutes || (learn + cons + prac + assess));
+      const sessions = [];
+      (p.days || []).forEach((d) => {
+        (d.blocks || []).forEach((b) => {
+          if (!b.part) return;
+          if (subjectId && b.subjectId !== subjectId) return;
+          if (chapter != null && String(b.topicId || '').indexOf('c' + chapter) === -1) return;
+          sessions.push({ date: J.fmt(d.date), minutes: b.minutes, phase: b.part.phase });
+        });
+      });
+      const subject = (state.config && state.config.subjects || []).find((x) => x.id === (st.subjectId || subjectId));
+      return {
+        subjectId: st.subjectId || subjectId,
+        subjectName: st.subjectName || (subject && subject.name) || '',
+        chapter: st.chapter != null ? st.chapter : chapter,
+        topicName: st.label || st.name || '',
+        pages: st.size && st.size.pages, concepts: st.size && st.size.concepts, exercises: st.size && st.size.exercises,
+        learn, consolidate: cons, practice: prac, assess, total,
+        sessions: sessions.slice(0, 12),
+      };
+    },
+
+    /* ۲.۱۰.۲: وضعیتِ همان روز برای پاسخِ «چرا امروز کم است؟» */
+    readDayMeta() {
+      if (!state.plan) return null;
+      const day = findDay(state.plan, todayIso());
+      if (!day) return null;
+      const blocks = (day.blocks || []).filter((b) => b.kind !== 'routine');
+      /* کلیدِ روزِ هفته از تاریخ (شنبه = ۰) */
+      const wdIdx = (() => {
+        try { const d = new Date(day.date + 'T00:00:00'); return (d.getDay() + 1) % 7; } catch (e) { return 0; }
+      })();
+      const key = WEEKDAY_KEY[wdIdx] || 'sat';
+      const cfg = state.config || {};
+      const capHours = Number((cfg.availability || {})[key]) || 0;
+      return {
+        date: day.date, isRestDay: Boolean(day.isRestDay) && !blocks.length,
+        isLightDay: Boolean(day.isLightDay),
+        plannedMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
+        capMinutes: Math.round(capHours * 60),
+        blockCount: blocks.length,
+        blocks,
       };
     },
 

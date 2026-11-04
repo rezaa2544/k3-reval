@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.1-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.1/Reval-Setup-2.10.1.exe)
-[![Release](https://img.shields.io/badge/Release-v2.10.1-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.1)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.2-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.2/Reval-Setup-2.10.2.exe)
+[![Release](https://img.shields.io/badge/Release-v2.10.2-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.2)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,44 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.10.1.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.1/Reval-Setup-2.10.1.exe)
+### [💾 Reval-Setup-2.10.2.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.2/Reval-Setup-2.10.2.exe)
 
-**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۱**
+**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۲**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.1/Reval-Setup-2.10.1.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.2/Reval-Setup-2.10.2.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `f4c70fb38a638edd791c73f281f6d237f20b4d4dfa62fb8b03037bd30724685f` |
-| **حجم دقیق** | 80٬210٬057 بایت |
+| **SHA-256** | `32ebb386dcbdb201727881a5490a10f7ec76efa120be196b76a764f8d32615df` |
+| **حجم دقیق** | ۸۰٬۲۱۶٬۰۹۷ بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.10.1.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.1.zip` — ۸۴۷ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.10.2.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.2.zip` — ۸۶۲ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۱۰.۲ — «فصل چند جلسه است؟»: اعدادِ واقعی، و دستیاری که سؤال را از دستور جدا می‌کند
+
+| | | |
+|---|---|---|
+| **شکایت** | «اصلاً جالب نیست… یعنی به نظرت دانش‌آموز می‌تونه یک فصل ریاضی رو در ۵۰ دقیقه بخونه؟ اعداد غیرواقعی هستن… در چت‌باکس اصلاً باهوش نیست و جواب پرت می‌ده» |
+| **ریشه** | عددِ ۵۰ دقیقه، کلِ فصل نبود — **سهمِ یک جلسه** بود و هیچ‌جا این را نمی‌گفت. بدتر: حجمِ هر فصل با کتابِ **دهم** برآورد می‌شد، پس فصلِ ۱ دوازدهم همان حجمِ فصلِ ۱ دهم را می‌گرفت. دستیار هم سؤال را با دستور قاطی می‌کرد |
+| **روی هر بلوک** | «**بخشِ ۲ از ۶ · کلِ فصل ۱۴٫۵ ساعت**» + تولتیپِ تفکیکِ فازها (یادگیری / تثبیت / تمرین / سنجش) |
+| **نمونهٔ واقعی** | ریاضی دهم فصل ۴ = **۱۴٫۵ ساعت** (۳٫۶ یادگیری · ۱٫۲ تثبیت · ۶٫۵ تمرین · ۰٫۸ سنجش) ⇒ حدود **۱۹ جلسه** روی چند هفته |
+| **باگِ پایه** | هر پایه با کتابِ خودش برآورد می‌شود؛ ریاضی دهم/یازدهم/دوازدهم سه عددِ متفاوت می‌دهند |
+| **روز خالی نمی‌ماند** | روزِ سبک ۶۲٪ → **۷۸٪** (و هرگز زیرِ ۵۵٪ ساعتِ اعلامی)، ذخیرهٔ روز ۱۵٪ → ۴٪، هفتهٔ اول از ۷۵٪ به ۹۲٪؛ میانگینِ روزِ ۴ ساعته ۱۵۰ → **۱۸۵ دقیقه** |
+| **سقفِ درس** | روی همهٔ روزها اعمال می‌شود، نه فقط روزهایی که درسِ نو دارند |
+| **دستیار** | «چرا امروز کم است؟» با عددِ همان روز جواب می‌گیرد (نه «طول بلوک باید بین ۲۵ و ۹۰ باشد») · «یک فصل را ۵۰ دقیقه زدی؟» ⇒ بودجهٔ واقعیِ فصل · «دوستش ندارم / خستم» ⇒ مشاورهٔ عملی · عددِ نامعقول اجرا نمی‌شود · دستورِ روشن همچنان واقعاً اجرا می‌شود |
+| **آزمون** | `realism-2102` **۳۸ ✅** · `ui-realism-2102` **۱۴ ✅** · `npm test` ۱۶ سوئیت · `test:ui` ۶ سوئیت — همه سبز |
+
+جزئیات: [یادداشت انتشار ۲.۱۰.۲](docs/release-notes-2.10.2.md)
 
 ---
 

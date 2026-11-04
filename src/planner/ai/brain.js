@@ -173,12 +173,140 @@
    * @param {object} ctx  { readPlan, readReport, readChapters, applyAvailability, ... , applyTool }
    * @returns {{text:string, actions:Array, chips:string[], intent:string}}
    */
+  /* ═════════ ۲.۱۰.۲ — «سؤال را با دستور قاطی نکن» ═════════
+     باگِ واقعی: «چرا امروز فقط دو تا بلوک گذاشتی؟» به ابزارِ «اندازهٔ بلوک» می‌رفت و
+     «طول بلوک باید بین ۲۵ و ۹۰ دقیقه باشد» جواب می‌گرفت؛ و «چطوری فصل ۴ ریاضی رو
+     تموم کنم؟» یک فصل را بی‌اجازه در برنامه می‌گذاشت. سؤال باید پاسخ بگیرد، نه اجرا. */
+  const Q_WORDS = /(^|\s)(چرا|چطور|چطوری|چگونه|آیا|یعنی|چند|چقدر|چیه|چیست|کدوم|کدام|کی|کجا|میشه|می‌شه|امکانش هست|به نظرت)(\s|$)/;
+  /* فعلِ امری باید «کلمهٔ مستقل» باشد؛ وگرنه «تموم کنم؟» با «کن» تطبیق می‌خورد و
+     سؤال به دستور تبدیل می‌شود (همان باگی که فصل را بی‌اجازه در برنامه می‌گذاشت). */
+  const IMPERATIVE = /(^|\s)(کن|بکن|بذار|بگذار|بگذارش|عوض کن|عوضش کن|حذف کن|اضافه کن|زیاد کن|کم کن|ببر|ببرش|برگردان|برگردون|شروع کن|ببند|ثبت کن|تنظیم کن|فعال کن|خاموش کن|بساز|بچین|بده|بزن|بنداز|نخون)(\s|$)/;
+  const isQuestion = (raw, text) => {
+    const q = /\?|؟/.test(raw) || Q_WORDS.test(' ' + text + ' ');
+    if (!q) return false;
+    /* «چرا ... رو عوض کن» دستور است، نه سؤال */
+    return !IMPERATIVE.test(text);
+  };
+
+  const niceHours = (m) => {
+    const h = Math.round((Number(m) || 0) / 60 * 10) / 10;
+    return fa(String(h).replace('.', '٫')) + ' ساعت';
+  };
+
+  /* پاسخِ «این فصل چقدر کار دارد؟» — از بودجهٔ واقعیِ همان فصل در موتور */
+  function chapterBudgetAnswer(ctx, subjectId, chapter) {
+    const info = ctx.readChapterPlan ? ctx.readChapterPlan(subjectId, chapter || null) : null;
+    if (!info) return null;
+    const name = info.subjectName + (info.chapter ? ' فصل ' + fa(info.chapter) : '') +
+      (info.topicName ? ' («' + info.topicName + '»)' : '');
+    const total = info.total;
+    const lines = [];
+    lines.push('حق داری — یک فصل در ۵۰ دقیقه تمام نمی‌شود، و برنامه هم نمی‌گوید تمام می‌شود.');
+    lines.push('');
+    lines.push('بودجهٔ واقعیِ ' + name + ' در برنامه:');
+    lines.push('• جمع: ' + niceHours(total) + ' (' + fa(Math.round(total)) + ' دقیقه)');
+    lines.push('• یادگیری از صفر: ' + niceHours(info.learn));
+    lines.push('• تثبیت: ' + niceHours(info.consolidate) + ' · تمرین: ' + niceHours(info.practice) + ' · سنجش: ' + niceHours(info.assess));
+    if (info.pages) {
+      lines.push('• حجمِ برآوردی: ' + fa(info.pages) + ' صفحه · ' + fa(info.concepts) + ' مفهومِ نو · ' +
+        fa(info.exercises) + ' تمرین');
+    }
+    const blockLen = (ctx.readConfig ? ctx.readConfig().blockMinutes : 45) || 45;
+    lines.push('');
+    lines.push('یعنی حدود ' + fa(Math.max(1, Math.round(info.learn / blockLen))) + ' جلسهٔ ' +
+      fa(blockLen) + ' دقیقه‌ای فقط برای یادگیری، و روی‌هم حدود ' +
+      fa(Math.max(1, Math.round(total / blockLen))) + ' جلسه. برنامه این جلسه‌ها را روی چند روز پخش می‌کند؛ ' +
+      'عددِ هر بلوک، «سهمِ آن جلسه» است نه «کلِ فصل». زیرِ هر بلوکِ فصل حالا نوشته «بخش ۲ از ۶».');
+    if (info.sessions && info.sessions.length) {
+      lines.push('');
+      lines.push('این فصل در ' + fa(info.sessions.length) + ' جلسه چیده شده: ' +
+        info.sessions.slice(0, 5).map((x) => fa(x.date) + ' (' + niceHours(x.minutes) + ')').join(' · '));
+    }
+    return lines.join('\n');
+  }
+
+  /* پاسخِ «چرا امروز کم/سبک است؟» */
+  function dayWhyAnswer(ctx) {
+    const meta = ctx.readDayMeta ? ctx.readDayMeta() : null;
+    if (!meta) return null;
+    const lines = [];
+    if (meta.isRestDay) {
+      return 'امروز روزِ استراحت است و برنامه بلوکی ندارد — استراحت بخشی از برنامه است، نه تنبلی.\n' +
+        'اگر می‌خواهی امروز مطالعه کنی بگو «امروز استراحت نباشد» یا «امروز فصل ۴ ریاضی».';
+    }
+    lines.push('امروز ' + fa(meta.blockCount) + ' بلوک و ' + minutesText(meta.plannedMinutes) + ' کار دارد' +
+      (meta.capMinutes ? '، از ' + minutesText(meta.capMinutes) + ' ساعتی که خودت اعلام کرده‌ای' : '') + '.');
+    if (meta.isLightDay) {
+      lines.push('');
+      lines.push('این روز «روزِ سبکِ هفتگی» است — هفته‌ای یک روز با حدود ۷۵–۸۰٪ بارِ معمول. ' +
+        'دلیلش داده است، نه سلیقه: بارِ یکنواختِ هفت‌روزه در هفتهٔ سوم به افتِ عملکرد می‌رسد و برنامه‌ای که ' +
+        'حاشیه ندارد، همان هفتهٔ اول می‌شکند.');
+      lines.push('اگر این هفته ظرفیت بیشتری داری، بگو «امروز سبک نباشد» یا «ساعت امروز را ۵ ساعت کن» — همان لحظه بازبچینم.');
+    }
+    if (meta.capMinutes && meta.plannedMinutes < meta.capMinutes * 0.9) {
+      const gap = Math.max(0, meta.capMinutes - meta.plannedMinutes);
+      lines.push('');
+      lines.push('حدود ' + minutesText(gap) + ' از ظرفیتِ امروز خالی مانده؛ چون بلوک‌ها باید کامل و بدونِ شکستن ' +
+        'جا شوند و برای فصل‌های باقی‌مانده هم سقفِ درس در روز رعایت می‌شود. اگر بخواهی، با «امروز را از نو بچین» ' +
+        'یا کمی ساعتِ بیشتر، همان فضا پر می‌شود.');
+    }
+    if (meta.blocks && meta.blocks.length) {
+      lines.push('');
+      lines.push('چیدمانِ امروز:');
+      meta.blocks.slice(0, 8).forEach((b) => {
+        lines.push('• ' + fa(b.start) + '–' + fa(b.end) + ' · ' + (b.kindLabel || '') +
+          (b.topic ? ' · ' + b.topic : '') + (b.part ? ' (بخش ' + fa(b.part.index) + ' از ' + fa(b.part.total) + ')' : '') +
+          ' — ' + minutesText(b.minutes));
+      });
+    }
+    return lines.join('\n');
+  }
+
+  /* مشاورهٔ واقعی برای «دوستش ندارم / خسته‌ام / حوصله ندارم / سخت است» */
+  function counselAnswer(kind, ent, ctx) {
+    const subj = ent.subjects && ent.subjects.length ? ent.subjects[0] : null;
+    const name = subj ? SUBJECT_FA[subj] || '' : 'این درس';
+    const plan = ctx.readPlan ? ctx.readPlan('today') : null;
+    const todayHas = subj && plan ? plan.blocks.some((b) => b.subjectId === subj) : false;
+    if (kind === 'dislike') {
+      return [
+        'طبیعی است؛ «دوست نداشتنِ» یک درس معمولاً یعنی «در آن ضعیف‌ام»، نه «بی‌فایده است».',
+        'کارِ درست این نیست که حذفش کنیم؛ این است که دوزش را کوچک و پیروزی‌هایش را زیاد کنیم:',
+        '• جلسهٔ کوتاه‌تر: ' + name + ' را در بلوک‌های ۳۵ دقیقه‌ای بگذار، نه ۶۰.',
+        '• همیشه بعد از یک درسِ محبوب، نه اولِ روز.',
+        '• هر جلسه با «۵ تستِ آسان» شروع کن تا اول موفقیت را بچشی، بعد سخت.',
+        todayHas ? '• امروز ' + name + ' در برنامه‌ات هست؛ اگر بخواهی همان فصل را به یک جلسهٔ کوتاهِ امروز تبدیل می‌کنم.'
+          : '• امروز ' + name + ' نداری؛ اگر بخواهی یک جلسهٔ کوتاهِ ۲۵ دقیقه‌ای برایش می‌گذارم.',
+        '',
+        'بگو «' + name + ' را کوتاه‌تر بچین» یا «امروز ' + name + ' فصل ۲» تا اعمال کنم.',
+      ].join('\n');
+    }
+    if (kind === 'hard') {
+      return [
+        '«سخت است» نشانهٔ بدی نیست — یعنی در لبهٔ یادگیری‌ای، که جای درستِ کار است.',
+        'قبل از اینکه بیشتر بخوانی، این سه کار ترتیب را عوض می‌کند:',
+        '• یک مثالِ حل‌شده را خط‌به‌خط دنبال کن (بار شناختی را کم می‌کند).',
+        '• همان مثال را بدون نگاه‌کردن بازنویسی کن.',
+        '• ۳ تمرینِ ساده، بعد یک تمرینِ متوسط. اگر در یک مفهوم گیر کردی، بگو کدام مفهوم — همان را به یک جلسهٔ بازآموزی می‌برم.',
+      ].join('\n');
+    }
+    return [
+      'خستگی معمولاً از «کارِ زیاد» نیست، از «کارِ بی‌مرز» است. الان سه گزینه داری:',
+      '• یک بلوکِ کوتاهِ ۱۵ دقیقه‌ای فقط مرور.',
+      '• روزِ سبک: نصفِ بارِ امروز و زودتر خواب.',
+      '• استراحتِ کاملِ امروز و جبران در دو روزِ بعد (هزینه‌اش کم است).',
+      'بگو کدام را می‌خواهی؛ همین حالا اعمال می‌کنم.',
+    ].join('\n');
+  }
+
   function respond(message, ctx) {
     const raw = String(message == null ? '' : message);
     const text = NLU.norm(raw);
     const ent = NLU.entities(raw);
     const ranked = NLU.intents(raw);
     const intent = ranked.length ? ranked[0].id : 'unknown';
+    /* ۲.۱۰.۲: سؤال ≠ دستور. سؤال باید جواب بگیرد، نه اینکه برنامه را بی‌اجازه عوض کند. */
+    const q = isQuestion(raw, text);
     const actions = [];
     const chips = [];
 
@@ -201,6 +329,45 @@
         t += '\nهنوز برنامه‌ای نساخته‌ای — بگو «برنامه بساز» تا شروع کنیم.';
       }
       return { text: t, actions, chips: CHIPS_DEFAULT, intent };
+    }
+
+    /* ۱.۱) سؤال‌های تحلیلی — پیش از هر اجرا. این‌ها همان چیزهایی است که کاربر
+       واقعاً پرسید و قبلاً جوابِ بی‌ربط می‌گرفت:
+         • «یک فصل ریاضی را ۵۰ دقیقه زدی؟ / این فصل چند ساعت است؟» → بودجهٔ واقعیِ فصل
+         • «چرا امروز فقط دو بلوک؟ / چرا کم است؟» → توضیحِ همان روز با اعدادِ خودش */
+    if (q) {
+      const chapNo = (raw.match(/فصل\s*([0-9۰-۹]{1,2})/) || [])[1] || (ent.chapter != null ? String(ent.chapter) : null);
+      const chapterDigits = chapNo ? String(chapNo).replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))) : null;
+      const aboutChapter = /(فصل|درس|کتاب)/.test(text);
+      const aboutTime = /(دقیقه|ساعت|زمان|چقدر|چند|کم|زیاد|غیر ?واقعی|واقعی|طول|بخش)/.test(text);
+      if (aboutChapter && (aboutTime || /(تموم|تمام|بخونم|بخوانم)/.test(text))) {
+        const ans = chapterBudgetAnswer(ctx, ent.subjects[0] || null, chapterDigits ? Number(chapterDigits) : null);
+        if (ans) return { text: ans, actions, chips: ['برنامهٔ امروز', 'چرا امروز این‌قدر است؟'], intent: 'explain_chapter' };
+      }
+      /* «چرا امروز کم/سبک است؟» — فقط وقتی واقعاً توضیح می‌خواهد، نه «برنامهٔ امروز چیه؟» */
+      const whyDay = /(چرا|دلیل|چطور شد|يعنی چی|یعنی چی)/.test(text)
+        && /(کم|سبک|خالی|بلوک|ساعت|روز|برنامه)/.test(text) && !/چیه|چیست|بگو|نشون/.test(text);
+      if (whyDay) {
+        const ans = dayWhyAnswer(ctx);
+        if (ans) return { text: ans, actions, chips: ['برنامهٔ امروز', 'ساعت مطالعه‌ام را زیاد کن'], intent: 'explain_day' };
+      }
+    }
+
+    /* ۱.۲) مشاورهٔ واقعی (نه فهرستِ قابلیت‌ها): بی‌علاقگی به یک درس، سختی، خستگی */
+    {
+      const dislike = /(دوست ندارم|دوسش ندارم|بدم میاد|بدم می‌آید|حالم بد میشه|نفرت|خوشم نمیاد|خوشم نمی‌آید)/.test(text)
+        || /(ضعیف|بد) ?(هستم|ام) در?/.test(text);
+      const hard = /(سخته|سخت است|نمی ?فهمم|گیر کردم|بلد نیستم|عقبم|موندم|مانده ?ام)/.test(text);
+      const weary = /(خسته ?ام|خستم|خسته شدم|انرژی ندارم|خوابم میاد|حالم خوب نیست|کلافه|دلسرد|بی ?حوصلهام|بی ?حوصله ام|بی انگیزه)/.test(text);
+      if (dislike && ent.subjects.length) {
+        return { text: counselAnswer('dislike', ent, ctx), actions, chips: ['امروز را سبک کن', 'برنامهٔ امروز'], intent: 'counsel' };
+      }
+      if (hard && !ent.subjects.length) {
+        return { text: counselAnswer('hard', ent, ctx), actions, chips: ['از کجا شروع کنم؟', 'برنامهٔ امروز'], intent: 'counsel' };
+      }
+      if (weary) {
+        return { text: counselAnswer('tired', ent, ctx), actions, chips: ['امروز را سبک کن', 'برنامهٔ امروز'], intent: 'counsel' };
+      }
     }
 
     /* ۱.۴) کارهایی که «تغییرِ روز» نیستند، ولی باید واقعاً اجرا شوند:
@@ -522,9 +689,16 @@
     }
 
     /* ۴) اندازهٔ بلوک */
-    if (intent === 'set_block') {
+    if (intent === 'set_block' && !q) {
       const m = ent.number;
       if (!m) return { text: 'بلوک‌ها را چند دقیقه بگذارم؟ (پیشنهاد: ۴۵ دقیقه)', actions, chips: ['۴۵ دقیقه', '۳۰ دقیقه', '۶۰ دقیقه'], intent };
+      if (m < 20 || m > 90) {
+        return {
+          text: 'عددِ ' + fa(m) + ' دقیقه برای طولِ بلوک منطقی نیست (زیرِ ۲۰ دقیقه به عمق نمی‌رسی، بالای ۹۰ دقیقه تمرکز می‌شکند). ' +
+            'بازهٔ سالم ۲۵ تا ۹۰ دقیقه است؛ چند دقیقه بگذارم؟',
+          actions, chips: ['۳۰ دقیقه', '۴۵ دقیقه', '۶۰ دقیقه'], intent,
+        };
+      }
       const res = call('set_block_minutes', { minutes: m });
       return { text: res.message, actions, chips: ['برنامهٔ امروز'], intent };
     }
@@ -549,7 +723,7 @@
     }
 
     /* ۷) کار ضروری / «امروز این فصل» */
-    if ((intent === 'add_emergency' || intent === 'swap_today') && ent.subjects.length && /\d|فصل|درس|بخونم|بذار/.test(text)) {
+    if (!q && (intent === 'add_emergency' || intent === 'swap_today') && ent.subjects.length && /\d|فصل|درس|بخونم|بذار/.test(text)) {
       const subjectId = ent.subjects[0];
       const chap = text.match(/فصل\s*(\d{1,2})/);
       /* اگر شمارهٔ فصل معلوم است، از مسیرِ «فصلِ حتمی» می‌رویم: آن مسیر نیازِ همان
@@ -621,7 +795,7 @@
     {
       const wantsSomething = /(بذار|بگذار|بخونم|بخوانم|میخوام|می‌خوام|لازم دارم|باید|اضافه|کن)/.test(text);
       const chap = text.match(/فصل\s*(\d{1,2})/);
-      if (wantsSomething && chap && ent.subjects.length) {
+      if (!q && wantsSomething && chap && ent.subjects.length) {
         const before = ctx.readPlan ? ctx.readPlan('today') : null;
         if (before) {
           const res = call('focus_today_chapter', { subjectId: ent.subjects[0], chapter: Number(chap[1]) });
