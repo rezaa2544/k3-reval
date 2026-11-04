@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.0-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.0/Reval-Setup-2.10.0.exe)
-[![Release](https://img.shields.io/badge/Release-v2.10.0-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.0)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.1-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.1/Reval-Setup-2.10.1.exe)
+[![Release](https://img.shields.io/badge/Release-v2.10.1-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.1)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,44 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.10.0.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.0/Reval-Setup-2.10.0.exe)
+### [💾 Reval-Setup-2.10.1.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.1/Reval-Setup-2.10.1.exe)
 
-**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۰**
+**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۱**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.0/Reval-Setup-2.10.0.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.1/Reval-Setup-2.10.1.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `9b8ea6e70b8826318afa8a59b9f148b45c3fb2a71deded2c08ed3ae6e6a67b81` |
-| **حجم دقیق** | ۸۰٬۲۰۴٬۹۵۷ بایت |
+| **SHA-256** | `f4c70fb38a638edd791c73f281f6d237f20b4d4dfa62fb8b03037bd30724685f` |
+| **حجم دقیق** | 80٬210٬057 بایت |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.10.0.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.0.zip` — ۶۴۲ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.10.1.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.1.zip` — ۸۴۷ کیلوبایت، فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۱۰.۱ — «وصلهٔ شکافِ پژوهش»: هر پارامترِ گزارش، یک اثرِ قابلِ اندازه‌گیری
+
+| | | |
+|---|---|---|
+| **درخواست** | «آیا همهٔ پژوهش‌هایی که فرستادم در برنامه پیاده شده؟ … آیا هوشِ برنامه استانداردهای مطالعه/برنامه‌ریزی کنکور را دارد؟ … آیا مثل یک مشاورِ حرفه‌ای عمل می‌کند؟ … بیرون از کنکور، برای امتحان‌های نهایی/سوابق هم در کلِ برنامه نقشه دارد؟» |
+| **پاسخِ صادقانه** | نه کامل. ۲۰ گروه پارامتر از ۲۶ گروه وصل بود؛ `breaks` فقط ۱۰ دقیقهٔ ثابت بود، `dailyCapRule` (روزِ سبک/سقفِ درس) هیچ اثری نداشت، `quantPracticeSplit` و `testPracticeMix` بی‌اثر بودند و نهایی بیرون از خرداد نازک بود |
+| **حالا — استراحت** | استراحتِ بلند ۱۵ دقیقه‌ای بعد از هر ۲ بلوک و استراحتِ غذا ۳۰ دقیقه‌ای؛ در تقویمِ روز فیلدِ `breaks[]` می‌آید و هیچ بلوکی روی استراحت نمی‌افتد (۲۴۳ → ۲۲۰ بلوکِ بدونِ استراحتِ کافی) |
+| **حالا — روزِ سبک** | `dailyCapRule`: یک روزِ سبکِ هفتگی (روی روزِ واقعیِ هفته، قبل از روزِ استراحت) + سقفِ سختِ ساعتِ اعلامی + موجِ ظرفیتِ هفتگی `{شنبه ۱٫۰۶ …}`؛ ۳۲ روزِ سبک در سال و هیچ روزی بالای ساعتِ اعلامی نیست |
+| **حالا — تنوعِ درس** | سقفِ تعدادِ درسِ روز بر اساسِ ساعتِ اعلامی (≤۳ ساعت → ۲ درس، ≤۷ → ۳، ≤۹ → ۴، بیشتر → ۵) در انتخاب‌گرِ درس، در بلوک‌های فاز، در انتخاب‌گرِ تمرین و در یک پاک‌سازیِ نهایی؛ «فصلِ پین‌شده» هرگز قربانی نمی‌شود |
+| **حالا — محتوا** | `quantPracticeSplit` ۴۰٪ نمونهٔ حل‌شده → ۲۰٪ هدایت‌شده → ۴۰٪ مستقل؛ `testPracticeMix` ۷۰٪ تستِ کنکور / ۳۰٪ تمرینِ کتاب؛ `reviewMode` در متنِ بلوکِ مرور + ۶۰٪ بازیابی از حافظه |
+| **حالا — شرایطِ دانش‌آموز** | `adhdOrAnxietyAdjustments` در UI: «معمولی / تمرکزِ کوتاه (ADHD) / اضطرابِ آزمون» — طولِ جلسه کوتاه می‌شود (سقفِ جلسه ۳۵ دقیقه)، استراحت بیشتر، سنجشِ فصل کوتاه‌تر، و **طولِ روز دست‌نخورده** می‌ماند |
+| **حالا — نهایی** | سنجشِ فصلی و «تثبیت» فصل واقعاً چیده می‌شوند؛ فصلِ نزدیک به امتحانِ نهایی سهمِ بیشتری می‌گیرد و کنکور و نهایی هم‌زمان در یک تقویم می‌آیند (آزمون: `research-2101` **۶۰ ✅**) |
+| **راستی‌آزمایی** | `research-2101` ۶۰ ✅ (تازه) · `ui-adaptive` ۲۶ ✅ · `ui-ai-actions` ۱۵ ✅ · `npm test` ۱۵ سوئیت · `test:ui` ۵ سوئیت — همه سبز |
+
+جزئیات: [یادداشت انتشار ۲.۱۰.۱](docs/release-notes-2.10.1.md)
 
 ---
 

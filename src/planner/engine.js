@@ -873,7 +873,7 @@
   }
 
   /** بار روز: min(ساعت در دسترس کاربر، زمان آزاد واقعی) با تعدیل هفته/پیش‌آزمون */
-  function dayLoad(cfg, date, dayIndex, totalDays, freeMinutes, preExam) {
+  function dayLoad(cfg, date, dayIndex, totalDays, freeMinutes, preExam, skipLight) {
     const wd = persianWeekday(date);
     const key = WEEKDAY_KEY[wd];
     let capHours = cfg.availability[key];
@@ -885,6 +885,22 @@
     const deload = isDeload ? cfg.DELOAD_RATIO : 1;
 
     let factor = ramp * deload;
+    /* ۲.۱۰.۱ — ریتمِ هفتگی (dailyCapRule گزارش): دست‌کم یک «روزِ سبک» در هر
+       هفته با ۵۵–۶۰٪ بارِ معمول. بدونِ آن، روزها به هم می‌چسبند و افتِ
+       عملکرد در هفتهٔ سوم ظاهر می‌شود (Buehler 1994: برنامهٔ بدونِ حاشیه
+       همیشه بدبینانه است). روزِ سبک یک روزِ درسی است، نه تعطیل. */
+    /* موجِ هفتگی و «روزِ سبک» — روی «روزِ هفتهٔ واقعی» لنگر می‌اندازیم، نه
+       شمارهٔ روزِ برنامه؛ وگرنه روزِ سبک ممکن بود روی خودِ روزِ استراحت بیفتد
+       و هفته یک روزِ کاملِ مطالعه را از دست بدهد.
+       قاعدهٔ گزارش: دست‌کم یک روزِ سبک (۵۵–۶۰٪) در هر ۷ روز و بیش از ۳ روزِ
+       سنگینِ پیاپی ممنوع. */
+    const restWd = cfg.restDay !== 7 ? cfg.restDay : -1;
+    const lightWd = restWd >= 0 ? (restWd + 6) % 7 : 5;   // روزِ پیش از استراحت
+    const isLightDay = !skipLight && wd === lightWd;
+    /* موج: دو روزِ پرفشار، یک روزِ متوسط، یک روزِ سبک. سقفِ ۱٫۰۸ با حاشیهٔ ۸٪
+       جبران می‌شود، پس هرگز از ساعتِ اعلامیِ خودِ دانش‌آموز نمی‌گذرد. */
+    const WAVE = { 0: 1.06, 1: 1.08, 2: 1.04, 3: 1.02, 4: 1.06, 5: 1.0, 6: 1.03 };
+    factor *= (isLightDay ? 0.62 : (WAVE[wd] != null ? WAVE[wd] : 1.03));
     /* ۲.۱۰.۰ — سطحِ فشار: سطح ۳ = خنثی؛ سطحِ بالاتر ساعتِ اعلامی را کامل‌تر
        استفاده می‌کند و سطحِ پایین‌تر محافظه‌کارتر می‌شود. هرگز از ساعتِ
        اعلامیِ کاربر بیشتر نمی‌شود (سقف همان capHours است). */
@@ -894,7 +910,9 @@
 
     let minutes = Math.min(capHours * 60 * factor, freeMinutes * factor);
     minutes = Math.max(0, Math.floor(minutes * (1 - (cfg.BUFFER_RATIO != null ? cfg.BUFFER_RATIO : DEFAULTS.BUFFER_RATIO))));
-    return { minutes, isDeload, week };
+    /* سقفِ سختِ ساعتِ اعلامی: هرگز بیشتر از آنچه دانش‌آموز گفته، نه یک دقیقه */
+    minutes = Math.min(minutes, Math.floor(capHours * 60));
+    return { minutes, isDeload, week, isLightDay };
   }
 
   /* ------------------------------------------------------------------ */
@@ -928,6 +946,75 @@
    *   ۳) synchrony: تسک سنگین‌تر در بازهٔ اوجِ کاربر
    * @returns {{blocks:Array, unplacedMinutes:number}}
    */
+  /** استراحت‌های بلند و وقفهٔ غذا را بین بلوک‌ها جای می‌دهد (۲.۱۰.۱)
+      ورودی: بلوک‌های مرتب‌شده + بازه‌های آزادِ روز. خروجی: فهرستِ استراحت‌ها.
+      قاعده: هر ۹۰ دقیقه تمرکزِ پیوسته ⇒ استراحتِ بلند؛ عبور از ساعتِ غذا ⇒
+      وقفهٔ غذا. جابه‌جایی فقط تا مرزِ پایانِ همان بازهٔ آزاد. */
+  function insertRestBreaks(blocks, segs, cfg) {
+    const BR = (M && M.params && M.params.breaks) || null;
+    const baseBreak = cfg.breakMinutes != null ? cfg.breakMinutes : DEFAULTS.breakMinutes;
+    /* با «تمرکزِ کوتاه/اضطراب» هر ۶۰ دقیقه استراحتِ بلند، نه هر ۹۰ دقیقه */
+    const condShort = Boolean(cfg.adaptive && cfg.adaptive.condition !== 'none');
+    const longAfter = condShort ? 60 : (BR && BR.blockLengthTriggerMinutes ? BR.blockLengthTriggerMinutes[0] : 90);
+    const longMin = BR && BR.longBreakMinutes ? BR.longBreakMinutes[1] : 15;
+    const mealMin = BR && BR.mealBreakMinutes ? BR.mealBreakMinutes[1] : 30;
+    /* ساعت‌های غذا از ساعتِ شروعِ روز پیروی می‌کنند: ناهار ۱۳:۰۰ و شام ۱۹:۳۰
+       برای روزهای صبح، و ۱۵:۳۰/۲۱:۳۰ برای روزهایی که بعدازظهر شروع می‌شوند. */
+    if (!blocks.length || !segs || !segs.length) return [];
+    const late = blocks[0].start >= minutesSinceMidnight('12:00');
+    const mealAt = late ? [minutesSinceMidnight('15:30'), minutesSinceMidnight('21:00')]
+      : [minutesSinceMidnight('13:00'), minutesSinceMidnight('19:30')];
+    const segEndOf = (t) => {
+      for (let i = 0; i < segs.length; i += 1) {
+        if (t >= segs[i].start && t < segs[i].end) return segs[i].end;
+      }
+      return t;
+    };
+    const rests = [];
+    let focused = 0;
+    const mealDone = mealAt.map(() => false);
+    let shift = 0;
+    for (let i = 1; i < blocks.length; i += 1) {
+      focused += blocks[i - 1].minutes;
+      let need = 0;
+      let kind = null;
+      if (focused >= longAfter && longMin > baseBreak) { need = longMin - baseBreak; kind = 'long'; }
+      const edge = blocks[i - 1].end + shift;
+      for (let k = 0; k < mealAt.length; k += 1) {
+        if (mealDone[k]) continue;
+        if (edge >= mealAt[k] && edge <= mealAt[k] + 90 && mealMin - baseBreak > need) {
+          need = mealMin - baseBreak; kind = 'meal'; mealDone[k] = true;
+        }
+      }
+      if (!kind || !(need > 0)) continue;
+      /* فضای آزادِ همان بازه‌ای که این بلوک‌ها در آن هستند (نه کلِ روز):
+         جابه‌جایی نباید بلوکی را روی کلاس/آزمون یا بیرون از پنجره بیندازد. */
+      const anchor = blocks[i - 1].end;
+      let segEnd = segEndOf(anchor - 1);
+      let lastInSeg = anchor;
+      for (let j = i; j < blocks.length; j += 1) {
+        if (segEndOf(blocks[j].start) !== segEnd) break;
+        lastInSeg = blocks[j].end;
+      }
+      if (segEnd - lastInSeg < need) continue;               // فضای آزاد نیست
+      const from = blocks[i - 1].end;
+      shift += need;
+      for (let j = i; j < blocks.length; j += 1) {
+        blocks[j].start += need;
+        blocks[j].end += need;
+      }
+      const pauseTotal = baseBreak + need;
+      rests.push({
+        start: from,
+        end: from + pauseTotal,
+        minutes: pauseTotal,
+        kind,
+      });
+      if (kind === 'long') focused = 0;
+    }
+    return rests;
+  }
+
   function scheduleTasks(cfg, tasks, segments, dayIndex) {
     if (!segments.length) return { blocks: [], unplacedMinutes: sum(tasks.map((t) => t.minutesLeft || 0)) };
 
@@ -1139,6 +1226,14 @@
 
     blocks.sort((a, b) => a.start - b.start);
 
+    /* ── ۲.۱۰.۱: استراحت‌های واقعیِ روز (پارامترِ breaks گزارش) ─────────────
+       گزارش: بعد از ~۹۰ دقیقه تمرکزِ پیوسته یک استراحتِ بلند (۱۵–۲۰ دقیقه) و
+       یک وقفهٔ غذا (۳۰–۴۵ دقیقه) در روز. پیش از این همهٔ بلوک‌ها فقط ۱۰ دقیقه
+       فاصله داشتند و روزِ ۶ ساعته یک ماراتنِ بی‌وقفه بود.
+       استراحت فقط وقتی جابه‌جا می‌شود که فضای آزادِ همان بازه اجازه بدهد؛
+       وگرنه بلوک‌ها دست‌نخورده می‌مانند (برنامه هرگز از پنجرهٔ روز بیرون نمی‌زند). */
+    const rests = insertRestBreaks(blocks, segments, cfg);
+
     /* ── ۲.۸.۱۳: تثبیتِ همان‌روز در سطح بلوک ─────────────────────────────
        اگر روز چند بلوکِ یادگیری دارد ولی هیچ مرور/تست/بازیابی‌ای ندارد (مثلاً
        اوایل سال که هنوز فصلِ خوانده‌شده‌ای برای تست نیست، یا روزی که همهٔ
@@ -1184,7 +1279,7 @@
       const left = Math.max(0, Math.round((t.minutesLeft || 0) - done));
       return Object.assign({}, t, { minutesLeft: left });
     }).filter((t) => t.minutesLeft > 0);
-    return { blocks, unplacedMinutes: sum(pool.map((t) => t.minutesLeft || 0)), unplacedTasks };
+    return { blocks, rests, unplacedMinutes: sum(pool.map((t) => t.minutesLeft || 0)), unplacedTasks };
   }
 
   /** کفِ زمانِ یک نوع کار — هیچ کاری کوتاه‌تر از این ساخته نمی‌شود،
@@ -1270,14 +1365,35 @@
   }
 
   function contentFor(t, block) {
-    if (t.kind === 'learn') return 'مطالعهٔ فعال + نت‌برداریِ پرسشی (سؤال‌هایی که بعداً از خودت می‌پرسی)';
+    /* ۲.۱۰.۱ — متنِ بلوک از پارامترهای پژوهشی ساخته می‌شود:
+       نمونهٔ حل‌شده → تمرینِ هدایت‌شده → تمرینِ مستقل (quantPracticeSplit)،
+       و ترکیبِ ۷۰/۳۰ چهارگزینه‌ای/تشریحی (testPracticeMix). */
+    const plan = t.topic && t.topic.plan ? t.topic.plan : null;
+    const splitTxt = (plan && plan.split && plan.split.of === 'learn+practice' && plan.split.worked > 0)
+      ? ' · سپس: ' + Math.max(5, Math.round(block.minutes * 0.45)) + ' دقیقه نمونهٔ حل‌شده ← ' +
+        Math.max(5, Math.round(block.minutes * 0.2)) + ' دقیقه تمرینِ هدایت‌شده ← بقیه تمرینِ مستقل'
+      : '';
+    const mix = (plan && plan.mix) ? plan.mix : null;
+    const mixTxt = mix ? ' · ' + Math.round(mix.multipleChoice * 100) + '٪ چهارگزینه‌ایِ زمان‌دار + ' +
+      Math.round(mix.constructedOrRecall * 100) + '٪ تشریحی/بازیابی' : '';
+    if (t.kind === 'learn') return 'مطالعهٔ فعال + نت‌برداریِ پرسشی (سؤال‌هایی که بعداً از خودت می‌پرسی)' + splitTxt;
     if (t.kind === 'reteach') return 'این فصل را «از نو و کوچک‌تر» بخوان: فقط بخش‌هایی که در تست غلط زدی؛ بعد ۱۰ تست همان فصل + ثبت ۳ خطای اصلی';
     if (t.kind === 'boost') return 'بدون خواندن دوبارهٔ کل فصل: ۱۵–۲۰ تست هدفمند از همین فصل، زمان‌دار، بعد تحلیل غلط‌ها';
     if (t.kind === 'cumreview') return 'مرور تجمعی: از فصل‌های ضعیف این هفته، بدون کتاب به سؤال‌ها جواب بده و فقط جاهایی که لنگ زدی را بازکن';
-    if (t.kind === 'review') return 'بازیابی بدون کتاب: تعریف‌ها/فرمول‌ها را از حافظه بنویس، بعد چک کن';
-    if (t.kind === 'practice') return (block.practiceCount || 10) + ' تست زمان‌دار از مبحث‌های قبلی (درهم)';
+    if (t.kind === 'review') {
+      /* reviewMode گزارش: دو مرورِ اول «فصل‌به‌فصل» و بعد از آن «درهم و چندفصلی»؛
+         ۶۰٪ حجمِ مرور بازیابیِ بدونِ کتاب است. */
+      const idx = (t.topic && t.topic.reviewsDone != null) ? t.topic.reviewsDone : 0;
+      const mixed = idx >= 2;
+      const rShare = (M && M.params && M.params.reviewMode && M.params.reviewMode.retrievalShare) || 0.6;
+      return 'مرور ' + (mixed ? 'درهم از چند فصل' : 'فصل‌به‌فصل') + ': ' +
+        Math.round(rShare * 100) + '٪ بدونِ کتاب از حافظه بنویس و ' +
+        Math.round((1 - rShare) * 100) + '٪ را با کتاب چک کن' +
+        (t.topic ? ' (' + (t.topic.label || '') + ')' : '');
+    }
+    if (t.kind === 'practice') return (block.practiceCount || 10) + ' تست زمان‌دار از مبحث‌های قبلی (درهم)' + mixTxt;
     if (t.kind === 'consolidate') return 'بدون کتاب: نقشهٔ مفهومی فصل را بکش، تعریف‌ها و فرمول‌ها را از حافظه بنویس و با کتاب چک کن';
-    if (t.kind === 'assess') return (block.practiceCount || 12) + ' سؤال از همین فصل در زمان استاندارد؛ درصد را ثبت کن (۸۰٪ = عبور)';
+    if (t.kind === 'assess') return (block.practiceCount || 12) + ' سؤال از همین فصل در زمان استاندارد' + mixTxt + '؛ درصد را ثبت کن (۸۰٪ = عبور، ۶۵–۸۰٪ = یک دور تمرینِ هدفمند، کمتر = بازآموزی)';
     if (t.kind === 'warmup') return 'نوشتن هر چه از دیروز یادت مانده، بدون نگاه کردن';
     if (t.kind === 'classfix') return 'همان شبِ کلاس: خلاصهٔ کلاس را از حافظه بازنویسی کن و سؤال‌های بی‌جواب را علامت بزن';
     if (t.kind === 'mock') return 'آزمون کامل در شرایط واقعی';
@@ -1467,6 +1583,12 @@
     out.loadFactor = Number.isFinite(lf) ? clamp(lf, 0.7, 1) : 0.93;
     out.sessionAdd = clamp(Math.round(Number(a.sessionAdd) || 0), -10, 12);
     out.samples = Math.max(0, Math.round(Number(a.samples) || 0));
+    /* شرایطِ دانش‌آموز (adhdOrAnxietyAdjustments گزارش) */
+    out.condition = ['none', 'focus', 'anxious'].indexOf(a.condition) !== -1 ? a.condition : 'none';
+    out.blockMax = clamp(Math.round(Number(a.blockMax) || 0), 0, 60);
+    out.breakMin = clamp(Math.round(Number(a.breakMin) || 0), 0, 20);
+    out.assessCap = clamp(Math.round(Number(a.assessCap) || 0), 0, 40);
+    out.minLearn = clamp(Math.round(Number(a.minLearn) || 0), 0, 40);
     Object.keys(a.pace || {}).forEach((k) => {
       const v = Number(a.pace[k]);
       if (Number.isFinite(v) && v > 0) out.pace[k] = clamp(v, 0.6, 1.9);
@@ -1478,6 +1600,16 @@
   function buildPlan(rawConfig) {
     const cfg = normalizeConfig(rawConfig);
     cfg.adaptive = normalizeAdaptive(cfg.adaptive);
+    /* ۲.۱۰.۱ — تنظیمِ روز برای شرایطِ تمرکز/اضطراب: بلوکِ کوتاه‌تر، استراحتِ بیشتر */
+    if (cfg.adaptive.condition !== 'none') {
+      /* کفِ ۳۵ دقیقه حفظ می‌شود (حدِ معنادارِ جلسهٔ یادگیری در این موتور)؛
+         کاری که انجام می‌شود: کوتاه‌کردنِ بلوک‌های بلند، استراحتِ بیشتر و
+         سنجشِ کوتاه‌تر و کم‌ریسک‌تر. */
+      /* بلوکِ روز را کوچک نمی‌کنیم (وگرنه کلِ ظرفیتِ روز کم می‌شود)؛ فقط
+         طولِ هر جلسهٔ یادگیری و اندازهٔ سنجش در همان سطحِ امن نگه داشته می‌شود. */
+      cfg.adaptive.sessionCap = clamp(cfg.blockMinutes, 20, Math.max(20, cfg.adaptive.blockMax || 45));
+      if (cfg.adaptive.breakMin) cfg.breakMinutes = Math.max(cfg.breakMinutes, cfg.adaptive.breakMin);
+    }
     /* ۲.۸.۱۲: اهمیتِ فصل‌ها با ضریبِ همان رشته محاسبه می‌شود
        (زیستِ تجربی ≠ زیست در رشتهٔ دیگر) */
     try { CW.setField(cfg.student && cfg.student.field); } catch (e) { /* بی‌صدا */ }
@@ -1799,9 +1931,13 @@
       const scope = preExam.exam && preExam.exam.subjectIds.length ? new Set(preExam.exam.subjectIds) : null;
 
       const freeMinutes = sum(segments.map((s) => s.end - s.start));
-      const baseLoad = isFinalExam ? { minutes: 30, isDeload: false } : dayLoad(cfg, date, dayIndex, totalDays, freeMinutes, preExam);
+      const baseLoad = isFinalExam ? { minutes: 30, isDeload: false }
+        : dayLoad(cfg, date, dayIndex, totalDays, freeMinutes, preExam, backlogRatio > 0.35);
       const load = lightFactor === 1 ? baseLoad
-        : { minutes: Math.max(20, Math.round(baseLoad.minutes * lightFactor)), isDeload: baseLoad.isDeload };
+        : { minutes: Math.max(20, Math.round(baseLoad.minutes * lightFactor)), isDeload: baseLoad.isDeload,
+          isLightDay: baseLoad.isLightDay };
+      /* «روزِ سبکِ هفتگی» از تقویمِ بار (نه فقط روزِ سبکِ دستی) هم شناخته می‌شود */
+      const weeklyLight = Boolean(load.isLightDay) && !isLightDay;
       /* ظرفیت = ساعت اعلامی خودِ دانش‌آموز (نه کل زمان بیداری) — مبنای «چقدر از وقتِ تعهدشده پر شد» */
       capacityTotal += load.minutes;
       const tasks = [];
@@ -2232,6 +2368,7 @@
         const reserve = deadlineReserve(dayIndex);
         let used = 0;
         let guard = 0;
+
         const blkCount = () => tasks.filter((t) => t.kind === 'learn' || t.kind === 'reteach' || t.kind === 'boost').length;
         /* ۲.۸.۱۱: سقفِ سهمِ هر درس در روز، «ترجیح» است نه «قید مطلق».
            اگر همهٔ درس‌ها به سقف رسیدند ولی بودجهٔ یادگیری هنوز مانده، سقف شل می‌شود
@@ -2318,6 +2455,31 @@
             const sessOk = (sessionsToday[dueId] || 0) < sessionCap;
             if (sessOk && (subjectUsedToday[dueId] || 0) + takeDue <= capDue) chosenId = dueId;
           }
+          /* ── ۲.۱۰.۱: سقفِ تعدادِ درس در روز (dailyCapRule گزارش) ──
+             ≤۳ ساعت: ۲ درس · ≤۷ ساعت: ۳ درس · بیش از آن: ۴ درس.
+             تقسیمِ روزِ ۸ ساعته بین ۵–۶ کتاب، هزینهٔ تعویضِ بافت را بالا می‌برد و
+             هر کتاب هم عمقِ کافی نمی‌گیرد. اگر درسِ انتخابی تازه باشد و سقف پر
+             شده باشد، از کتاب‌های همین روز ادامه می‌دهیم. */
+          const capSubjects = load.minutes <= 180 ? 2 : load.minutes <= 420 ? 3 : load.minutes <= 540 ? 4 : 5;
+          const learnKinds = { learn: 1, reteach: 1, boost: 1, practice: 1, consolidate: 1, assess: 1 };
+          const todayIds = {};
+          tasks.forEach((x) => { if (x.subjectId && learnKinds[x.kind]) todayIds[x.subjectId] = 1; });
+          const distinctToday = Object.keys(todayIds).length;
+          /* بلوک‌های فازیِ بعدی (تثبیت/سنجش/تمرین/نگهدارنده) هم به همان سقف
+             احترام می‌گذارند؛ وگرنه روزِ ۶ ساعته به ۵ کتاب می‌رسید. */
+          capSubjectCount = capSubjects;
+          /* فصلِ «حتمیِ امروز» که کاربر خودش خواسته، بر سقفِ تعدادِ درس مقدم است */
+          const isPinnedNow = Boolean(pinnedSpec && !pinnedServed && pinnedSpec.subjectId === chosenId);
+          if (distinctToday >= capSubjects && !todayIds[chosenId] && !isPinnedNow) {
+            const keepIds = Object.keys(learnBySubject)
+              .filter((id) => todayIds[id] && learnBySubject[id] && learnBySubject[id].length
+                /* قیدِ سختِ ۲.۸.۱۳ حفظ می‌شود: هیچ کتابی بیش از ۲ جلسهٔ یادگیری
+                   در یک روز نمی‌گیرد — حتی وقتی سقفِ تعدادِ درس‌ها فعال است. */
+                && (sessionsToday[id] || 0) < DEFAULTS.MAX_LEARN_SESSIONS_PER_SUBJECT)
+              .sort((x, y) => (stats[x] ? stats[x].share : 0) < (stats[y] ? stats[y].share : 0) ? 1 : -1);
+            if (keepIds.length) chosenId = keepIds[0];
+            else break;   // سقفِ درس و سقفِ جلسه با هم پر است: یادگیریِ امروز تمام
+          }
           const topic = learnBySubject[chosenId][0];
 
           /* ── اندازهٔ جلسه: عدد صحیح، دست‌کم ۳۰ دقیقه ──
@@ -2378,8 +2540,15 @@
              همان روز از درسِ دیگر با ۳۰ دقیقه هم معنا دارد؛ وگرنه روز تک‌کتابی
              می‌شد. قیدِ «هیچ فصل با یک جلسهٔ کوتاه بسته نشود» به‌جای خودش هست. */
           const tinySecond = tinyDay && used > 0 && blkCount() > 0;
-          const lo = prof === 'memory' ? 20 : Math.max(minChunk, tinySecond ? 30 : 35);
-          const hi = prof === 'memory' ? 35 : 50;
+          /* ۲.۱۰.۱: با «تمرکزِ کوتاه/اضطراب»، جلسه‌های ۲۰–۳۰ دقیقه‌ای درست‌اند
+             (نه ۳۵–۵۰): تکه‌های کوتاهِ موفق، ترس از آزمون را کم می‌کند. */
+          const condShort = cfg.adaptive && cfg.adaptive.condition !== 'none' && cfg.adaptive.minLearn > 0;
+          const lo = prof === 'memory' ? 20 : (condShort
+            ? Math.max(20, Math.min(minChunk, cfg.blockMinutes))
+            : Math.max(minChunk, tinySecond ? 30 : 35));
+          /* سقفِ جلسه: همیشه ≥ کف (وگرنه هیچ جلسه‌ای ساخته نمی‌شد) */
+          const hi = prof === 'memory' ? Math.max(lo, 35)
+            : Math.max(lo, condShort ? Math.min(cfg.adaptive.sessionCap || 40, lo + 10) : 50);
           const maxLen = Math.max(learnBlock, lo);
           let chunk = Math.round(Math.min(maxLen, hi, remainingNeed, budgetLeft));
           if (chunk < lo) {
@@ -2435,6 +2604,8 @@
       /* آستانه بر اساس «چند بلوکِ واقعی در روز جا می‌شود»: دو بلوک یادگیری به‌علاوهٔ
          یک بلوک تمرین/تست. کمتر از این، روز عملاً فقط یک کتاب می‌گیرد. */
       const tinyDay = load.minutes < 105;
+      /* سقفِ تعدادِ کتابِ کارِ روز (dailyCapRule گزارش) — در بلوک‌های فازی هم اعمال می‌شود */
+      let capSubjectCount = 99;
       /* ۲.۹.۰ — سیاستِ کمبودِ وقت (shortTimePolicy گزارش): وقتی هنوز فصلِ
          نخواندهٔ زیادی مانده، سهمِ تست از روز کوچک می‌شود (≤۲۵٪) تا پوششِ
          فصل‌ها قربانی نشود؛ فصل‌های کم‌اهمیت‌تر عمقِ کمتری می‌گیرند، ولی فصلِ
@@ -2493,6 +2664,33 @@
         if (tp) {
           const mins = Math.round(Math.min(cfg.blockMinutes,
             Math.max(DEFAULTS.MIN_CHUNK.practice, pinnedSpec.minutes || cfg.blockMinutes)));
+          /* ۲.۱۰.۱: خواستهٔ صریحِ کاربر («امروز این فصل») هرگز نباید در ازدحامِ
+             چیدن گم شود. اگر فصل یادگیریِ باقی‌مانده دارد و در حلقهٔ یادگیری
+             جای نگرفته، همین‌جا یک بلوکِ یادگیریِ نشان‌دار چیده می‌شود. */
+          const alreadyPlaced = tasks.some((x) => x.subjectId === tp.subjectId
+            && ['learn', 'reteach', 'boost', 'practice'].indexOf(x.kind) !== -1);
+
+          if ((tp.needMinutes || 0) > 0 && !alreadyPlaced) {
+            const lm = Math.round(Math.min(cfg.blockMinutes * 2, Math.max(DEFAULTS.MIN_CHUNK.learn, tp.needMinutes)));
+            tasks.push({
+              kind: tp.mode === 'reteach' ? 'reteach' : tp.mode === 'boost' ? 'boost' : 'learn',
+              subjectId: tp.subjectId, subjectName: tp.subjectName,
+              topicLabel: tp.label, topic: tp, minutesLeft: lm, priority: 480,
+              requested: true, essential: true,
+            });
+            tp.learnStarted = true;
+            pinnedServed = true;
+            pinnedSpec = null;
+            /* ادامهٔ پردازشِ حالتِ «یادگیری تمام‌شده» لازم نیست */
+            if (true) { /* بلوکِ یادگیری چیده شد */ }
+          }
+        }
+        if (pinnedSpec && !pinnedServed && !noNewLearning && !isFinalExam) {
+        const tp2 = topics.find((t) => t.subjectId === pinnedSpec.subjectId
+          && (pinnedSpec.chapter == null || Number(t.chapter) === Number(pinnedSpec.chapter)));
+        if (tp2) {
+          const mins = Math.round(Math.min(cfg.blockMinutes,
+            Math.max(DEFAULTS.MIN_CHUNK.practice, pinnedSpec.minutes || cfg.blockMinutes)));
           const subj = cfg.subjects.find((x) => x.id === tp.subjectId) || {};
           tasks.push({
             kind: 'practice', subjectId: tp.subjectId, subjectName: tp.subjectName,
@@ -2502,6 +2700,7 @@
           });
           pinnedServed = true;
           pinnedSpec = null;
+        }
         }
       }
 
@@ -2601,6 +2800,19 @@
           const dayMinutesNow = sum(tasks.map((t) => t.minutesLeft || 0));
           const shareOf = (id) => tasks.filter((t) => t.subjectId === id)
             .reduce((a, t) => a + (t.minutesLeft || 0), 0) / Math.max(1, dayMinutesNow + 40);
+          /* سقفِ تعدادِ کتاب در روز دربارهٔ تمرین هم رعایت می‌شود */
+          if (capSubjectCount < 99) {
+            const todaySet = {};
+            tasks.forEach((x) => {
+              if (x.subjectId && ['learn', 'reteach', 'boost', 'practice', 'consolidate', 'assess'].indexOf(x.kind) !== -1) {
+                todaySet[x.subjectId] = 1;
+              }
+            });
+            if (Object.keys(todaySet).length >= capSubjectCount && !todaySet[s.id]) {
+              const inside = ordered.filter((x) => todaySet[x.id] && poolOf(x.id).length && shareOf(x.id) < 0.5);
+              if (inside.length) s = inside[dayIndex % inside.length];
+            }
+          }
           if (shareOf(s.id) > 0.5 && !shortDay) {
             const alt2 = ordered.filter((x) => x.id !== s.id && poolOf(x.id).length && shareOf(x.id) < 0.45);
             if (alt2.length) s = alt2[(dayIndex + practiceBlocksPlaced) % alt2.length];
@@ -2757,6 +2969,14 @@
         const subMin = {};
         tasks.forEach((x) => { if (x.subjectId) subMin[x.subjectId] = (subMin[x.subjectId] || 0) + (x.minutesLeft || 0); });
         studied.sort((a, b) => (subMin[a.subjectId] || 0) - (subMin[b.subjectId] || 0));
+        /* فقط کتاب‌هایی که امروز واقعاً کار کرده‌اند (سقفِ تعدادِ کتاب) */
+        const studiedIds = {};
+        tasks.forEach((x) => { if (x.subjectId) studiedIds[x.subjectId] = 1; });
+        if (Object.keys(studiedIds).length > capSubjectCount) {
+          const keep = studied.filter((x) => studiedIds[x.subjectId]);
+          studied.length = 0;
+          keep.forEach((x) => studied.push(x));
+        }
         /* هر روزی که یادگیری دارد، دست‌کم یک بازیابیِ پایانی دارد؛ روزِ
            «فقط خواندم و بس» در حافظه چیزی جا نمی‌گذارد (اثر آزمون). */
         const hasRetrieval = tasks.some((x) => ['practice', 'review', 'warmup', 'cumreview', 'assess'].indexOf(x.kind) !== -1);
@@ -2792,7 +3012,8 @@
             subMin[tp.subjectId] = (subMin[tp.subjectId] || 0) + mins;
           }
           free = freeNow();
-          const asMin = Math.min(25, Math.max(12, Math.round((tp.assessLeft || 0) * 0.5)));
+          const assessCapNow = (cfg.adaptive && cfg.adaptive.assessCap) ? cfg.adaptive.assessCap : 25;
+          const asMin = Math.min(assessCapNow, Math.max(12, Math.round((tp.assessLeft || 0) * 0.5)));
           /* ۲.۹.۰: سنجشِ فصل «ایستگاهِ تسلط» است — یک روز پس از تثبیت انجام
              می‌شود (نه اینکه منتظرِ تمام‌شدنِ کلِ سبد تمرین بماند؛ آن‌وقت هیچ‌وقت
              نمی‌رسید). خروجیِ همین سنجش است که باند تسلط را تعیین می‌کند. */
@@ -2835,7 +3056,17 @@
             .filter((t) => !usedTopics.has(t.subjectId + '#' + t.label))
             .sort((a, b) => a.mastery - b.mastery);
           if (!pool.length) break;
-          const untouched = pool.filter((t) => minsOf(t.subjectId) === 0);
+          /* اگر سقفِ تعدادِ کتاب پر شده، از کتاب‌های امروز استفاده کن */
+          const capNow = (typeof capSubjectCount === 'number' && capSubjectCount < 99) ? capSubjectCount : 99;
+          const todaySetF = {};
+          tasks.forEach((x) => {
+            if (x.subjectId && ['learn', 'reteach', 'boost', 'practice', 'consolidate', 'assess'].indexOf(x.kind) !== -1) {
+              todaySetF[x.subjectId] = 1;
+            }
+          });
+          const untouched = Object.keys(todaySetF).length >= capNow
+            ? []
+            : pool.filter((t) => minsOf(t.subjectId) === 0);
           const capShare = (untouched.length ? 0.4 : 0.3);
           const pickT = (untouched.length ? untouched : pool).find((t) => minsOf(t.subjectId) < load.minutes * capShare) || null;
           if (!pickT) break;
@@ -3009,6 +3240,35 @@
         }
       })();
 
+      /* ---- ۶.۹۹) سقفِ نهاییِ تعدادِ کتاب در روز (dailyCapRule گزارش) ----
+         اگر با همهٔ قیدهای بالا باز روز به کتابِ بیشتری رسید، بلوکِ تمرینِ
+         کوچک‌ترین کتابِ اضافه حذف می‌شود (نه بلوکِ یادگیری و نه بلوکِ ضروری). */
+      (function capDistinctSubjects() {
+        if (!(capSubjectCount < 99)) return;
+        const WORK = ['learn', 'reteach', 'boost', 'practice', 'consolidate', 'assess'];
+        let guardC = 0;
+        while (guardC++ < 6) {
+          const by = {};
+          movable.forEach((t) => {
+            if (!t.subjectId || WORK.indexOf(t.kind) === -1 || !(t.minutesLeft > 0)) return;
+            by[t.subjectId] = (by[t.subjectId] || 0) + t.minutesLeft;
+          });
+          const ids = Object.keys(by);
+          if (ids.length <= capSubjectCount) return;
+          /* کتابی که کمترین دقیقه را دارد، اول کنار گذاشته می‌شود */
+          /* فصلی که کاربر خودش برای امروز خواسته (requested/pin) هرگز قربانی نمی‌شود */
+          const pinnedId = pinnedSpec ? pinnedSpec.subjectId : null;
+          const victim = ids.filter((x) => x !== pinnedId).sort((x, y) => by[x] - by[y])[0];
+          if (!victim) return;
+          const cand = movable
+            .filter((t) => t.subjectId === victim && t.kind === 'practice'
+              && !t.essential && !t.requested && t.minutesLeft > 0)
+            .sort((x, y) => (x.priority || 0) - (y.priority || 0))[0];
+          if (!cand) return;                       // بلوکِ قابلِ‌حذف نبود؛ دست نمی‌زنیم
+          cand.minutesLeft = 0;
+        }
+      })();
+
       const placed = scheduleTasks(cfg, movable, examSegments.length ? examSegments : segments, dayIndex);
       /* فقط زمانی «از دست رفته» حساب می‌شود که راهِ بازگشتی نداشته باشد.
          تسک‌های یادگیری همین پایین به نیاز فصل برمی‌گردند و فردا جلسهٔ کامل می‌گیرند. */
@@ -3176,7 +3436,12 @@
           applied: Boolean(pinnedServed),
         })),
         blocks: outBlocks,
-        isLightDay: isLightDay,
+        /* ۲.۱۰.۱: استراحت‌های بلند و وقفهٔ غذا (پارامترِ breaks گزارش) */
+        breaks: (placed.rests || []).map((r) => ({
+          start: fmtHM(r.start), end: fmtHM(r.end), minutes: r.minutes,
+          kind: r.kind, label: r.kind === 'meal' ? 'وقفهٔ غذا' : 'استراحتِ بلند',
+        })),
+        isLightDay: isLightDay || weeklyLight,
         note: dayNote({
           isFinalExam, hasManualExamToday, hasClassToday, preExam, reviewOnly, finalPhase,
           isDeload: load.isDeload, chronotype: cfg.student.chronotype, hasBlocks: outBlocks.length > 0,
@@ -3726,7 +3991,7 @@
 
     return {
       meta: {
-        version: '2.10.0', createdAt: new Date().toISOString(),
+        version: '2.10.1', createdAt: new Date().toISOString(),
         studentName: cfg.student.name, field: cfg.student.field, grade: cfg.student.grade,
         chronotype: cfg.student.chronotype, startDate: cfg.startDate, examDate: cfg.examDate,
         totalDays, blockMinutes: cfg.blockMinutes,

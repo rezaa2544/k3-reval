@@ -137,6 +137,26 @@ app.whenReady().then(async () => {
   check(R.title === true && R.rows === true && R.json === true, 'گزارش عنوان، جدولِ درس‌ها و بلوکِ JSON دارد', JSON.stringify(R));
   check(await js(`!!document.getElementById('adaptiveReportBtn')`), 'دکمهٔ گزارش در کارت هست');
 
+  /* ۵.۵) شرایطِ دانش‌آموز (تمرکزِ کوتاه / اضطراب) */
+  check(await js(`!!document.getElementById('adaptiveCondition')`), 'انتخاب‌گرِ «شرایطِ من» در کارت هست');
+  const condRes = JSON.parse(await js(`(function(){
+    var sel = document.getElementById('adaptiveCondition');
+    sel.value = 'focus';
+    sel.dispatchEvent(new Event('change'));
+    return JSON.stringify({ cond: window.__revalTest.calibration().condition,
+      inPlan: (window.__revalTest.plan().summary.adaptive||{}).condition || null });
+  })()`));
+  check(condRes.cond === 'focus', 'انتخابِ «تمرکزِ کوتاه» در حافظهٔ هسته ثبت می‌شود', condRes.cond);
+  await wait(900);
+  const focusPlan = JSON.parse(await js(`(function(){
+    var p = window.__revalTest.plan();
+    var lens = []; p.days.forEach(function(d){ (d.blocks||[]).forEach(function(b){ if (['learn','reteach','boost'].indexOf(b.kind)!==-1) lens.push(b.minutes); }); });
+    var brk = 0; p.days.forEach(function(d){ brk += (d.breaks||[]).filter(function(x){return x.kind==='long';}).length; });
+    return JSON.stringify({ n: lens.length, max: Math.max.apply(null, lens), longBreaks: brk, cov: p.summary.coverage.coverageRatio });
+  })()`));
+  check(focusPlan.n > 0, 'برنامه با شرایطِ تمرکزِ کوتاه ساخته می‌شود', JSON.stringify(focusPlan));
+  check(focusPlan.longBreaks > 0, 'استراحتِ بلند در این حالت هم چیده می‌شود', focusPlan.longBreaks);
+
   /* ۶) خطای کنسول */
   check(errs.length === 0, 'هیچ خطای جاوااسکریپت در کنسول نیست', errs.slice(0, 3).join(' | '));
 

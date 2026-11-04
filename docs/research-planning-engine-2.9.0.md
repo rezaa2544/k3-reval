@@ -344,3 +344,19 @@ ladder = [gap1, 2.2×gap1, 4.5×gap1, …]  تا سقفِ horizon/3
 7. تفاوتِ جنسیت/سن/ساعتِ زیستی و ADHD در طولِ جلسه (برای تنظیمِ شخصی).
 
 فایلِ درخواستِ پژوهش: [`docs/research-brief-2.9.0.md`](research-brief-2.9.0.md)
+
+---
+
+## پیوستِ ۲.۱۰.۱ — پارامترهایی که در این نسخه واقعاً وصل شدند
+
+| پارامتر | جای اثر در کد | اثرِ قابلِ سنجش |
+|---|---|---|
+| `breaks` | `insertRestBreaks()` | استراحتِ ۱۵ دقیقه بعد از ۲ بلوک + غذای ۳۰ دقیقه؛ `breaks[]` در هر روز |
+| `dailyCapRule` | `dayLoad()` | یک روزِ سبکِ هفتگی، سقفِ سختِ ساعتِ اعلامی، موجِ ظرفیت |
+| سقفِ درس | `capSubjects` + `addPhaseBlocks` + انتخاب‌گرِ تمرین + `capDistinctSubjects()` | ≤۳h→۲ · ≤۷h→۳ · ≤۹h→۴ · بیشتر→۵ درس |
+| `quantPracticeSplit` | `contentFor()` | ۴۰٪ نمونه · ۲۰٪ هدایت‌شده · ۴۰٪ مستقل |
+| `testPracticeMix` | `contentFor()` | ۷۰٪ تستِ کنکور / ۳۰٪ کتاب |
+| `reviewMode` | `contentFor()` | ۶۰٪ بازیابی از حافظه + متنِ دستورِ مرور |
+| `adhdOrAnxietyAdjustments` | `adaptive.engineConfig()` / `setCondition()` | سقفِ جلسه/استراحت/سنجش — طولِ روز دست‌نخورده |
+| `individualScale` | سنجشِ فصلی (`assessCap`) | سنجش واقعاً چیده می‌شود (۰ → ۲۱ ساعت در سالِ ۸ ساعته) |
+| `shortTimePolicy` | بودجهٔ فاز + `priority` | فصلِ درخواستیِ کاربر اولویتِ ۴۸۰ و `requested: true` |

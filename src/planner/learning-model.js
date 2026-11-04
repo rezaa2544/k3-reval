@@ -175,9 +175,28 @@
       reviews.push({ gap: gaps[i], minutes: rm });
     }
 
+    /* ── ۲.۱۰.۱: تفکیکِ یادگیری (پارامترِ quantPracticeSplit گزارش) ────────
+       برای درسِ مسئله‌محور، یادگیری و تمرین به سه پله تقسیم می‌شود:
+       نمونهٔ حل‌شده → تمرینِ هدایت‌شده → تمرینِ مستقل (Sweller & Cooper 1985,
+       Renkl & Atkinson 2003؛ سرعتِ یادگیری ۳۰–۵۰٪ بیشتر، و با بالا رفتنِ
+       مهارت باید کم شود — «وارونگیِ تخصص»، Kalyuga 2003). */
+    const qp = P.quantPracticeSplit || { workedExamples: 0.4, guided: 0.2, independent: 0.4 };
+    const split = profile === 'quant'
+      ? {
+        worked: Math.round((learn + practice) * qp.workedExamples),
+        guided: Math.round((learn + practice) * qp.guided),
+        independent: Math.round((learn + practice) * qp.independent),
+        of: 'learn+practice',
+      }
+      : {
+        worked: 0, guided: 0, independent: 0, of: 'none',
+      };
+    /* سهمِ آزمون‌های چندگزینه‌ای/تشریحی (testPracticeMix گزارش) */
+    const mix = P.testPracticeMix || { multipleChoice: 0.7, constructedOrRecall: 0.3 };
+
     return {
       subjectId: o.subjectId, chapter: o.chapter,
-      profile, size, tier, mode,
+      profile, size, tier, mode, split, mix,
       scale: s, mEff: scale.mEff,
       learn: Math.round(learn), consolidate, practice, assess,
       T0: Math.round(T0),

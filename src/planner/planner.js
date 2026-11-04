@@ -1743,6 +1743,11 @@
         '</div>'
       )).join('') : '<div class="empty" style="grid-column:1/-1">هنوز بلوکی با زمانِ واقعی تمام نشده — جزئیاتِ هر درس همین‌جا می‌آید.</div>';
     }
+    /* شرایطِ دانش‌آموز (تمرکزِ کوتاه/اضطراب) — تنظیمِ جلسه و استراحت */
+    if ($('adaptiveCondition')) {
+      const cur = AD.conditionInfo(c.condition);
+      if (document.activeElement !== $('adaptiveCondition')) $('adaptiveCondition').value = cur.id;
+    }
     const box = $('adaptiveQuestions');
     if (box) {
       const qs = AD.openQuestions(c);
@@ -1830,7 +1835,7 @@
     let md = '';
     try {
       md = AD.experienceReport(c, {
-        appVersion: state.appVersion || '2.10.0',
+        appVersion: state.appVersion || '2.10.1',
         grade: (state.config && state.config.student && state.config.student.grade) || (($('grade') || {}).value) || '',
         field: (state.config && state.config.student && state.config.student.field) || (($('field') || {}).value) || '',
         hours: (state.config && state.config.dailyCapHours) || '',
@@ -6015,6 +6020,16 @@
   if ($('adaptiveQuizBtn')) $('adaptiveQuizBtn').addEventListener('click', () => { try { renderLevelQuiz(); } catch (e) { /* بی‌صدا */ } });
   if ($('adaptiveAskBtn')) $('adaptiveAskBtn').addEventListener('click', () => { try { renderAdaptiveCard(); const el = $('adaptiveQuestions'); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { /* بی‌صدا */ } });
   if ($('adaptiveReportBtn')) $('adaptiveReportBtn').addEventListener('click', () => { try { downloadExperienceReport(); } catch (e) { /* بی‌صدا */ } });
+  if ($('adaptiveCondition')) $('adaptiveCondition').addEventListener('change', (ev) => {
+    try {
+      const picked = (ev && ev.target && ev.target.value) || $('adaptiveCondition').value;
+      state.calibration = AD.setCondition(calib(), picked);
+      persist();
+      renderAdaptiveCard();
+      const info = AD.conditionInfo(picked);
+      if (rebuildWith(null, 'برنامه با شرایطِ «' + info.name + '» بازچیده شد.')) toast(info.note);
+    } catch (e) { /* بی‌صدا */ }
+  });
 
   restore().then(() => {
     try { renderRoutineRows(state.routines); } catch (e) { /* بی‌صدا */ }
@@ -6041,5 +6056,10 @@
     clearTimeout(homeTick);
     homeTick = setTimeout(() => { if (window.__revalView === 'home' || !window.__revalView) renderHome(); else renderHome(); }, 250);
   }, true);
-  document.addEventListener('change', () => { try { renderHome(); } catch (e) { /* بی‌صدا */ } }, true);
+  document.addEventListener('change', (ev) => {
+    /* ۲.۱۰.۱: انتخابِ «شرایطِ من» نباید پیش از خوانده‌شدن، توسطِ بازترسیمِ خانه
+       به مقدارِ قبلی برگردد (تلهٔ شناخته‌شدهٔ select در این پروژه). */
+    if (ev && ev.target && ev.target.id === 'adaptiveCondition') return;
+    try { renderHome(); } catch (e) { /* بی‌صدا */ }
+  }, true);
 })();

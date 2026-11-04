@@ -48,6 +48,25 @@
     { id: 6, name: 'ترازِ کنکور', loadFactor: 1.0, sessionAdd: 10, stretch: 2, note: 'حداکثرِ ساعتِ اعلامی؛ فشار از راهِ کیفیتِ کار بالا می‌رود.' },
   ];
 
+  /* شرایطِ دانش‌آموز (پارامترِ adhdOrAnxietyAdjustments گزارش) — تنظیمِ موتور
+     برای تمرکزِ کوتاه‌تر یا اضطرابِ آزمون: جلسه‌های ۲۰–۳۰ دقیقه، استراحتِ ۵–۱۰،
+     سنجشِ کوتاه و پرتکرار و کم‌ریسک. */
+  const CONDITIONS = [
+    { id: 'none', name: 'معمولی', note: 'برنامهٔ استاندارد.', blockMax: 0, breakMin: 0, assessCap: 0, minLearn: 0 },
+    { id: 'focus', name: 'تمرکزِ کوتاه (ADHD)', note: 'جلسه‌ها ۲۰–۳۰ دقیقه، استراحتِ بیشتر، سنجشِ کوتاهِ پرتکرار.', blockMax: 30, breakMin: 8, assessCap: 15, minLearn: 20 },
+    { id: 'anxious', name: 'اضطرابِ آزمون', note: 'جلسه‌های کوتاه‌تر، سنجشِ کم‌ریسکِ بدونِ زمان‌سنج در هفته‌های اول.', blockMax: 30, breakMin: 10, assessCap: 15, minLearn: 20 },
+  ];
+
+  function conditionList() { return copy(CONDITIONS); }
+  function conditionInfo(id) {
+    return CONDITIONS.filter((c) => c.id === id)[0] || CONDITIONS[0];
+  }
+  function setCondition(state, id) {
+    const s = normalize(state);
+    s.condition = conditionInfo(id).id;
+    return s;
+  }
+
   function levelInfo(level) {
     const l = clamp(Math.round(isNum(level) ? level : 3), 0, 6);
     return LEVELS[l];
@@ -72,6 +91,7 @@
       streakMiss: 0,               // بلوک‌های پیاپیِ «خیلی دیرتر»
       sessionBias: 0,              // اثرِ «حواس‌پرتی» روی طولِ جلسه (دقیقه)
       lastAskAt: null,
+      condition: 'none',           // none | focus | anxious
     };
   }
 
@@ -89,6 +109,7 @@
     s.streakOk = Math.max(0, Math.round(isNum(s.streakOk) ? s.streakOk : 0));
     s.streakMiss = Math.max(0, Math.round(isNum(s.streakMiss) ? s.streakMiss : 0));
     s.sessionBias = isNum(s.sessionBias) ? clamp(s.sessionBias, -15, 15) : 0;
+    s.condition = conditionInfo(s.condition).id;
     s.version = VERSION;
     return s;
   }
@@ -422,9 +443,16 @@
       const v = paceFor(s, sid);
       if (Math.abs(v - 1) >= 0.02) pace[sid] = v;
     });
+    const cond = conditionInfo(s.condition);
     return {
       level: s.level,
       levelName: levelInfo(s.level).name,
+      condition: cond.id,
+      conditionName: cond.name,
+      blockMax: cond.blockMax,
+      breakMin: cond.breakMin,
+      assessCap: cond.assessCap,
+      minLearn: cond.minLearn,
       loadFactor: loadFactor(s),
       sessionAdd: sessionAdd(s),
       stretch: levelInfo(s.level).stretch,
@@ -579,6 +607,8 @@
     return {
       level: s.level,
       levelName: info.name,
+      condition: s.condition,
+      conditionName: conditionInfo(s.condition).name,
       loadFactor: info.loadFactor,
       sessionAdd: info.sessionAdd,
       samples: s.obs.length,
@@ -597,6 +627,10 @@
   return {
     VERSION,
     LEVELS,
+    CONDITIONS,
+    conditionList,
+    conditionInfo,
+    setCondition,
     levelInfo,
     defaultState,
     normalize,
