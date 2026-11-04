@@ -141,8 +141,15 @@
     const s = scale.s;
     const tier = tierOf(o.ciImportance, o.subjectId, o.chapter);
 
+    /* ۲.۱۰.۳ — کالیبراسیونِ اندازه‌گیری‌شده: ضریبِ هر جزءِ محتوا از دادهٔ خودِ
+       دانش‌آموز می‌آید (وقتی نمونه دارد)، نه فقط از برآوردِ پایهٔ گزارش. */
+    const cb = o.calib || null;
+    const cPage = cb && isFinite(cb.page) ? clamp(cb.page, 0.5, 2) : 1;
+    const cConcept = cb && isFinite(cb.concept) ? clamp(cb.concept, 0.5, 2) : 1;
+    const cEx = cb && isFinite(cb.exercise) ? clamp(cb.exercise, 0.5, 2) : 1;
+
     /* زمانِ «یادگیری از صفر» از محتوا */
-    const rawLearn = s * (w.page * (size.pages * a) + w.concept * (size.concepts * m));
+    const rawLearn = s * (w.page * (size.pages * a * cPage) + w.concept * (size.concepts * m * cConcept));
 
     /* حالتِ فصل بر اساسِ تسلطِ اعلامی (همان منطقِ قبلی، ولی روی زمانِ محتوایی) */
     const self = clamp(Number(o.mastery) || 0, 0, 100);
@@ -158,8 +165,8 @@
 
     const depthMult = tier >= P.depthForHighFrequency.tierThreshold ? P.depthForHighFrequency.practiceMultiplier : 1;
     const practice = mode === 'solid'
-      ? Math.max(30, Math.round(size.exercises * e * s * 0.25))
-      : Math.round(Math.max(learn * (ratio.practice / ratio.learn), size.exercises * e * s) * depthMult);
+      ? Math.max(30, Math.round(size.exercises * e * s * 0.25 * cEx))
+      : Math.round(Math.max(learn * (ratio.practice / ratio.learn), size.exercises * e * s * cEx) * depthMult);
     const consolidate = Math.round(learn * (ratio.consolidate / ratio.learn));
     const assessBase = Math.round(learn * (ratio.assess / ratio.learn));
     const assess = clamp(Math.max(assessBase, P.assessLength.minutes[0]), 10, P.assessLength.minutes[1] + 20);
@@ -197,6 +204,7 @@
     const mix = P.testPracticeMix || { multipleChoice: 0.7, constructedOrRecall: 0.3 };
 
     return {
+      calib: cb ? { page: cPage, concept: cConcept, exercise: cEx } : null,
       subjectId: o.subjectId, chapter: o.chapter,
       profile, size, tier, mode, split, mix,
       scale: s, mEff: scale.mEff,

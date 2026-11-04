@@ -725,6 +725,31 @@
         <div class="grid g3" id="adaptivePace" style="margin-top:10px"></div>
       </div>
 
+      <!-- ۲.۱۰.۳: کالیبراسیونِ واقعیِ ضریبِ زمان (به‌جای برآوردِ کارشناسیِ ثابت) -->
+      <div class="card" id="calibCard" style="display:none">
+        <div class="row" style="margin-bottom:6px">
+          <h2 style="margin:0" data-help="calib">کالیبراسیونِ زمان (اندازه‌گیری‌شده)</h2>
+          <span class="chip" id="calibSummary" style="margin-inline-start:auto">—</span>
+        </div>
+        <p class="lead" style="margin-top:0">
+          عددهای «دقیقه برای هر صفحه / هر مفهوم / هر تمرین» در گزارشِ پژوهشی <b>برآوردِ کارشناسی</b> بودند.
+          از این‌جا به بعد، هر بلوکی که «انجام شد» بزنی یا هر فصلی که با ساعتِ واقعی ثبت کنی،
+          ضریبِ همان درس با دادهٔ خودت اصلاح می‌شود و برنامهٔ بعدی با همان ضریب ساخته می‌شود.
+          <span class="muted">(زیرِ ۳ نمونه، اثر عمداً به ±۱۵٪ محدود است تا برنامه با دادهٔ کم خراب نشود.)</span>
+        </p>
+        <div id="calibRows" style="margin:10px 0"></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="min-width:150px"><label>درس</label><select id="calibSubject" class="inp"></select></div>
+          <div style="min-width:120px"><label>فصل</label><input id="calibChapter" class="tin" inputmode="numeric" placeholder="۴" /></div>
+          <div style="min-width:120px"><label>ساعتِ واقعی</label><input id="calibHours" class="tin" inputmode="decimal" placeholder="۳٫۵" /></div>
+          <button class="btn primary" id="calibAdd" type="button">ثبتِ اندازه‌گیری</button>
+          <span style="margin-inline-start:auto"></span>
+          <button class="btn ghost small" id="calibExport" type="button">دانلود JSON</button>
+          <button class="btn ghost small" id="calibReset" type="button">بازنشانی</button>
+        </div>
+        <div id="calibNote" class="muted" style="font-size:11.5px;margin-top:8px"></div>
+      </div>
+
       <div class="card" id="homeDayCard" style="display:none">
         <div class="row" style="margin-bottom:8px">
           <h2 style="margin:0" data-help="startDay">شروع روز</h2>
@@ -1620,6 +1645,33 @@
   }
   .ai-chip:hover{border-color:#c7d2fe; color:#4338ca; background:#f5f7ff}
 
+  /* ۲.۱۰.۳: نوارِ «پرشدگیِ ساعتِ اعلامی» در خلاصهٔ روز — عدد + دلیل */
+  .fillbar{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin-top:9px; padding:7px 10px; border-radius:10px;
+    border:1px solid #e9eef5; background:#fbfcfe; font-size:11.5px; color:#475569;
+  }
+  .fillbar .fnum{font-weight:800; font-size:13px; color:#0f172a}
+  .fillbar .ftxt{color:#64748b}
+  .fillbar .fwhy{
+    flex-basis:100%; color:#64748b; font-size:11px; line-height:1.6;
+    border-top:1px dashed #e6ebf3; padding-top:6px; margin-top:2px;
+  }
+  .fillbar.ok{border-color:#bbf7d0; background:#f6fef9}
+  .fillbar.ok .fnum{color:#15803d}
+  .fillbar.mid{border-color:#fde68a; background:#fffdf5}
+  .fillbar.mid .fnum{color:#b45309}
+  .fillbar.low{border-color:#fecaca; background:#fff8f8}
+  .fillbar.low .fnum{color:#b91c1c}
+
+  /* ۲.۱۰.۳: نشانگرِ صریحِ حالتِ دستیار (آفلاینِ قاعده‌محور / مدلِ زبانی) */
+  .ai-mode{
+    display:inline-flex; align-items:center; gap:5px; margin-top:6px;
+    font-size:10px; color:#64748b; background:#f8fafc; border:1px solid #e9eef5;
+    border-radius:999px; padding:2px 8px; cursor:help;
+  }
+  .ai-mode span{font-size:11px; line-height:1}
+
   .ai-typing{display:flex; gap:4px; align-items:center; padding:6px 2px}
   .ai-typing i{width:6px;height:6px;border-radius:50%;background:#c7d2fe;display:inline-block;animation:aiDot 1.1s infinite}
   .ai-typing i:nth-child(2){animation-delay:.15s} .ai-typing i:nth-child(3){animation-delay:.3s}
@@ -1844,6 +1896,7 @@
 <script src="dayplan.js"></script>
 <script src="changelog.js"></script>
 <script src="adaptive.js"></script>
+<script src="calibration.js"></script>
 <script src="engine.js"></script>
 <script src="presets.js"></script>
 <script src="ai/nlu.js"></script>

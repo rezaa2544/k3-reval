@@ -246,9 +246,10 @@
     if (meta.capMinutes && meta.plannedMinutes < meta.capMinutes * 0.9) {
       const gap = Math.max(0, meta.capMinutes - meta.plannedMinutes);
       lines.push('');
-      lines.push('حدود ' + minutesText(gap) + ' از ظرفیتِ امروز خالی مانده؛ چون بلوک‌ها باید کامل و بدونِ شکستن ' +
-        'جا شوند و برای فصل‌های باقی‌مانده هم سقفِ درس در روز رعایت می‌شود. اگر بخواهی، با «امروز را از نو بچین» ' +
-        'یا کمی ساعتِ بیشتر، همان فضا پر می‌شود.');
+      /* ۲.۱۰.۳: دلیلِ واقعیِ همان روز از موتور می‌آید، نه یک جملهٔ کلی */
+      lines.push('حدود ' + minutesText(gap) + ' از ظرفیتِ امروز خالی ماند' +
+        (meta.fill && meta.fill.why ? ' — ' + meta.fill.why : '؛ چون بلوک‌ها باید کامل و بدونِ شکستن جا شوند.') +
+        ' اگر بخواهی با «امروز را از نو بچین» یا ساعتِ بیشتر، دوباره امتحان می‌کنم.');
     }
     if (meta.blocks && meta.blocks.length) {
       lines.push('');
@@ -299,6 +300,93 @@
     ].join('\n');
   }
 
+  /* ═════════ ۲.۱۰.۳ — «انسان‌نماتر»: حافظهٔ گفت‌وگو، لحنِ زمان‌آگاه، کالیبراسیون ═════════
+     سه چیزی که دستیارِ آفلاین را از «قاعده‌یاب» جدا می‌کند:
+       ۱) حافظه: یادش می‌ماند کاربر دربارهٔ چه درسی/فصلی حرف می‌زد (برای «همون رو بذار»).
+       ۲) زمینهٔ زمانی: صبح/ظهر/شب و اینکه امروز چه چیزی انجام شده.
+       ۳) خودآگاهیِ صادقانه: می‌داند «آفلاینِ قاعده‌محور» است و راهِ هوشمندترشدن را می‌گوید. */
+  function fa2(n) { return fa(n); }
+
+  function memoryOf(ctx) {
+    if (!ctx) return {};
+    if (!ctx.memory) ctx.memory = { subjectId: null, chapter: null, topic: null, lastIntent: null, turns: 0 };
+    return ctx.memory;
+  }
+
+  function remember(ctx, ent, text) {
+    const m = memoryOf(ctx);
+    m.turns = (m.turns || 0) + 1;
+    if (ent && ent.subjects && ent.subjects.length) m.subjectId = ent.subjects[0];
+    const ch = (String(text || '').match(/فصل\s*([0-9۰-۹]{1,2})/) || [])[1];
+    if (ch) {
+      m.chapter = Number(String(ch).replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))));
+    }
+    return m;
+  }
+
+  function daypart() {
+    const h = new Date().getHours();
+    if (h < 5) return { key: 'night', word: 'شبِ آرام' };
+    if (h < 11) return { key: 'morning', word: 'صبح بخیر' };
+    if (h < 15) return { key: 'noon', word: 'ظهر' };
+    if (h < 19) return { key: 'afternoon', word: 'بعدازظهر' };
+    return { key: 'evening', word: 'شب' };
+  }
+
+  /* «همون رو بذار» / «بیشتر توضیح بده» / «چرا؟» — ادامهٔ گفت‌وگو، نه پاسخِ از صفر */
+  function followUp(ctx, text) {
+    const m = memoryOf(ctx);
+    if (!m.subjectId) return null;
+    const name = SUBJECT_FA[m.subjectId] || m.subjectId;
+    if (/(همون|همین|همان|اون فصل|آن فصل)/.test(text) && /(بذار|بگذار|بخونم|برنامه)/.test(text)) {
+      if (!ctx.readPlan || !ctx.readPlan('today')) return null;
+      const res = TOOLS.run('focus_today_chapter', { subjectId: m.subjectId, chapter: m.chapter || null }, ctx);
+      return {
+        text: res.ok
+          ? 'همان که گفتی: ' + name + (m.chapter ? ' فصل ' + fa(m.chapter) : '') + ' در برنامهٔ امروز گذاشته شد.\n\n' +
+            ((ctx.readPlan('today') || {}).blocks || []).map((b) => '· ' + blockLine(b)).join('\n')
+          : res.message,
+        chips: ['برنامهٔ امروز', 'تغییر امروز را برگردان'],
+        intent: 'followup_focus',
+      };
+    }
+    if (/(بیشتر توضیح|دقیق ?تر|بیشتر بگو|چرا این ?طور)/.test(text)) {
+      const ans = chapterBudgetAnswer(ctx, m.subjectId, m.chapter);
+      if (ans) return { text: ans, chips: ['برنامهٔ امروز'], intent: 'followup_explain' };
+    }
+    return null;
+  }
+
+  /* کالیبراسیون: «ریاضی برای من کندتر است» / «این فصل ۴ ساعت طول کشید» */
+  function calibrationAsk(ctx, text, ent) {
+    const wants = /(کندتر|دیرتر|سریع ?تر|زودتر|بیشتر طول|کمتر طول|وقت ?گیر|طول می ?کشه|طول می ?کشد|طول کشید|زمان برد|وقت برد|کالیبر|ضریب)/.test(text);
+    if (!wants || !ctx.calibrate) return null;
+    const sid = (ent && ent.subjects && ent.subjects[0]) || memoryOf(ctx).subjectId;
+    if (!sid) {
+      return {
+        text: 'کدام درس؟ مثلاً بگو «ریاضی برای من ۲۰٪ کندتر است» یا «فصل ۴ ریاضی ۴ ساعت طول کشید».',
+        chips: ['ریاضی برای من ۲۰٪ کندتر است', 'برنامهٔ امروز'], intent: 'calibrate',
+      };
+    }
+    const pct = (String(text).match(/([0-9۰-۹]{1,3})\s*(?:درصد|٪)/) || [])[1];
+    const pctNum = pct ? Number(String(pct).replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)))) : 0;
+    const hoursM = String(text).match(/([0-9۰-۹]+(?:[٫.][0-9۰-۹]+)?)\s*ساعت/);
+    const hours = hoursM ? Number(String(hoursM[1]).replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace('٫', '.')) : 0;
+    const ch = (String(text).match(/فصل\s*([0-9۰-۹]{1,2})/) || [])[1];
+    const spec = { subjectId: sid };
+    if (ch) spec.chapter = Number(String(ch).replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))));
+    if (pctNum) spec.scale = clampNum(1 + (/(سریع|زودتر|کمتر)/.test(text) ? -pctNum : pctNum) / 100, 0.6, 1.8);
+    else if (hours > 0) spec.actualMinutes = Math.round(hours * 60);
+    else spec.scale = /(سریع|زودتر|کمتر)/.test(text) ? 0.85 : 1.15;
+    const out = ctx.calibrate(spec);
+    if (!out || !out.ok) {
+      return { text: (out && out.message) || 'تنظیم نشد.', chips: ['برنامهٔ امروز'], intent: 'calibrate' };
+    }
+    return { text: out.message + '\n\nاین ضریب با هر بلوکی که «انجام شد» بزنی دقیق‌تر می‌شود.', chips: ['برنامهٔ امروز', 'چقدر آماده‌ام؟'], intent: 'calibrate', acted: true };
+  }
+
+  const clampNum = (v, a, b) => Math.max(a, Math.min(b, v));
+
   function respond(message, ctx) {
     const raw = String(message == null ? '' : message);
     const text = NLU.norm(raw);
@@ -316,11 +404,39 @@
       return res;
     };
 
+    /* ۰) حافظهٔ گفت‌وگو — پیش از هر چیز: چه درسی/فصلی در دستِ بحث بود؟ */
+    const prevMem = Object.assign({}, memoryOf(ctx));
+    remember(ctx, ent, text);
+
+    /* ۰.۱) کالیبراسیونِ زمان: «ریاضی برای من کندتر است» / «فصل ۴ ریاضی ۴ ساعت طول کشید»
+       — این یک دستور است، نه سؤال: باید ضریبِ همان درس را عوض کند. */
+    if (!q) {
+      const cal = calibrationAsk(ctx, text, ent);
+      if (cal) {
+        if (cal.acted) actions.push({ name: 'calibrate_subject', args: null, result: { ok: true, message: cal.text } });
+        return { text: cal.text, actions, chips: cal.chips, intent: cal.intent };
+      }
+    }
+
+    /* ۰.۲) ادامهٔ گفت‌وگو: «همون رو بذار» / «بیشتر توضیح بده» */
+    {
+      const fu = followUp(ctx, text);
+      if (fu) {
+        if (fu.intent === 'followup_focus') actions.push({ name: 'focus_today_chapter', args: null, result: { ok: true } });
+        return { text: fu.text, actions, chips: fu.chips, intent: fu.intent };
+      }
+    }
+
     /* ۱) احوال‌پرسی */
     if (intent === 'greet' && text.length < 40) {
       const r = ctx.readReport();
       const who = (ctx.studentName && ctx.studentName !== 'دانش‌آموز') ? ' ' + ctx.studentName : '';
-      let t = 'سلام' + who + ' 👋 من مشاور هوشمندِ روالت هستم — هم حرف می‌زنم، هم واقعاً برنامه‌ات را عوض می‌کنم.';
+      const dp = daypart();
+      const greetWord = dp.key === 'morning' ? ' صبح بخیر' : dp.key === 'night' ? ' شب بخیر' : '';
+      let t = 'سلام' + who + ' 👋' + greetWord + ' — من مشاورِ روالت هستم؛ هم حرف می‌زنم، هم واقعاً برنامه‌ات را عوض می‌کنم.';
+      if (prevMem && prevMem.subjectId && /(دوباره|باز|همون|ادامه)/.test(text)) {
+        t = (SUBJECT_FA[prevMem.subjectId] || prevMem.subjectId) + (prevMem.chapter ? ' فصل ' + fa(prevMem.chapter) : '') + ' را ادامه بدهیم؟ ' + t;
+      }
       if (r) {
         t += '\n\nالان: پوشش ' + fa(r.coverage) + '٪ · ' + fa(Math.round(r.hours)) + ' ساعت تا کنکور · ' +
           fa(r.daysLeft) + ' روز مانده.';
@@ -350,6 +466,31 @@
       if (whyDay) {
         const ans = dayWhyAnswer(ctx);
         if (ans) return { text: ans, actions, chips: ['برنامهٔ امروز', 'ساعت مطالعه‌ام را زیاد کن'], intent: 'explain_day' };
+      }
+      /* ۲.۱۰.۳: شبکهٔ ایمنی — هر سؤالِ دیگری هم نباید ابزارِ «تغییر» را بی‌اجازه اجرا کند.
+         قبلاً «چرا امروز این‌قدر سنگینه؟» ابزارِ «بازچینشِ امروز» را واقعاً اجرا می‌کرد. */
+      const MUTATING = ['replan_today', 'set_hours', 'set_block', 'set_rest_day', 'set_exam_date', 'set_start_time',
+        'set_sleep', 'set_time_mode', 'set_weekly_mock', 'set_student_name', 'add_exam', 'add_off_day',
+        'add_emergency', 'swap_today', 'focus_chapter', 'skip_subject', 'start_task', 'rate_chapter',
+        'close_day', 'add_break', 'finish_block', 'undo_today'];
+      /* «از کجا شروع کنم؟» سؤال است، اما جوابش شروعِ کار است — این یکی بی‌خطر و خواسته است */
+      const QUESTION_OK = ['start_task'];
+      if (MUTATING.indexOf(intent) !== -1 && QUESTION_OK.indexOf(intent) === -1) {
+        const cap = ctx.readConfig ? ctx.readConfig() : null;
+        const rep = ctx.readReport ? ctx.readReport() : null;
+        const bits = [];
+        if (rep) bits.push('پوششِ فعلی ' + fa(rep.coverage) + '٪، ' + fa(rep.daysLeft) + ' روز تا کنکور');
+        if (cap) bits.push('ساعتِ اعلامی ' + fa(cap.avgDailyHours) + ' ساعت در روز، بلوکِ ' + fa(cap.blockMinutes) + ' دقیقه');
+        const dayAns = dayWhyAnswer(ctx);
+        return {
+          text: (dayAns ? dayAns + '\n\n' : '') +
+            'این را به‌عنوانِ سؤال خواندم، پس برنامه را عوض نکردم' + (bits.length ? ' (' + bits.join(' · ') + ')' : '') + '.\n' +
+            'اگر واقعاً می‌خواهی تغییرش بدهم، همان را به‌صورتِ دستور بگو؛ مثلاً «امروز را از نو بچین»، ' +
+            '«ساعت امروز را ۵ کن» یا «فصل ۴ ریاضی را امروز بگذار».',
+          actions,
+          chips: ['برنامهٔ امروز', 'امروز را از نو بچین', 'چقدر آماده‌ام؟'],
+          intent: 'question_guard',
+        };
       }
     }
 

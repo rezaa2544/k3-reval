@@ -60,8 +60,11 @@ const VALID_ARGS = {
   get_plan: { scope: 'today' },
   get_report: {},
   top_chapters: { limit: 5 },
+  /* ۲.۱۰.۳ */
+  calibrate_subject: { subjectId: 'math', scale: 1.2 },
+  get_calibration: {},
 };
-const READ_ONLY = ['get_plan', 'get_report', 'top_chapters'];
+const READ_ONLY = ['get_plan', 'get_report', 'top_chapters', 'get_calibration'];
 
 /* ═══════════ الف) فهرستِ ابزارها ═══════════ */
 h('الف) هر کارِ اپ یک ابزار برای دستیار دارد');
@@ -95,7 +98,7 @@ h('ب) هر ابزار واقعاً وضعیتِ برنامه را عوض می�
     if (READ_ONLY.indexOf(name) === -1) {
       ok(log && log.changed.length > 0, '«' + name + '» تغییری در وضعیت ثبت کرد', log ? 'بدون تغییر' : 'لاگ ندارد');
     } else {
-      ok(res && res.data && (Array.isArray(res.data.blocks || res.data.items) || res.data.coverage != null),
+      ok(res && res.data && (Array.isArray(res.data.blocks || res.data.items || res.data.rows) || res.data.coverage != null),
         '«' + name + '» دادهٔ واقعی برمی‌گرداند');
     }
     const after = app._snap('after');

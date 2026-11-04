@@ -515,10 +515,61 @@
     },
   ];
 
+  /* ابزارهای کالیبراسیون (۲.۱۰.۳) پیش از ساختِ فهرست اضافه می‌شوند */
+  __registerCalibrationTools();
+
   const byName = {};
   TOOLS.forEach((t) => { byName[t.name] = t; });
 
   /** فهرست ابزارها به قالب OpenAI function-calling */
+  function __registerCalibrationTools() {
+  /* ── ۲.۱۰.۳: ابزارهای کالیبراسیون ──────────────────────────────────────
+     «ریاضی برای من کندتر است» یا «این فصل ۴ ساعت طول کشید» باید واقعاً ضریبِ
+     زمانِ همان درس را عوض کند، نه اینکه فقط یک جملهٔ دلگرم‌کننده بشنود. */
+  TOOLS.push({
+    name: 'calibrate_subject',
+    title: 'کالیبراسیونِ زمانِ یک درس',
+    description: 'ضریبِ زمانِ یک درس را از دادهٔ واقعیِ دانش‌آموز تنظیم می‌کند (نسبتِ واقعی به برآورد) و برنامه را بازمی‌سازد.',
+    parameters: {
+      type: 'object',
+      required: ['subjectId'],
+      properties: {
+        subjectId: { type: 'string', description: 'شناسهٔ درس (math, chem, bio, phys, …)' },
+        actualMinutes: { type: 'number', description: 'زمانِ واقعیِ صرف‌شده (دقیقه) برای فصلِ گفته‌شده' },
+        estimatedMinutes: { type: 'number', description: 'برآوردِ فعلیِ برنامه برای همان فصل (اختیاری؛ اگر نباشد از برنامه خوانده می‌شود)' },
+        chapter: { type: 'number', description: 'شمارهٔ فصل (اختیاری)' },
+        scale: { type: 'number', description: 'ضریبِ مستقیم، مثلاً 1.2 برای «۲۰٪ کندتر»' },
+      },
+    },
+    run(args, ctx) {
+      if (!ctx.calibrate) return bad('کالیبراسیون در این نسخه در دسترس نیست.');
+      const sid = String((args && args.subjectId) || '').trim();
+      if (!sid) return bad('کدام درس را کالیبره کنم؟');
+      const out = ctx.calibrate({
+        subjectId: sid,
+        chapter: args && args.chapter != null ? Number(args.chapter) : null,
+        actualMinutes: args && args.actualMinutes != null ? Number(args.actualMinutes) : null,
+        estimatedMinutes: args && args.estimatedMinutes != null ? Number(args.estimatedMinutes) : null,
+        scale: args && args.scale != null ? Number(args.scale) : null,
+      });
+      if (!out || !out.ok) return bad((out && out.message) || 'تنظیم نشد.');
+      return ok(out.message, out.data || null);
+    },
+  });
+
+  TOOLS.push({
+    name: 'get_calibration',
+    title: 'خواندنِ کالیبراسیونِ زمان',
+    description: 'وضعیتِ ضریبِ زمانِ هر درس را برمی‌گرداند (چند نمونه، چند درصد اختلاف با برآوردِ پایه).',
+    parameters: { type: 'object', properties: {} },
+    run(args, ctx) {
+      if (!ctx.readCalibration) return bad('کالیبراسیون در دسترس نیست.');
+      const d = ctx.readCalibration();
+      return ok((d && d.text) || 'داده‌ای نیست.', d || null);
+    },
+  });
+  }
+
   function forLLM() {
     return TOOLS.map((t) => ({
       type: 'function',

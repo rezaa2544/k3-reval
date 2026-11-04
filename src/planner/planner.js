@@ -12,6 +12,10 @@
 
   const WEEKDAY_FA = engine.WEEKDAY_FA;
   const WEEKDAY_KEY = engine.WEEKDAY_KEY;
+  /* ۲.۱۰.۳: کالیبراسیونِ اندازه‌گیری‌شدهٔ ضریبِ زمان */
+  const CAL = (function () {
+    try { return (typeof RevalCalibration !== 'undefined' && RevalCalibration) || require('./calibration.js'); } catch (e) { return null; }
+  }());
   const KIND_CLASS = {
     learn: 'b-learn', review: 'b-review', practice: 'b-practice',
     consolidate: 'b-boost', assess: 'b-practice',
@@ -62,6 +66,8 @@
     routinePinned: false,
     wakeTime: '07:00',
     calibration: null,        // ۲.۱۰.۰: حافظهٔ تجربهٔ هستهٔ هوش (adaptive.js)
+    measure: null,            // ۲.۱۰.۳: کالیبراسیونِ ضریبِ زمان (calibration.js)
+    chatMemory: null,         // ۲.۱۰.۳: حافظهٔ گفت‌وگو (درس/فصلِ در دستِ بحث)
   };
   const sessions = () => (state.sessions = state.sessions || {});
   const nowMs = () => Date.now();
@@ -1520,6 +1526,16 @@
       /* ۲.۱۰.۲: دسترسیِ تست به دستیار و زمینهٔ آن */
       aiCtx: () => aiCtx,
       aiRespond: (t) => (typeof AIBrain !== 'undefined' && AIBrain ? AIBrain.respond(t, aiCtx) : null),
+      /* ۲.۱۰.۳: دسترسیِ تست به کالیبراسیون، حافظهٔ چت و وضعیتِ ذخیره */
+      measure: () => meas(),
+      calibRows: () => (CAL ? CAL.rows(meas(), subjectNameOf) : []),
+      cfgCalibration: () => (CAL ? CAL.toConfig(meas()) : null),
+      chatMemory: () => state.chatMemory || null,
+      savedState: () => ({
+        measure: state.measure || null,
+        chatMemory: state.chatMemory || null,
+        plan: Boolean(state.plan),
+      }),
       awaiting: awaitingSessions,
       tick: tickTimers,
       reconcile: reconcileSessions,
@@ -1726,6 +1742,8 @@
       });
     } catch (e) { return null; }
     state.calibration = res.state;
+    /* ۲.۱۰.۳: همان مشاهده، ضریبِ زمانِ همان درس را هم کالیبره می‌کند */
+    try { measureFromBlock(block, a); } catch (e) { /* بی‌صدا */ }
     try { persist(); } catch (e) { /* بی‌صدا */ }
     renderAdaptiveCard();
     if (res.ask) {
@@ -1745,6 +1763,87 @@
     interrupt: 'وسطِ کار قطع شدم',
     shallow: 'سریع رد شدم، کامل نخواندم',
   };
+
+  /* ───────── ۲.۱۰.۳: کالیبراسیون ───────── */
+  function meas() {
+    if (!CAL) return null;
+    if (!state.measure) state.measure = CAL.empty();
+    return state.measure;
+  }
+
+  function measCfg() {
+    if (!CAL) return undefined;
+    try { return CAL.toConfig(meas()); } catch (e) { return undefined; }
+  }
+
+  function subjectNameOf(sid) {
+    const s = (state.config && state.config.subjects || []).find((x) => x.id === sid);
+    return (s && s.name) || sid;
+  }
+
+  /** ثبتِ یک اندازه‌گیری از بلوکِ انجام‌شده — هر «انجام شد» دادهٔ واقعی است */
+  function measureFromBlock(block, actual) {
+    if (!CAL || !block || !block.subjectId) return null;
+    const est = Math.round(Number(block.minutes) || 0);
+    const act = Math.round(Number(actual) || 0);
+    if (est < 10 || act < 5) return null;
+    if (['warmup', 'routine', 'exam', 'mock'].indexOf(block.kind) !== -1) return null;
+    state.measure = CAL.record(meas(), {
+      subjectId: block.subjectId,
+      chapterId: block.topicId || null,
+      estimatedMinutes: est,
+      actualMinutes: act,
+      source: 'observed',
+      at: new Date().toISOString(),
+    });
+    try { persist(); } catch (e) { /* بی‌صدا */ }
+    try { renderCalibCard(); } catch (e) { /* بی‌صدا */ }
+    return state.measure;
+  }
+
+  function renderCalibCard() {
+    const card = $('calibCard');
+    if (!card || !CAL) return;
+    const st = meas();
+    card.style.display = 'block';
+    const sm = CAL.summary(st);
+    if ($('calibSummary')) {
+      $('calibSummary').textContent = sm.measured
+        ? faNum(sm.measured) + ' درس · ' + faNum(sm.samples) + ' نمونه'
+        : 'هنوز اندازه‌گیری نشده';
+    }
+    const rows = CAL.rows(st, subjectNameOf);
+    const host = $('calibRows');
+    if (host) {
+      host.innerHTML = rows.length
+        ? '<table class="tbl" style="width:100%"><thead><tr>' +
+          '<th>درس</th><th>نمونه</th><th>ضریب</th><th>اختلاف با برآوردِ پایه</th><th>اطمینان</th><th>منبع</th></tr></thead><tbody>' +
+          rows.map((r) => '<tr><td>' + esc(r.subjectName) + '</td><td>' + faNum(r.n) + '</td><td>' +
+            faNum(String(r.scale).replace('.', '٫')) + '×</td><td>' +
+            (r.deltaPct === 0 ? '—' : (r.deltaPct > 0 ? '+' : '') + faNum(r.deltaPct) + '٪') + '</td><td>' +
+            faNum(r.confidence) + '٪' + (r.limited ? ' <span class="muted">(محدود)</span>' : '') + '</td><td>' +
+            (r.source === 'manual' ? 'تنظیمِ دستی' : r.source === 'both' ? 'دستی+مشاهده' : 'مشاهدهٔ واقعی') +
+            '</td></tr>').join('') + '</tbody></table>'
+        : '<div class="muted" style="font-size:12px">هنوز داده‌ای نیست. یک بلوک را «انجام شد» بزن، یا همین‌جا ساعتِ واقعیِ یک فصل را ثبت کن.</div>';
+    }
+    const sel = $('calibSubject');
+    if (sel && !sel.options.length) {
+      (state.config && state.config.subjects || []).forEach((x) => {
+        const o = document.createElement('option');
+        o.value = x.id; o.textContent = x.name;
+        sel.appendChild(o);
+      });
+    }
+    if ($('calibNote')) {
+      const perPage = CAL.minutesPerPage(st, ($('calibSubject') && $('calibSubject').value) || 'math', 'quant');
+      $('calibNote').textContent = 'نمونهٔ ضریب: هر صفحهٔ ریاضی در برآوردِ پایه ' + faNum(perPage.base.active) +
+        ' دقیقه بود؛ با ضریبِ فعلی ' + faNum(String(perPage.active).replace('.', '٫')) + ' دقیقه.';
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => { try { renderCalibCard(); } catch (e) { /* بی‌صدا */ } });
+  }
 
   function renderAdaptiveCard() {
     const card = $('adaptiveCard');
@@ -1868,7 +1967,7 @@
     let md = '';
     try {
       md = AD.experienceReport(c, {
-        appVersion: state.appVersion || '2.10.2',
+        appVersion: state.appVersion || '2.10.3',
         grade: (state.config && state.config.student && state.config.student.grade) || (($('grade') || {}).value) || '',
         field: (state.config && state.config.student && state.config.student.field) || (($('field') || {}).value) || '',
         hours: (state.config && state.config.dailyCapHours) || '',
@@ -1934,6 +2033,7 @@
       emergency: (state.emergency || []).slice(),
       dayOverrides: (state.dayOverrides || []).slice(),
       adaptive: adaptiveCfg(),
+      calibration: measCfg(),
       routinePinned: state.routinePinned === true,
       routines: (state.routines || cfg.routines || []).slice(),
       wakeTime: state.wakeTime || cfg.wakeTime,
@@ -2254,6 +2354,7 @@
 
   function renderHome() {
     try { renderAdaptiveCard(); } catch (e) { /* بی‌صدا */ }
+    try { renderCalibCard(); } catch (e) { /* بی‌صدا */ }
     const st = stepStatus();
     const avail = readAvailabilityTotal();
     const ch = readChaptersRead();
@@ -3554,6 +3655,8 @@
       .map((x) => ensureTopicNames(x));
     const schoolDays = { sat: '16:00', sun: '16:00', mon: '16:00', tue: '16:00', wed: '16:00', thu: '09:00', fri: '09:00' };
     return {
+      /* ۲.۱۰.۳: ضریبِ زمانِ کالیبره‌شده با دادهٔ واقعیِ همان درس */
+      calibration: measCfg(),
       student: {
         name: $('name').value.trim() || 'دانش‌آموز',
         grade: $('grade').value,
@@ -3782,6 +3885,7 @@
     try {
       const cfg = collectConfig();
       cfg.adaptive = adaptiveCfg();
+      cfg.calibration = measCfg();
       const plan = engine.createPlan(cfg);
       try {
         window.__revalDebug = {
@@ -4303,12 +4407,31 @@
         '<button class="ovundo" data-undo-day="' + esc(d.date) + '">برگردان</button></div>';
     })();
 
+    /* ۲.۱۰.۳ — «ساعتِ اعلامی چقدر محتوای واقعی گرفت؟» با عدد و دلیل.
+       کاربر شکایت کرده بود که ۸ ساعت اعلام می‌کند و برنامه ۶۷٪ پر می‌شود و
+       معلوم نیست چرا. اکنون هر روز خودش جواب می‌دهد. */
+    const fillHtml = (function () {
+      const f = d.fill;
+      if (!f || !f.capMinutes) return '';
+      const cls = f.pct >= 92 ? 'ok' : f.pct >= 75 ? 'mid' : 'low';
+      const freeTxt = f.freeMinutes >= 20
+        ? ' · ' + faNum(f.freeMinutes) + ' دقیقه آزاد'
+        : '';
+      return '<div class="fillbar ' + cls + '" title="' + esc(f.why) + '">' +
+        '<span class="fnum">' + faNum(f.pct) + '٪</span>' +
+        '<span class="ftxt">از ' + durationFa(f.capMinutes) + ' ظرفیتِ مطالعهٔ خالص — ' + durationFa(f.usedMinutes) +
+        ' محتوای واقعی' + freeTxt + '</span>' +
+        (f.freeMinutes >= 20 ? '<span class="fwhy">' + esc(f.why) + '</span>' : '') +
+        (f.capNote && f.capNote !== f.why ? '<span class="fwhy">' + esc(f.capNote) + '</span>' : '') +
+        '</div>';
+    })();
+
     const head = '<div class="card" style="margin-bottom:10px;background:var(--panel2)">' +
       '<div class="row" style="justify-content:space-between">' +
       '<div><b style="font-size:13.5px">' + esc(jDateFull(d.date)) + '</b>' +
       '<div class="muted" style="font-size:11.5px;margin-top:3px">' + durationFa(d.plannedMinutes) +
       (d.isMockDay ? ' · آزمون جامع' : '') + (d.isDeload ? ' · هفتهٔ سبک' : '') + '</div></div>' +
-      '</div>' + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') +
+      '</div>' + fillHtml + (d.note ? '<div class="muted" style="margin-top:8px">' + esc(d.note) + '</div>' : '') +
       varietyHtml + overrideHtml + '</div>';
 
     const events = (d.events || []).map((e) =>
@@ -4428,6 +4551,7 @@
     syncScoresToChapters();
     cfg.subjects = cfg.subjects.map(withChapters);
     cfg.adaptive = adaptiveCfg();
+      cfg.calibration = measCfg();
     try {
       state.plan = engine.createPlan(cfg);
       state.config = cfg;
@@ -4490,6 +4614,7 @@
     cfg.startDate = iso(new Date());                 // از امروز به بعد بازچینش
     cfg.carryOver = carry;
     cfg.adaptive = adaptiveCfg();
+      cfg.calibration = measCfg();
     try {
       state.plan = engine.createPlan(cfg);
       state.config = cfg;
@@ -4637,6 +4762,9 @@
         wakeTime: state.wakeTime,
         /* v2.7: آخرین نسخه‌ای که کاربر تغییراتش را دیده است */
         calibration: state.calibration || null,
+        /* ۲.۱۰.۳: کالیبراسیونِ اندازه‌گیری‌شدهٔ ضریبِ زمان */
+        measure: state.measure || null,
+        chatMemory: state.chatMemory || null,
         seenVersion: state.seenVersion || null,
         appVersion: state.appVersion || null,
       });
@@ -4663,7 +4791,9 @@
           if (data.wakeTime) state.wakeTime = data.wakeTime;
           if (data.calibration && AD) {
             try { state.calibration = AD.normalize(data.calibration); } catch (e) { state.calibration = null; }
+            try { state.measure = CAL ? CAL.normalize(data.measure) : null; } catch (e) { state.measure = null; }
           }
+          if (data.chatMemory && typeof data.chatMemory === 'object') state.chatMemory = data.chatMemory;
           if (data.seenVersion) state.seenVersion = data.seenVersion;
           if (data.appVersion) state.appVersion = data.appVersion;
           if (data.plan) {
@@ -5058,7 +5188,10 @@
     { id: 'openai', label: 'OpenAI', defaultModel: 'gpt-4o-mini', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1-mini'], keyUrl: 'https://platform.openai.com/api-keys' },
     { id: 'openrouter', label: 'OpenRouter', defaultModel: 'openai/gpt-4o-mini', models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001'], keyUrl: 'https://openrouter.ai/keys' },
     { id: 'gemini', label: 'Google Gemini', defaultModel: 'gemini-2.0-flash', models: ['gemini-2.0-flash', 'gemini-1.5-pro'], keyUrl: 'https://aistudio.google.com/apikey' },
-    { id: 'custom', label: 'سرویس سازگار با OpenAI (آدرس دلخواه)', defaultModel: '', models: [], keyUrl: '' },
+    { id: 'custom', label: 'سرویس سازگار با OpenAI (آدرس دلخواه)', defaultModel: '', models: [], keyUrl: '', keyOptional: true },
+    /* ۲.۱۰.۳ — بدونِ کلید و بدونِ اینترنت: مدلِ محلی روی همین دستگاه */
+    { id: 'ollama', label: 'Ollama (مدلِ محلی، بدونِ کلید)', defaultModel: 'llama3.2', models: ['llama3.2', 'llama3.1', 'qwen2.5', 'gemma2', 'mistral', 'phi3.5'], keyUrl: 'https://ollama.com/download', keyOptional: true },
+    { id: 'lmstudio', label: 'LM Studio (مدلِ محلی، بدونِ کلید)', defaultModel: 'local-model', models: ['local-model'], keyUrl: 'https://lmstudio.ai', keyOptional: true, },
   ];
 
   const ai = {
@@ -5079,6 +5212,14 @@
 
   /* ---------- ابزارهای اجرایی: دستیار با این‌ها واقعاً برنامه را عوض می‌کند ---------- */
   const aiCtx = {
+    /* ۲.۱۰.۳: حافظهٔ گفت‌وگو — در state ذخیره می‌شود تا بین پیام‌ها و اجراهای بعدی بماند */
+    get memory() {
+      if (!state.chatMemory || typeof state.chatMemory !== 'object') {
+        state.chatMemory = { subjectId: null, chapter: null, topic: null, lastIntent: null, turns: 0 };
+      }
+      return state.chatMemory;
+    },
+
     get studentName() { return (state.config && state.config.student && state.config.student.name) || null; },
 
     readConfig() {
@@ -5120,6 +5261,51 @@
       return {
         label: J.fmt(day.date), date: day.date, blocks, count: blocks.length,
         totalMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
+      };
+    },
+
+    /* ۲.۱۰.۳: کالیبراسیونِ زمان — خواندن و تنظیم از راهِ دستیار */
+    readCalibration() {
+      if (!CAL) return { text: 'کالیبراسیون در دسترس نیست.' };
+      const st = meas();
+      return {
+        text: CAL.describe(st, subjectNameOf),
+        measured: CAL.summary(st).measured,
+        samples: CAL.summary(st).samples,
+        rows: CAL.rows(st, subjectNameOf),
+      };
+    },
+
+    calibrate(spec) {
+      if (!CAL) return { ok: false, message: 'کالیبراسیون در دسترس نیست.' };
+      const sid = String((spec && spec.subjectId) || '');
+      if (!sid) return { ok: false, message: 'کدام درس را کالیبره کنم؟' };
+      const stat = ((state.plan && state.plan.summary && state.plan.summary.chapterStats) || [])
+        .find((c) => c.subjectId === sid && (spec.chapter == null || Number(c.chapter) === Number(spec.chapter)));
+      let est = Number(spec.estimatedMinutes) || 0;
+      if (!est && stat && stat.phaseBudget && stat.phaseBudget.total) est = stat.phaseBudget.total;
+      const actual = Number(spec.actualMinutes) || 0;
+      const scale = Number(spec.scale) || 0;
+      if (!est && !actual && !scale) return { ok: false, message: 'چند ساعت واقعی طول کشید؟ (یا چند درصد کندتر بود؟)' };
+      if (scale) {
+        state.measure = CAL.setScale(meas(), sid, scale);
+      } else {
+        if (!est) return { ok: false, message: 'برآوردِ این درس را ندارم؛ اول برنامه را بساز.' };
+        state.measure = CAL.record(meas(), {
+          subjectId: sid, chapterId: spec.chapter ? sid + '.c' + spec.chapter : null,
+          estimatedMinutes: est, actualMinutes: actual, source: 'manual', at: new Date().toISOString(),
+        });
+      }
+      persist();
+      try { renderCalibCard(); } catch (e) { /* بی‌صدا */ }
+      const row = CAL.rows(state.measure, subjectNameOf).find((r) => r.subjectId === sid) || {};
+      try { rebuildWith(null, 'برنامه با ضریبِ ' + subjectNameOf(sid) + ' بازچیده شد.'); } catch (e) { /* بی‌صدا */ }
+      return {
+        ok: true,
+        message: subjectNameOf(sid) + ' کالیبره شد: ضریب ' + faNum(String(row.scale || 1).replace('.', '٫')) +
+          '× (' + (row.deltaPct >= 0 ? '+' : '') + faNum(row.deltaPct || 0) + '٪ نسبت به برآوردِ پایه) — ' +
+          'از این به بعد بودجهٔ زمانِ همین درس با همین ضریب ساخته می‌شود.',
+        data: row,
       };
     },
 
@@ -5192,6 +5378,8 @@
         capMinutes: Math.round(capHours * 60),
         blockCount: blocks.length,
         blocks,
+        /* ۲.۱۰.۳: عدد + دلیلِ وقتِ آزاد از خودِ موتور */
+        fill: day.fill || null,
       };
     },
 
@@ -5743,9 +5931,22 @@
         '<b>' + aiEsc(tool) + '</b>' + (r.message ? '<br>' + aiEsc(r.message) : '') + '</span></div>';
     }).join('');
     const chips = (m.chips || []).map((c) => '<button class="ai-chip" data-chip="' + aiEsc(c) + '">' + aiEsc(c) + '</button>').join('');
+    /* ۲.۱۰.۳: هر پاسخ صریحاً می‌گوید در چه حالتی ساخته شده — «آفلاینِ قاعده‌محور» یا «مدل زبانی» */
+    const MODE_LABEL = {
+      offline: ['🧩', 'حالت آفلاین — قاعده‌محور، بدون هوش زبانی'],
+      local: ['💻', 'مدل زبانیِ محلی روی همین دستگاه'],
+      llm: ['🌐', 'مدل زبانیِ متصل'],
+      fallback: ['🧩', 'آفلاین (اتصال به مدل برقرار نشد)'],
+    };
+    const modeInfo = (!mine && m.mode && MODE_LABEL[m.mode]) ? MODE_LABEL[m.mode] : null;
+    const modeBadge = modeInfo
+      ? '<div class="ai-mode" title="' +
+        aiEsc(modeInfo[1] + ' — اگر می‌خواهی دربارهٔ هر چیزی آزاد حرف بزنی، از تنظیماتِ دستیار یک مدل زبانی (یا Ollama محلی) وصل کن.') +
+        '"><span>' + modeInfo[0] + '</span>' + aiEsc(modeInfo[1]) + '</div>'
+      : '';
     return '<div class="msg ' + (mine ? 'me' : 'ai') + '">' +
       '<div class="mini-av">' + (mine ? 'شما' : 'AI') + '</div>' +
-      '<div><div class="bub">' + aiRich(m.content || '') + '</div>' +
+      '<div><div class="bub">' + aiRich(m.content || '') + '</div>' + modeBadge +
       (actions ? '<div class="ai-tools">' + actions + '</div>' : '') +
       (chips ? '<div class="ai-chips">' + chips + '</div>' : '') +
       '</div></div>';
@@ -5923,13 +6124,25 @@
     ai.busy = true; aiRender();
     try {
       let reply;
-      if (ai.ready && aiApi) reply = await aiLlmReply(clean);
-      else {
+      let mode = 'offline';
+      if (ai.ready && aiApi) {
+        reply = await aiLlmReply(clean);
+        mode = reply.failed ? 'fallback' : ((ai.cfg && ai.cfg.local) ? 'local' : 'llm');
+      } else {
         await new Promise((r) => setTimeout(r, 180));   // حس طبیعیِ «فکر کردن»
         reply = aiOfflineReply(clean);
+        /* اولین پاسخِ آفلاینِ این نشست: صادقانه بگو در چه حالتی‌ام و چطور هوشمندتر می‌شوم */
+        const shown = ai.history.some((m) => m.role === 'assistant' && m.mode);
+        if (!shown) {
+          reply = Object.assign({}, reply, {
+            text: reply.text + '\n\n🧩 الان در «حالت آفلاین» هستم: با قاعده و دانشِ خودِ برنامه جواب می‌دهم، ' +
+              'نه مدل زبانی. برنامه را واقعاً عوض می‌کنم و گفت‌وگو را به یاد می‌آورم، اما برای گفت‌وگوی آزادِ ' +
+              'انسان‌نما از تنظیماتِ دستیار یک مدل وصل کن (یا Ollama محلی، بدونِ کلید).',
+          });
+        }
       }
       ai.busy = false;
-      aiPush('assistant', reply.text, { chips: reply.chips, actions: reply.actions });
+      aiPush('assistant', reply.text, { chips: reply.chips, actions: reply.actions, mode });
       aiSaveHistory();
     } catch (err) {
       ai.busy = false;
@@ -5995,7 +6208,7 @@
       list.innerHTML = ((p && p.models) || []).map((m) => '<option value="' + aiEsc(m) + '"></option>').join('');
     }
     if ($('aiModel') && p && p.defaultModel && !$('aiModel').value) $('aiModel').value = p.defaultModel;
-    if ($('aiBaseRow')) $('aiBaseRow').style.display = prov === 'custom' ? '' : 'none';
+    if ($('aiBaseRow')) $('aiBaseRow').style.display = (prov === 'custom' || prov === 'ollama' || prov === 'lmstudio') ? '' : 'none';
     if ($('aiKeyHint') && p && p.keyUrl) {
       const el = $('aiKeyHint');
       el.innerHTML = el.textContent + ' · <a href="#" data-key-url="' + aiEsc(p.keyUrl) + '" style="color:#4f46e5">گرفتن کلید ' + aiEsc(p.label) + '</a>';
@@ -6125,6 +6338,59 @@
   if ($('adaptiveQuizBtn')) $('adaptiveQuizBtn').addEventListener('click', () => { try { renderLevelQuiz(); } catch (e) { /* بی‌صدا */ } });
   if ($('adaptiveAskBtn')) $('adaptiveAskBtn').addEventListener('click', () => { try { renderAdaptiveCard(); const el = $('adaptiveQuestions'); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { /* بی‌صدا */ } });
   if ($('adaptiveReportBtn')) $('adaptiveReportBtn').addEventListener('click', () => { try { downloadExperienceReport(); } catch (e) { /* بی‌صدا */ } });
+  /* ── دکمه‌های کالیبراسیون (۲.۱۰.۳) ── */
+  if ($('calibAdd')) $('calibAdd').addEventListener('click', () => {
+    try {
+      const sid = ($('calibSubject') && $('calibSubject').value) || 'math';
+      const chRaw = String(($('calibChapter') && $('calibChapter').value) || '').replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)));
+      const ch = chRaw ? Number(chRaw) : null;
+      const hRaw = String(($('calibHours') && $('calibHours').value) || '').replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace('٫', '.');
+      const hours = Number(hRaw);
+      if (!(hours > 0)) return toast('ساعتِ واقعی را وارد کن (مثلاً ۳٫۵).');
+      const actual = Math.round(hours * 60);
+      /* برآوردِ همان فصل از برنامهٔ فعلی (یا از مدل، اگر در برنامه نبود) */
+      let est = 0;
+      const stat = ((state.plan && state.plan.summary && state.plan.summary.chapterStats) || [])
+        .find((c) => c.subjectId === sid && (ch == null || Number(c.chapter) === ch));
+      if (stat && stat.phaseBudget && stat.phaseBudget.total) est = stat.phaseBudget.total;
+      if (!est && stat) est = Math.round((stat.learnMinutes || 0) + (stat.practiceMinutes || 0) + (stat.consolidateMinutes || 0) + (stat.assessMinutes || 0));
+      if (!est) est = Math.round(hours * 60 * 0.8);            // بدونِ برنامه: برآوردِ محافظه‌کارانه
+      state.measure = CAL.record(meas(), {
+        subjectId: sid, chapterId: ch ? sid + '.c' + ch : null,
+        estimatedMinutes: est, actualMinutes: actual, source: 'manual', at: new Date().toISOString(),
+      });
+      persist();
+      renderCalibCard();
+      const row = CAL.rows(state.measure, subjectNameOf).find((r) => r.subjectId === sid);
+      toast('ثبت شد: ' + subjectNameOf(sid) + ' — برآورد ' + faNum(Math.round(est)) + ' دقیقه، واقعی ' +
+        faNum(actual) + ' دقیقه · ضریبِ تازه ' + faNum(String(row ? row.scale : 1).replace('.', '٫')) + '×');
+      if (typeof rebuildWith === 'function') {
+        rebuildWith(null, 'برنامه با ضریبِ اندازه‌گیری‌شدهٔ ' + subjectNameOf(sid) + ' بازچیده شد.');
+      }
+    } catch (e) { toast('ثبت انجام نشد: ' + (e && e.message ? e.message : '')); }
+  });
+  if ($('calibSubject')) $('calibSubject').addEventListener('change', () => { try { renderCalibCard(); } catch (e) { /* بی‌صدا */ } });
+  if ($('calibReset')) $('calibReset').addEventListener('click', () => {
+    try {
+      state.measure = CAL.empty();
+      persist();
+      renderCalibCard();
+      toast('کالیبراسیون بازنشانی شد؛ ضریب‌ها به برآوردِ پایهٔ گزارش برگشتند.');
+      if (typeof rebuildWith === 'function') rebuildWith(null, 'برنامه با برآوردِ پایه بازچیده شد.');
+    } catch (e) { /* بی‌صدا */ }
+  });
+  if ($('calibExport')) $('calibExport').addEventListener('click', () => {
+    try {
+      const data = JSON.stringify({ kind: 'reval-calibration', version: 1, at: new Date().toISOString(), measure: meas() }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'reval-calibration.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      toast('فایلِ کالیبراسیون ساخته شد.');
+    } catch (e) { /* بی‌صدا */ }
+  });
+
   if ($('adaptiveCondition')) $('adaptiveCondition').addEventListener('change', (ev) => {
     try {
       const picked = (ev && ev.target && ev.target.value) || $('adaptiveCondition').value;

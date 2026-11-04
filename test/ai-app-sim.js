@@ -131,7 +131,16 @@ function createApp(opts) {
     return changed;
   }
 
+  /* نامِ فارسیِ درس از برنامه (برای نمایش در کالیبراسیون) */
+  function rowName(id) {
+    const hit = ((st.plan && st.plan.summary && st.plan.summary.chapterStats) || []).find((c) => c.subjectId === id);
+    if (hit && hit.subjectName) return hit.subjectName;
+    const s2 = (st.cfg.subjects || []).find((x) => x.id === id);
+    return (s2 && s2.name) || id;
+  }
+
   function rebuild() {
+    st.cfg.calibration = st.calibration || undefined;
     st.cfg.dayOverrides = st.overrides.slice();
     st.cfg.subjects = cfgSubjects();
     st.cfg.emergency = st.urgent.slice();
@@ -196,6 +205,37 @@ function createApp(opts) {
         todayCount: blocks.length, todayMinutes: blocks.reduce((a, b) => a + (b.minutes || 0), 0),
         weak: '', warnings: [],
       };
+    },
+    /* ۲.۱۰.۳: کالیبراسیونِ ضریبِ زمان — همان مسیرِ واقعیِ اپ، در شبیه‌ساز */
+    readCalibration() {
+      const CAL = require('../src/planner/calibration.js');
+      st.measure = st.measure || CAL.empty();
+      const rows = CAL.rows(st.measure, (id) => (rowName(id)));
+      return {
+        text: rows.length ? rows.map((r) => r.subjectName + ': ' + Math.round(r.scale * 100) + '٪').join(' · ') : 'هنوز کالیبراسیونی ثبت نشده.',
+        rows,
+      };
+    },
+    calibrate(spec) {
+      const CAL = require('../src/planner/calibration.js');
+      const sp = spec || {};
+      if (!sp.subjectId) return { ok: false, message: 'کدام درس را کالیبره کنم؟' };
+      st.measure = st.measure || CAL.empty();
+      const before = snap('calibrate');
+      if (sp.scale) st.measure = CAL.setScale(st.measure, sp.subjectId, Number(sp.scale));
+      else {
+        const est = Number(sp.estimatedMinutes) || 120;
+        const act = Number(sp.actualMinutes) || est;
+        st.measure = CAL.record(st.measure, {
+          subjectId: sp.subjectId, chapterId: sp.chapter ? sp.subjectId + '.c' + sp.chapter : null,
+          estimatedMinutes: est, actualMinutes: act, source: 'manual', at: new Date().toISOString(),
+        });
+      }
+      st.calibration = CAL.toConfig(st.measure);
+      rebuild();
+      record('calibrate', before);
+      const r = CAL.rows(st.measure, (id) => rowName(id)).find((x) => x.subjectId === sp.subjectId) || {};
+      return { ok: true, message: rowName(sp.subjectId) + ' کالیبره شد: ' + Math.round((r.scale || 1) * 100) + '٪', data: r };
     },
     readChapters(opts) {
       if (!st.plan) return null;

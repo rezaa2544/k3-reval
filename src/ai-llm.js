@@ -47,6 +47,28 @@ const PROVIDERS = {
     models: [],
     defaultModel: 'local-model',
     keyUrl: '',
+    keyOptional: true,
+    local: true,
+  },
+  /* ۲.۱۰.۳ — مدلِ محلی: بدونِ کلید، بدونِ اینترنت، بدونِ هزینه.
+     Ollama و LM Studio هر دو همین قالبِ OpenAI را سرو می‌کنند. */
+  ollama: {
+    label: 'Ollama (مدلِ محلی، بدونِ کلید)',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    models: ['llama3.2', 'llama3.1', 'qwen2.5', 'gemma2', 'mistral', 'phi3.5'],
+    defaultModel: 'llama3.2',
+    keyUrl: 'https://ollama.com/download',
+    keyOptional: true,
+    local: true,
+  },
+  lmstudio: {
+    label: 'LM Studio (مدلِ محلی، بدونِ کلید)',
+    baseUrl: 'http://127.0.0.1:1234/v1',
+    models: ['local-model'],
+    defaultModel: 'local-model',
+    keyUrl: 'https://lmstudio.ai',
+    keyOptional: true,
+    local: true,
   },
 };
 
@@ -96,7 +118,9 @@ function publicConfig(userDataDir) {
     hasKey: Boolean(c.key && c.key.length > 8),
     keyHint: c.key ? (c.key.slice(0, 3) + '…' + c.key.slice(-4)) : '',
     keyUrl: p.keyUrl || '',
-    ready: Boolean(c.key && c.key.length > 8),
+    local: Boolean(p.local),
+    keyOptional: Boolean(p.keyOptional),
+    ready: Boolean(p.keyOptional || (c.key && c.key.length > 8)),
   };
 }
 
@@ -104,6 +128,7 @@ function providersPublic() {
   return Object.keys(PROVIDERS).map((id) => ({
     id, label: PROVIDERS[id].label, models: PROVIDERS[id].models || [],
     defaultModel: PROVIDERS[id].defaultModel, keyUrl: PROVIDERS[id].keyUrl || '',
+    keyOptional: Boolean(PROVIDERS[id].keyOptional), local: Boolean(PROVIDERS[id].local),
   }));
 }
 
@@ -154,7 +179,11 @@ function explainError(status, json, raw) {
 async function chat(userDataDir, payload, deps) {
   const cfg = readConfig(userDataDir);
   if (!cfg.enabled) return { ok: false, error: 'هوش مصنوعی برون‌خطی خاموش است.' };
-  if (!cfg.key || cfg.key.length < 8) return { ok: false, error: 'کلید API تنظیم نشده است.', needsKey: true };
+  const prov = PROVIDERS[cfg.provider] || PROVIDERS.openai;
+  /* مدلِ محلی (Ollama/LM Studio) کلید نمی‌خواهد */
+  if (!prov.keyOptional && (!cfg.key || cfg.key.length < 8)) {
+    return { ok: false, error: 'کلید API تنظیم نشده است.', needsKey: true };
+  }
 
   const body = {
     model: (payload && payload.model) || cfg.model,
@@ -170,7 +199,7 @@ async function chat(userDataDir, payload, deps) {
   const doRequest = (deps && deps.request) || requestJson;
   const res = await doRequest(url, {
     headers: {
-      Authorization: 'Bearer ' + cfg.key,
+      Authorization: 'Bearer ' + (cfg.key || (prov.keyOptional ? 'local' : '')),
       ...(cfg.provider === 'openrouter' ? { 'HTTP-Referer': 'https://revaledu.ir', 'X-Title': 'Reval' } : {}),
     },
     body,

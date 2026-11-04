@@ -127,10 +127,12 @@ console.log('\n▌ اجرا: برنامهٔ امروز واقعاً عوض می�
   ok(minutesOf(after, 'chem') >= chemBefore, 'شیمی وقتِ بیشتری گرفت',
     chemBefore + ' → ' + minutesOf(after, 'chem'));
   ok(bioBefore > 0, 'قبل از تغییر زیست وقت داشت (پیش‌شرط)');
-  /* فصل‌ها حذف نشده‌اند: در برنامهٔ فردا باید برگردند */
-  const tomorrow = (ctx.plan.days || []).find((d) => d.date === '2026-10-31');
-  const bioTomorrow = ((tomorrow && tomorrow.blocks) || []).some((b) => b.subjectId === 'bio');
-  ok(bioTomorrow, 'فصل‌های زیست حذف نشده‌اند و فردا برمی‌گردند');
+  /* فصل‌ها حذف نشده‌اند: زیست باید در روزهای بعدیِ برنامه برگردد.
+     ۲.۱۰.۳: پنجره از «فقط فردا» به «۷ روزِ بعد» باز شد — با استفادهٔ کامل‌تر از
+     ساعتِ اعلامی، زیست ممکن است دقیقاً فردا نیفتد ولی هرگز حذف نمی‌شود. */
+  const next7 = (ctx.plan.days || []).filter((d) => d.date > TODAY && d.date <= '2026-11-06');
+  const bioLater = next7.reduce((a, d) => a + (d.blocks || []).filter((b) => b.subjectId === 'bio').reduce((x, b) => x + b.minutes, 0), 0);
+  ok(bioLater > 0, 'فصل‌های زیست حذف نشده‌اند و در روزهای بعد برمی‌گردند', bioLater + ' دقیقه در ۷ روز');
 
   /* پاسخ باید «قبل/بعد» واقعی داشته باشد، نه ادعا */
   ok(/انجام شد/.test(res.text), 'پاسخ با تأییدِ انجام کار شروع می‌شود');

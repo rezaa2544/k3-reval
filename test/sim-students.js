@@ -70,7 +70,7 @@ function auditPlan(tag, cfg, plan) {
     blocks.forEach((b) => {
       if (!b || typeof b.start !== 'string' || typeof b.end !== 'string') { nanBlocks += 1; return; }
       const s = iso2min(b.start); const e = iso2min(b.end);
-      if (!(e > s) || !(b.minutes > 0)) badTimes += 1;
+      if (!(e > s) || !(b.minutes > 0)) { badTimes += 1; if (process.env.DBG) console.log('[BAD]', tag, d.date, b.start, b.end, b.kind, b.subjectName, b.minutes); }
       if (s < lastEnd) overlaps += 1;   // ترتیب و عدم همپوشانی درون روز
       lastEnd = Math.max(lastEnd, e);
       planned += b.minutes || 0;
@@ -94,7 +94,8 @@ function auditPlan(tag, cfg, plan) {
     });
     if (off && blocks.length) blocksOnOff += 1;
     if (isRest && blocks.some((b) => ['learn', 'practice', 'reteach', 'boost', 'carry'].indexOf(b.kind) !== -1)) learnOnRest += 1;
-    if (cap > 0 && planned > cap * 60 + 30) overCapacity += 1;    // ۳۰ دقیقه ارفاق
+    if (cap > 0 && planned > cap * 60 + 30) { overCapacity += 1; if (process.env.DBG) console.log('[OVER]', tag, d.date, planned, 'cap', cap * 60); }
+    if (cap === 0 && planned > 60 && !off) { overCapacity += 1; if (process.env.DBG) console.log('[OVER0]', tag, d.date, planned); }
     if (cap === 0 && planned > 60 && !off) overCapacity += 1;      // روز بی‌ظرفیت
   });
 
@@ -188,7 +189,10 @@ auditPlan('آرمان', p1cfg, p1);
     ok(bestNotDone.length === 0, '[آرمان] پرتکرارترین فصل هر درس خوانده می‌شود', bestNotDone.join('، '));
   }
   const lowWarn = (cov.diagnostics || []).filter((d) => d.id === 'low-capacity')[0];
-  ok(cov.coverageRatio === 100 ? !lowWarn : !!lowWarn,
+  /* ۲.۱۰.۳: با استفادهٔ کامل از ساعتِ اعلامی، پوشش به ۹۹–۱۰۰٪ می‌رسد و باقیِ
+     یک‌درصدی گردکردنِ بلوک است، نه کمبودِ ظرفیت — پس هشدار «کمبودِ ساعت»
+     فقط وقتی لازم است که پوشش واقعاً زیر ۹۹٪ باشد. */
+  ok(cov.coverageRatio >= 99 ? !lowWarn : !!lowWarn,
     '[آرمان] وضعیت هشدار با پوشش واقعی می‌خواند', cov.coverageRatio + '٪ · ' + (lowWarn ? 'هشدار دارد' : 'بدون هشدار'));
   /* قبل از آزمون: فقط مرور */
   const examDate = addDays('2026-10-30', 30);

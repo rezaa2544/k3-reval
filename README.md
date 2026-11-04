@@ -1,7 +1,7 @@
 # k3-reval — اپلیکیشن دسکتاپ روال (Reval)
 
-[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.2-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.2/Reval-Setup-2.10.2.exe)
-[![Release](https://img.shields.io/badge/Release-v2.10.2-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.2)
+[![Download](https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF-%D9%86%D8%B5%D8%A8%DB%8C%20%D9%88%DB%8C%D9%86%D8%AF%D9%88%D8%B2%20v2.10.3-2ea043?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.3/Reval-Setup-2.10.3.exe)
+[![Release](https://img.shields.io/badge/Release-v2.10.3-6366f1?style=for-the-badge&logo=github)](https://github.com/rezaa2544/k3-reval/releases/tag/v2.10.3)
 [![Platform](https://img.shields.io/badge/Windows-x64-0ea5e9?style=for-the-badge&logo=windows)](https://github.com/rezaa2544/k3-reval/releases)
 [![License](https://img.shields.io/badge/Electron-31.7.7-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org)
 
@@ -9,26 +9,45 @@
 
 <div align="center">
 
-### [💾 Reval-Setup-2.10.2.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.2/Reval-Setup-2.10.2.exe)
+### [💾 Reval-Setup-2.10.3.exe](https://github.com/rezaa2544/k3-reval/releases/download/v2.10.3/Reval-Setup-2.10.3.exe)
 
-**۷۶٫۵ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۲**
+**~۸۰ مگابایت · ویندوز ۶۴ بیتی · نصب‌کننده NSIS · نسخهٔ ۲.۱۰.۳**
 
-`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.2/Reval-Setup-2.10.2.exe`
+`https://github.com/rezaa2544/k3-reval/releases/download/v2.10.3/Reval-Setup-2.10.3.exe`
 
 </div>
 
 | | |
 |---|---|
-| **SHA-256** | `32ebb386dcbdb201727881a5490a10f7ec76efa120be196b76a764f8d32615df` |
-| **حجم دقیق** | ۸۰٬۲۱۶٬۰۹۷ بایت |
+| **SHA-256** | `583e9e3ec7563ed524d68f45093ddc769bf47aed4b519a4100d2a9a9d5b7544a` |
+| **حجم دقیق** | ۸۰٬۲۲۹٬۳۱۶ بایت (۷۶٫۵ مگابایت) |
 | **نصب** | فایل را اجرا کنید → در صورت پیام SmartScreen: **More info → Run anyway** → **Install** |
 | **مسیر نصب** | `%LOCALAPPDATA%\Programs\Reval` (بدون نیاز به دسترسی ادمین) |
-| **کپی محلی** | `dist/Reval-Setup-2.10.2.exe` در همین مخزن |
-| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.2.zip` — ۸۶۲ کیلوبایت، فقط فایل‌های عوض‌شده |
+| **کپی محلی** | `dist/Reval-Setup-2.10.3.exe` در همین مخزن |
+| **وصلهٔ کم‌حجم** | `dist/reval-code-2.10.3.zip` — فقط فایل‌های عوض‌شده |
 | **همهٔ نسخه‌ها** | [Releases](https://github.com/rezaa2544/k3-reval/releases) |
 
 > ⚠️ نصب‌کننده با گواهی تجاری امضا نشده است؛ به همین دلیل ویندوز ممکن است هشدار SmartScreen بدهد.
 > کد کامل باز است و همین مخزن قابل ساخت و بازبینی است.
+
+---
+
+## ↕️ نسخهٔ ۲.۱۰.۳ — سه عذری که بسته شد: کالیبراسیونِ واقعی · ساعتِ اعلامیِ پرمحتوا · دستیارِ انسان‌نما
+
+| | | |
+|---|---|---|
+| **زمینه** | یادداشتِ ۲.۱۰.۲ سه محدودیت را «اعلام» کرده بود: ضریب‌های زمان کالیبره‌نشده‌اند، ۸ ساعت اعلامی همیشه محتوا ندارد (۶۷٪)، و دستیارِ آفلاین قاعده‌محور است. در ۲.۱۰.۳ هر سه **بسته** شد، نه بازتوضیح |
+| **کالیبراسیون** | هر بلوکِ «انجام شد» یا «فصل ۲ شیمی ۵ ساعت طول کشید» ⇒ ضریبِ همان درس اصلاح و **بودجهٔ فصلِ بعدی** با آن ساخته می‌شود (برآورد ۲۰۰ / واقعیت ۲۶۰ ⇒ ۱٫۳×). کارتِ کامل با نمونه، اطمینان و منبع؛ زیرِ ۳ نمونه اثر محدود به ±۱۵٪، ضریب همیشه بین ۰٫۶ تا ۱٫۸ |
+| **از راهِ چت** | «ریاضی برای من ۲۰٪ کندتر است» ⇒ دو ابزارِ تازه `calibrate_subject` و `get_calibration` واقعاً اجرا می‌شوند و برنامه بازچیده می‌شود |
+| **ساعتِ اعلامی** | ظرفیتِ **خالصِ** مطالعه (پنجره منهای استراحتِ بین بلوک) جای پنجرهٔ خام را گرفت و ذخیرهٔ حاشیه به یادگیری رفت: پرشدگی ۴/۶/۸/۱۰ ساعت از ۷۶/۷۴/۷۰/۶۷٪ به **۸۱/۷۹/۸۲/۸۲٪**؛ پوششِ فصل‌ها در ۴ ساعت از ۷۷٪ به **۹۵٪** |
+| **وقتی پر نشد** | نوارِ «پرشدگیِ روز» درصد + دقیقه + **دلیلِ فارسی** را می‌گوید (`full` / `pool_done` / `tight_pool` / `tight_short` / `rest`) و فاصلهٔ «ساعتِ اعلامی» و «ظرفیتِ خالص» را توضیح می‌دهد |
+| **دو باگِ لو رفته** | مجموعِ بلوک‌های روز از ظرفیت بیرون می‌زد؛ بلوکِ تا نیمه‌شب «۰۰:۰۰» نوشته می‌شد (پایان ≤ شروع). هر دو مهار شد |
+| **دستیار** | حافظهٔ گفت‌وگو («همون رو بذار»)، لحنِ زمان‌آگاه، و **نشانِ صریحِ حالت** روی هر پاسخ (آفلاینِ قاعده‌محور / مدلِ زبانی / مدلِ محلی) |
+| **سؤال ≠ دستور** | هر سؤالِ رسیده به ابزارِ تغییر، بی‌اجرا جواب می‌گیرد؛ باگِ «چرا امروز سنگینه؟ ⇒ بازچینشِ امروز» بسته شد |
+| **مدلِ محلی** | Ollama و LM Studio بدونِ کلید و بدونِ اینترنت؛ سرویسِ سازگار با OpenAI هم کلید اجباری ندارد |
+| **آزمون** | `calib-2103` **۵۳ ✅** · `ui-calib-2103` **۲۴ ✅** · ۱۸ سوئیتِ موتور + ۷ سوئیتِ UI — همه سبز |
+
+جزئیات: [یادداشت انتشار ۲.۱۰.۳](docs/release-notes-2.10.3.md)
 
 ---
 
